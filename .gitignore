@@ -1,0 +1,40 @@
+# Build output
+build/
+build-clangd/
+cmake-build-*/
+
+# IDE
+.idea/
+.vscode/
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+DerivedData/
+
+# clangd
+compile_commands.json
+.cache/
+
+# macOS
+.DS_Store
+*.swp
+*~
+
+# JUCE specific
+JuceLibraryCode/
+Builds/
+
+# Compiled files
+*.o
+*.obj
+*.a
+*.lib
+*.dylib
+*.so
+*.dll
+
+# Debug files
+*.dSYM/
+
+# Logs
+*.log
