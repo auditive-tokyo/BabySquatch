@@ -4,7 +4,11 @@
 BabySquatchAudioProcessorEditor::BabySquatchAudioProcessorEditor (BabySquatchAudioProcessor& p)
     : AudioProcessorEditor (&p), processorRef (p)
 {
-    setSize (400, 300);
+    addAndMakeVisible (oomphPanel);
+    addAndMakeVisible (clickPanel);
+    addAndMakeVisible (dryPanel);
+
+    setSize (UIConstants::windowWidth, UIConstants::windowHeight);
 }
 
 BabySquatchAudioProcessorEditor::~BabySquatchAudioProcessorEditor()
@@ -13,18 +17,19 @@ BabySquatchAudioProcessorEditor::~BabySquatchAudioProcessorEditor()
 
 void BabySquatchAudioProcessorEditor::paint (juce::Graphics& g)
 {
-    g.fillAll (juce::Colours::darkgrey);
-
-    g.setColour (juce::Colours::white);
-    g.setFont (30.0f);
-    g.drawFittedText ("Baby Squatch", getLocalBounds(), juce::Justification::centred, 1);
-    
-    g.setFont (15.0f);
-    auto bounds = getLocalBounds();
-    bounds.removeFromTop (bounds.getHeight() / 2 + 20);
-    g.drawFittedText ("Hello World!", bounds, juce::Justification::centred, 1);
+    g.fillAll (UIConstants::Colours::background);
 }
 
 void BabySquatchAudioProcessorEditor::resized()
 {
+    auto area = getLocalBounds().reduced (UIConstants::panelPadding);
+    const int panelWidth = (area.getWidth() - UIConstants::panelGap * 2) / 3;
+
+    oomphPanel.setBounds (area.removeFromLeft (panelWidth));
+    area.removeFromLeft (UIConstants::panelGap);
+
+    clickPanel.setBounds (area.removeFromLeft (panelWidth));
+    area.removeFromLeft (UIConstants::panelGap);
+
+    dryPanel.setBounds (area);
 }

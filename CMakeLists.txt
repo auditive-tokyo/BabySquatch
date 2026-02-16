@@ -31,6 +31,9 @@ target_sources(BabySquatch
     PRIVATE
         Source/PluginProcessor.cpp
         Source/PluginEditor.cpp
+        Source/GUI/UIConstants.h
+        Source/GUI/CustomSliderLAF.h
+        Source/GUI/PanelComponent.h
 )
 
 target_compile_definitions(BabySquatch
