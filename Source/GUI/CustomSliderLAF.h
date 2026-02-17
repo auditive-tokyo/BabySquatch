@@ -14,8 +14,7 @@ public:
 
   void drawRotarySlider(juce::Graphics &g, int x, int y, int width, int height,
                         float sliderPosProportional, float rotaryStartAngle,
-                        float rotaryEndAngle,
-                        juce::Slider & /*slider*/) override {
+                        float rotaryEndAngle, juce::Slider &slider) override {
     const float radius = (float)juce::jmin(width, height) * 0.40f;
     const float centreX = (float)x + (float)width * 0.5f;
     const float centreY = (float)y + (float)height * 0.5f;
@@ -38,9 +37,8 @@ public:
     }
 
     // ── 値アーク（グラデーショングロー） ──
-    const float angle = std::lerp(rotaryStartAngle, rotaryEndAngle, sliderPosProportional);
-
-    if (angle > rotaryStartAngle + 0.01f) {
+    if (const float angle = std::lerp(rotaryStartAngle, rotaryEndAngle, sliderPosProportional);
+        angle > rotaryStartAngle + 0.01f) {
       const float totalArcLen = angle - rotaryStartAngle;
       // グラデーションを段階的に描画（暗→明）
       constexpr int numSegments = 64;
@@ -79,6 +77,19 @@ public:
       g.strokePath(softGlow, juce::PathStrokeType(
                                  stroke + 3.0f, juce::PathStrokeType::curved,
                                  juce::PathStrokeType::rounded));
+    }
+
+    // ── ノブ中央に dB 値を描画 ──
+    {
+      const auto valueText = juce::String(slider.getValue(), 1) + " dB";
+      const float fontSize = radius * 0.38f;
+      g.setFont(fontSize);
+      g.setColour(UIConstants::Colours::text);
+
+      const auto textBounds = juce::Rectangle<float>(centreX - radius * 0.7f,
+                                                     centreY - fontSize * 0.5f,
+                                                     radius * 1.4f, fontSize);
+      g.drawText(valueText, textBounds, juce::Justification::centred, false);
     }
   }
 

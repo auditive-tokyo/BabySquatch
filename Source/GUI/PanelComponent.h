@@ -11,7 +11,7 @@ class PanelComponent : public juce::Component {
 public:
   PanelComponent(const juce::String &name, juce::Colour arcColour,
                  juce::Colour thumbColour)
-      : laf(arcColour, thumbColour), valueColour(arcColour) {
+      : laf(arcColour, thumbColour) {
     // ── タイトルラベル ──
     titleLabel.setText(name, juce::dontSendNotification);
     titleLabel.setJustificationType(juce::Justification::centred);
@@ -25,19 +25,6 @@ public:
     knob.setValue(0.0);
     knob.setLookAndFeel(&laf);
     addAndMakeVisible(knob);
-
-    // ── 値ラベル（dB 表示 - アーク色で蛍光風に） ──
-    valueLabel.setJustificationType(juce::Justification::centred);
-    valueLabel.setColour(juce::Label::textColourId, valueColour);
-    addAndMakeVisible(valueLabel);
-
-    // ノブの値が変わったら表示を更新
-    knob.onValueChange = [this] {
-      valueLabel.setText(juce::String(knob.getValue(), 1) + " dB",
-                         juce::dontSendNotification);
-    };
-    // 初期値を反映
-    knob.onValueChange();
   }
 
   ~PanelComponent() override { knob.setLookAndFeel(nullptr); }
@@ -51,7 +38,6 @@ public:
     auto area = getLocalBounds().reduced(UIConstants::panelPadding);
 
     titleLabel.setBounds(area.removeFromTop(UIConstants::labelHeight));
-    valueLabel.setBounds(area.removeFromBottom(UIConstants::valueHeight));
     knob.setBounds(area);
   }
 
@@ -59,10 +45,8 @@ public:
 
 private:
   ColouredSliderLAF laf;
-  juce::Colour valueColour;
   juce::Slider knob;
   juce::Label titleLabel;
-  juce::Label valueLabel;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PanelComponent)
 };
