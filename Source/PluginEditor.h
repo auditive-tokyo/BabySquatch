@@ -13,8 +13,6 @@ public:
     void resized() override;
 
 private:
-    BabySquatchAudioProcessor& processorRef;
-
     PanelComponent oomphPanel { "OOMPH",
                                 UIConstants::Colours::oomphArc,
                                 UIConstants::Colours::oomphThumb };

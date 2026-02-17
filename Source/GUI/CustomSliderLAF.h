@@ -38,9 +38,7 @@ public:
     }
 
     // ── 値アーク（グラデーショングロー） ──
-    const float angle =
-        rotaryStartAngle +
-        sliderPosProportional * (rotaryEndAngle - rotaryStartAngle);
+    const float angle = std::lerp(rotaryStartAngle, rotaryEndAngle, sliderPosProportional);
 
     if (angle > rotaryStartAngle + 0.01f) {
       const float totalArcLen = angle - rotaryStartAngle;

@@ -8,9 +8,7 @@ BabySquatchAudioProcessor::BabySquatchAudioProcessor()
 {
 }
 
-BabySquatchAudioProcessor::~BabySquatchAudioProcessor()
-{
-}
+BabySquatchAudioProcessor::~BabySquatchAudioProcessor() = default;
 
 const juce::String BabySquatchAudioProcessor::getName() const
 {

@@ -2,7 +2,7 @@
 #include "PluginEditor.h"
 
 BabySquatchAudioProcessorEditor::BabySquatchAudioProcessorEditor (BabySquatchAudioProcessor& p)
-    : AudioProcessorEditor (&p), processorRef (p)
+    : AudioProcessorEditor (&p)
 {
     addAndMakeVisible (oomphPanel);
     addAndMakeVisible (clickPanel);
@@ -11,9 +11,7 @@ BabySquatchAudioProcessorEditor::BabySquatchAudioProcessorEditor (BabySquatchAud
     setSize (UIConstants::windowWidth, UIConstants::windowHeight);
 }
 
-BabySquatchAudioProcessorEditor::~BabySquatchAudioProcessorEditor()
-{
-}
+BabySquatchAudioProcessorEditor::~BabySquatchAudioProcessorEditor() = default;
 
 void BabySquatchAudioProcessorEditor::paint (juce::Graphics& g)
 {
