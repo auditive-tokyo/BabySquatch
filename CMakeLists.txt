@@ -34,6 +34,7 @@ target_sources(BabySquatch
         Source/GUI/UIConstants.h
         Source/GUI/CustomSliderLAF.h
         Source/GUI/PanelComponent.h
+        Source/GUI/PanelComponent.cpp
 )
 
 target_compile_definitions(BabySquatch
