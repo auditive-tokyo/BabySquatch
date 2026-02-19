@@ -19,6 +19,12 @@ public:
 
   juce::Slider &getKnob();
 
+  // 展開ボタンが押された時に親へ通知するコールバック
+  std::function<void()> onExpandRequested;
+
+  // 展開インジケータ更新（親から呼ばれる）
+  void setExpandIndicator(bool isThisPanelExpanded);
+
 private:
   // ── 透明クリック領域（ノブ中央の値テキスト上に配置） ──
   class ValueClickArea : public juce::Component {
@@ -46,6 +52,7 @@ private:
   ValueClickArea clickArea;
   juce::TextEditor valueEditor;
   GlobalClickListener globalClickListener;
+  juce::TextButton expandButton;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PanelComponent)
 };

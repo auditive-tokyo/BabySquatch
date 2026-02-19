@@ -4,9 +4,8 @@
 // ────────────────────────────────────────────────────
 // コンストラクタ
 // ────────────────────────────────────────────────────
-PanelComponent::PanelComponent(const juce::String &name,
-                                juce::Colour arcColour,
-                                juce::Colour thumbColour)
+PanelComponent::PanelComponent(const juce::String &name, juce::Colour arcColour,
+                               juce::Colour thumbColour)
     : laf(arcColour, thumbColour) {
   // ── タイトルラベル ──
   titleLabel.setText(name, juce::dontSendNotification);
@@ -46,12 +45,24 @@ PanelComponent::PanelComponent(const juce::String &name,
 
   // ── グローバルクリック監視（BOX外クリックで閉じる） ──
   globalClickListener.onMouseDown = [this](const juce::MouseEvent &e) {
-    if (const auto *src = e.eventComponent;
-        src != &valueEditor && !valueEditor.isParentOf(src) &&
-        src != &clickArea) {
+    if (const auto *src = e.eventComponent; src != &valueEditor &&
+                                            !valueEditor.isParentOf(src) &&
+                                            src != &clickArea) {
       hideValueEditor(false);
     }
   };
+
+  // ── 展開ボタン ──
+  expandButton.setButtonText(juce::String::charToString(0x25BC)); // ▼
+  expandButton.setColour(juce::TextButton::buttonColourId,
+                         juce::Colours::transparentBlack);
+  expandButton.setColour(juce::TextButton::textColourOffId,
+                         UIConstants::Colours::labelText);
+  expandButton.onClick = [this] {
+    if (onExpandRequested)
+      onExpandRequested();
+  };
+  addAndMakeVisible(expandButton);
 }
 
 // ────────────────────────────────────────────────────
@@ -74,6 +85,11 @@ void PanelComponent::resized() {
   auto area = getLocalBounds().reduced(UIConstants::panelPadding);
 
   titleLabel.setBounds(area.removeFromTop(UIConstants::labelHeight));
+
+  // 展開ボタン（下から確保）
+  expandButton.setBounds(
+      area.removeFromBottom(UIConstants::expandButtonHeight));
+
   knob.setBounds(area);
 
   // ノブ中央の値テキスト領域を算出（CustomSliderLAF と同じ計算）
@@ -87,7 +103,7 @@ void PanelComponent::resized() {
 
   auto valueBounds =
       juce::Rectangle<float>(cx - radius * 0.7f, cy - fontSize * 0.5f,
-                              radius * 1.4f, fontSize)
+                             radius * 1.4f, fontSize)
           .toNearestInt();
 
   clickArea.setBounds(valueBounds.expanded(4));
@@ -148,16 +164,22 @@ void PanelComponent::hideValueEditor(bool applyValue) {
 // ────────────────────────────────────────────────────
 // TextEditor::Listener
 // ────────────────────────────────────────────────────
-void PanelComponent::textEditorReturnKeyPressed(
-    juce::TextEditor & /*editor*/) {
+void PanelComponent::textEditorReturnKeyPressed(juce::TextEditor & /*editor*/) {
   hideValueEditor(true);
 }
 
-void PanelComponent::textEditorEscapeKeyPressed(
-    juce::TextEditor & /*editor*/) {
+void PanelComponent::textEditorEscapeKeyPressed(juce::TextEditor & /*editor*/) {
   hideValueEditor(false);
 }
 
 void PanelComponent::textEditorFocusLost(juce::TextEditor & /*editor*/) {
   hideValueEditor(false);
+}
+
+// ────────────────────────────────────────────────
+// setExpandIndicator
+// ────────────────────────────────────────────────
+void PanelComponent::setExpandIndicator(bool isThisPanelExpanded) {
+  expandButton.setButtonText(
+      juce::String::charToString(isThisPanelExpanded ? 0x25B2 : 0x25BC));
 }

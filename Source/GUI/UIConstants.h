@@ -2,46 +2,48 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
-namespace UIConstants
-{
-    // ── ウィンドウ ──
-    constexpr int windowWidth  = 520;
-    constexpr int windowHeight = 260;
+namespace UIConstants {
+// ── ウィンドウ ──
+constexpr int windowWidth = 520;
+constexpr int windowHeight = 260;
 
-    // ── パネル ──
-    constexpr int panelPadding = 8;
-    constexpr int panelGap     = 6;
+// ── パネル ──
+constexpr int panelPadding = 8;
+constexpr int panelGap = 6;
 
-    // ── ノブ ──
-    constexpr int knobSize     = 100;
-    constexpr float knobStrokeWidth = 4.0f;
+// ── ノブ ──
+constexpr int knobSize = 100;
+constexpr float knobStrokeWidth = 4.0f;
 
-    // ── ラベル ──
-    constexpr int labelHeight  = 22;
-    constexpr int valueHeight  = 20;
+// ── ラベル ──
+constexpr int labelHeight = 22;
+constexpr int valueHeight = 20;
 
-    // ── カラーパレット ──
-    namespace Colours
-    {
-        // 背景
-        inline const juce::Colour background    { 0xFF1A1A1A };
-        inline const juce::Colour panelBg       { 0xFF2A2A2A };
+// ── 展開パネル ──
+constexpr int expandButtonHeight = 20;
+constexpr int expandedAreaHeight = 80;
 
-        // Oomph（青系）
-        inline const juce::Colour oomphArc      { 0xFF00AAFF };
-        inline const juce::Colour oomphThumb    { 0xFF00CCFF };
+// ── カラーパレット ──
+namespace Colours {
+// 背景
+inline const juce::Colour background{0xFF1A1A1A};
+inline const juce::Colour panelBg{0xFF2A2A2A};
 
-        // Click（黄系）
-        inline const juce::Colour clickArc      { 0xFFCCAA00 };
-        inline const juce::Colour clickThumb    { 0xFFFFDD00 };
+// Oomph（青系）
+inline const juce::Colour oomphArc{0xFF00AAFF};
+inline const juce::Colour oomphThumb{0xFF00CCFF};
 
-        // Dry（ピンク/マゼンタ系）
-        inline const juce::Colour dryArc        { 0xFFCC44CC };
-        inline const juce::Colour dryThumb      { 0xFFFF66FF };
+// Click（黄系）
+inline const juce::Colour clickArc{0xFFCCAA00};
+inline const juce::Colour clickThumb{0xFFFFDD00};
 
-        // 共通
-        inline const juce::Colour knobBg        { 0xFF333333 };
-        inline const juce::Colour text          { 0xFFDDDDDD };
-        inline const juce::Colour labelText     { 0xFFBBBBBB };
-    }
-}
+// Dry（ピンク/マゼンタ系）
+inline const juce::Colour dryArc{0xFFCC44CC};
+inline const juce::Colour dryThumb{0xFFFF66FF};
+
+// 共通
+inline const juce::Colour knobBg{0xFF333333};
+inline const juce::Colour text{0xFFDDDDDD};
+inline const juce::Colour labelText{0xFFBBBBBB};
+} // namespace Colours
+} // namespace UIConstants
