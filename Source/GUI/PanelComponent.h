@@ -19,8 +19,8 @@ public:
 
   juce::Slider &getKnob();
 
-  // 展開ボタンが押された時に親へ通知するコールバック
-  std::function<void()> onExpandRequested;
+  // 展開ボタンが押された時のコールバックを設定
+  void setOnExpandRequested(std::function<void()> callback);
 
   // 展開インジケータ更新（親から呼ばれる）
   void setExpandIndicator(bool isThisPanelExpanded);
@@ -53,6 +53,7 @@ private:
   juce::TextEditor valueEditor;
   GlobalClickListener globalClickListener;
   juce::TextButton expandButton;
+  std::function<void()> onExpandRequested;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PanelComponent)
 };

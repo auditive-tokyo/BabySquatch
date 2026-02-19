@@ -177,6 +177,13 @@ void PanelComponent::textEditorFocusLost(juce::TextEditor & /*editor*/) {
 }
 
 // ────────────────────────────────────────────────
+// setOnExpandRequested
+// ────────────────────────────────────────────────
+void PanelComponent::setOnExpandRequested(std::function<void()> callback) {
+  onExpandRequested = std::move(callback);
+}
+
+// ────────────────────────────────────────────────
 // setExpandIndicator
 // ────────────────────────────────────────────────
 void PanelComponent::setExpandIndicator(bool isThisPanelExpanded) {

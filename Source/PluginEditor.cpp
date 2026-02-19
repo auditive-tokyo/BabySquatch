@@ -9,13 +9,11 @@ BabySquatchAudioProcessorEditor::BabySquatchAudioProcessorEditor(
   addAndMakeVisible(dryPanel);
 
   // 各パネルの展開ボタン → 親に通知
-  oomphPanel.onExpandRequested = [this] {
-    requestExpand(ExpandChannel::oomph);
-  };
-  clickPanel.onExpandRequested = [this] {
-    requestExpand(ExpandChannel::click);
-  };
-  dryPanel.onExpandRequested = [this] { requestExpand(ExpandChannel::dry); };
+  oomphPanel.setOnExpandRequested(
+      [this] { requestExpand(ExpandChannel::oomph); });
+  clickPanel.setOnExpandRequested(
+      [this] { requestExpand(ExpandChannel::click); });
+  dryPanel.setOnExpandRequested([this] { requestExpand(ExpandChannel::dry); });
 
   // ── 展開エリア（初期非表示） ──
   addChildComponent(expandableArea);
@@ -26,20 +24,22 @@ BabySquatchAudioProcessorEditor::BabySquatchAudioProcessorEditor(
 BabySquatchAudioProcessorEditor::~BabySquatchAudioProcessorEditor() = default;
 
 void BabySquatchAudioProcessorEditor::paint(juce::Graphics &g) {
+  using enum ExpandChannel;
   g.fillAll(UIConstants::Colours::background);
 
   // 展開エリアの背景
-  if (activeChannel != ExpandChannel::none) {
+  if (activeChannel != none) {
     g.setColour(UIConstants::Colours::panelBg);
     g.fillRoundedRectangle(expandableArea.getBounds().toFloat(), 6.0f);
   }
 }
 
 void BabySquatchAudioProcessorEditor::resized() {
+  using enum ExpandChannel;
   auto area = getLocalBounds().reduced(UIConstants::panelPadding);
 
   // 展開エリアを下から確保
-  if (activeChannel != ExpandChannel::none) {
+  if (activeChannel != none) {
     expandableArea.setBounds(
         area.removeFromBottom(UIConstants::expandedAreaHeight));
     area.removeFromBottom(UIConstants::panelGap);
@@ -58,14 +58,15 @@ void BabySquatchAudioProcessorEditor::resized() {
 }
 
 void BabySquatchAudioProcessorEditor::requestExpand(ExpandChannel ch) {
+  using enum ExpandChannel;
   // 同じチャンネルをもう一度押したら閉じる
   if (activeChannel == ch) {
-    activeChannel = ExpandChannel::none;
+    activeChannel = none;
   } else {
     activeChannel = ch;
   }
 
-  const bool isOpen = (activeChannel != ExpandChannel::none);
+  const bool isOpen = (activeChannel != none);
   expandableArea.setVisible(isOpen);
 
   const int extra =
@@ -76,7 +77,8 @@ void BabySquatchAudioProcessorEditor::requestExpand(ExpandChannel ch) {
 }
 
 void BabySquatchAudioProcessorEditor::updateExpandIndicators() {
-  oomphPanel.setExpandIndicator(activeChannel == ExpandChannel::oomph);
-  clickPanel.setExpandIndicator(activeChannel == ExpandChannel::click);
-  dryPanel.setExpandIndicator(activeChannel == ExpandChannel::dry);
+  using enum ExpandChannel;
+  oomphPanel.setExpandIndicator(activeChannel == oomph);
+  clickPanel.setExpandIndicator(activeChannel == click);
+  dryPanel.setExpandIndicator(activeChannel == dry);
 }
