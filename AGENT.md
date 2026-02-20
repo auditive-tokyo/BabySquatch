@@ -35,3 +35,26 @@ BabySquatchは3つのモジュールで構成されています：
 - 変更を行う際は、どのファイルを、なぜ、どう修正したかを簡潔に報告し、必要ならビルド／確認手順を添えること。
 - **コード改修後の必須確認手順:** 変更を行ったら必ず `make check && make lint` を実行し、問題がなければ `make run` で動作確認を行うこと。
 - **CMake／ファイル構成変更時の手順:** 新規ファイルの追加・削除、または `CMakeLists.txt` の変更を行った場合は、まず `make cmake` を実行してプロジェクトを再生成し、その後に `make check && make lint` → `make run` の順で確認すること。
+
+## 実装済み機能
+
+- 3パネルUI（OOMPH / CLICK / DRY）、各カラー付きロータリーノブ
+- グラデーションアーク（指数的グロー）
+- ノブ中央にdB値表示、クリックでキーボード入力、ダブルクリックで0.0dBリセット
+- 展開パネル（per-channel ▼ボタン、共有展開エリア）
+- MIDI鍵盤（KeyboardComponent）
+  - C0〜C7表示、PCキー演奏対応（A=C2ベース）
+  - Z/Xでオクターブシフト（両モード共通）
+  - MIDI / FIXED モード切り替えボタン
+  - FIXEDモード：単音固定、同じ鍵盤クリックで解除
+
+## TODO
+
+### DAWからのMIDI入力対応（Oomphモジュール）
+
+- DAWからのMIDIノート入力でOomphのサブベース周波数をリアルタイム追従
+- 必要な変更:
+  - `CMakeLists.txt`: `NEEDS_MIDI_INPUT TRUE`
+  - `PluginProcessor.cpp`: `acceptsMidi()` → `true`
+  - `IS_SYNTH` は `FALSE` のまま（Effect扱いを維持）
+  - `processBlock()` でMIDIバッファを解析、ノートオン/オフを処理

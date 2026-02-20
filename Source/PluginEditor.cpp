@@ -45,9 +45,9 @@ void BabySquatchAudioProcessorEditor::resized() {
   if (activeChannel != none) {
     auto expandArea = area.removeFromBottom(UIConstants::expandedAreaHeight);
 
-    // 鍵盤を展開エリア下部に配置
-    keyboard.setBounds(
-        expandArea.removeFromBottom(UIConstants::keyboardHeight));
+    // 鍵盤を展開エリア下部に配置（モードボタン + 鍵盤本体）
+    keyboard.setBounds(expandArea.removeFromBottom(
+        UIConstants::keyboardHeight + UIConstants::modeButtonHeight));
 
     expandableArea.setBounds(expandArea);
     area.removeFromBottom(UIConstants::panelGap);

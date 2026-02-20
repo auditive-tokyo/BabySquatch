@@ -25,6 +25,7 @@ constexpr int expandedAreaHeight = 360;
 
 // ── 鍵盤 ──
 constexpr int keyboardHeight = 70;
+constexpr int modeButtonHeight = 24;
 
 // ── カラーパレット ──
 namespace Colours {
