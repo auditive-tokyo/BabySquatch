@@ -1,5 +1,6 @@
 #pragma once
 
+#include "GUI/KeyboardComponent.h"
 #include "GUI/PanelComponent.h"
 #include "PluginProcessor.h"
 
@@ -30,6 +31,9 @@ private:
   // ── 共有展開エリア（3パネル横断） ──
   juce::Component expandableArea;
   ExpandChannel activeChannel = ExpandChannel::none;
+
+  // ── MIDI 鍵盤（展開パネル下部・全チャンネル共通） ──
+  KeyboardComponent keyboard;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(BabySquatchAudioProcessorEditor)
 };

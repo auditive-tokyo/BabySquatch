@@ -18,6 +18,9 @@ BabySquatchAudioProcessorEditor::BabySquatchAudioProcessorEditor(
   // ── 展開エリア（初期非表示） ──
   addChildComponent(expandableArea);
 
+  // ── MIDI 鍵盤（展開パネル下部） ──
+  addChildComponent(keyboard);
+
   setSize(UIConstants::windowWidth, UIConstants::windowHeight);
 }
 
@@ -40,8 +43,13 @@ void BabySquatchAudioProcessorEditor::resized() {
 
   // 展開エリアを下から確保
   if (activeChannel != none) {
-    expandableArea.setBounds(
-        area.removeFromBottom(UIConstants::expandedAreaHeight));
+    auto expandArea = area.removeFromBottom(UIConstants::expandedAreaHeight);
+
+    // 鍵盤を展開エリア下部に配置
+    keyboard.setBounds(
+        expandArea.removeFromBottom(UIConstants::keyboardHeight));
+
+    expandableArea.setBounds(expandArea);
     area.removeFromBottom(UIConstants::panelGap);
   }
 
@@ -68,6 +76,10 @@ void BabySquatchAudioProcessorEditor::requestExpand(ExpandChannel ch) {
 
   const bool isOpen = (activeChannel != none);
   expandableArea.setVisible(isOpen);
+  keyboard.setVisible(isOpen);
+
+  if (isOpen)
+    keyboard.grabFocus();
 
   const int extra =
       isOpen ? UIConstants::expandedAreaHeight + UIConstants::panelGap : 0;

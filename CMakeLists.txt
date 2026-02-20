@@ -35,6 +35,8 @@ target_sources(BabySquatch
         Source/GUI/CustomSliderLAF.h
         Source/GUI/PanelComponent.h
         Source/GUI/PanelComponent.cpp
+        Source/GUI/KeyboardComponent.h
+        Source/GUI/KeyboardComponent.cpp
 )
 
 target_compile_definitions(BabySquatch
