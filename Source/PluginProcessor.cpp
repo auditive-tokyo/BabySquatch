@@ -9,11 +9,12 @@ BabySquatchAudioProcessor::BabySquatchAudioProcessor()
 
 BabySquatchAudioProcessor::~BabySquatchAudioProcessor() = default;
 
-const juce::String BabySquatchAudioProcessor::getName() const { // NOSONAR: JUCE API
+const juce::String // NOSONAR: JUCE API
+BabySquatchAudioProcessor::getName() const {
   return JucePlugin_Name;
 }
 
-bool BabySquatchAudioProcessor::acceptsMidi() const { return false; }
+bool BabySquatchAudioProcessor::acceptsMidi() const { return true; }
 
 bool BabySquatchAudioProcessor::producesMidi() const { return false; }
 
@@ -29,7 +30,8 @@ void BabySquatchAudioProcessor::setCurrentProgram(int index) {
   juce::ignoreUnused(index);
 }
 
-const juce::String BabySquatchAudioProcessor::getProgramName(int index) { // NOSONAR: JUCE API
+const juce::String // NOSONAR: JUCE API
+BabySquatchAudioProcessor::getProgramName(int index) {
   juce::ignoreUnused(index);
   return {};
 }
@@ -41,7 +43,8 @@ void BabySquatchAudioProcessor::changeProgramName(int index,
 
 void BabySquatchAudioProcessor::prepareToPlay(double sampleRate,
                                               int samplesPerBlock) {
-  juce::ignoreUnused(sampleRate, samplesPerBlock);
+  juce::ignoreUnused(samplesPerBlock);
+  oomphOsc.prepareToPlay(sampleRate);
 }
 
 void BabySquatchAudioProcessor::releaseResources() {
@@ -62,11 +65,34 @@ bool BabySquatchAudioProcessor::isBusesLayoutSupported(
 
 void BabySquatchAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
                                              juce::MidiBuffer &midiMessages) {
-  juce::ignoreUnused(buffer, midiMessages);
   juce::ScopedNoDenormals noDenormals;
 
-  // シンプルなパススルー（何もしない）
-  // 将来的にここにキックエンハンス処理を追加
+  // GUI鍵盤のMIDIイベントをバッファにマージ
+  keyboardState.processNextMidiBuffer(midiMessages, 0,
+                                      buffer.getNumSamples(), true);
+
+  // MIDIバッファを走査 → OomphOscillator に通知
+  for (const auto metadata : midiMessages) {
+    const auto msg = metadata.getMessage();
+    if (msg.isNoteOn()) {
+      oomphOsc.setNote(msg.getNoteNumber());
+    } else if (msg.isNoteOff() &&
+               msg.getNoteNumber() == oomphOsc.getCurrentNote()) {
+      oomphOsc.setNote(-1);
+    }
+  }
+
+  // サイン波を出力バッファに加算
+  if (oomphOsc.isActive()) {
+    const int numSamples = buffer.getNumSamples();
+    const int numChannels = buffer.getNumChannels();
+    for (int sample = 0; sample < numSamples; ++sample) {
+      const float oscSample = oomphOsc.getNextSample();
+      for (int ch = 0; ch < numChannels; ++ch) {
+        buffer.addSample(ch, sample, oscSample);
+      }
+    }
+  }
 }
 
 bool BabySquatchAudioProcessor::hasEditor() const { return true; }

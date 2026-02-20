@@ -3,7 +3,8 @@
 
 BabySquatchAudioProcessorEditor::BabySquatchAudioProcessorEditor(
     BabySquatchAudioProcessor &p)
-    : AudioProcessorEditor(&p) {
+    : AudioProcessorEditor(&p),
+      keyboard(p.getKeyboardState()) {
   addAndMakeVisible(oomphPanel);
   addAndMakeVisible(clickPanel);
   addAndMakeVisible(dryPanel);

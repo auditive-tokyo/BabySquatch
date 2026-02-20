@@ -1,7 +1,8 @@
 #include "KeyboardComponent.h"
 #include "UIConstants.h"
 
-KeyboardComponent::KeyboardComponent() {
+KeyboardComponent::KeyboardComponent(juce::MidiKeyboardState &state)
+    : keyboardState(state) {
   keyboard.setAvailableRange(12, 96); // C0–C7
   keyboard.setOctaveForMiddleC(4);
   keyboard.setKeyPressBaseOctave(keyPressOctave); // A → C2（低音域向け）

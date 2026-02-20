@@ -1,6 +1,8 @@
 #pragma once
 
+#include "DSP/OomphOscillator.h"
 #include <juce_audio_processors/juce_audio_processors.h>
+#include <juce_audio_utils/juce_audio_utils.h>
 
 class BabySquatchAudioProcessor : public juce::AudioProcessor
 {
@@ -33,6 +35,12 @@ public:
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
 
+    /// GUI鍵盤との共有 MidiKeyboardState
+    juce::MidiKeyboardState& getKeyboardState() { return keyboardState; }
+
 private:
+    juce::MidiKeyboardState keyboardState;
+    OomphOscillator oomphOsc;
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (BabySquatchAudioProcessor)
 };

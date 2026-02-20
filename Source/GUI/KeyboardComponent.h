@@ -10,7 +10,7 @@ class KeyboardComponent : public juce::Component,
 public:
   enum class Mode { midi, fixed };
 
-  KeyboardComponent();
+  explicit KeyboardComponent(juce::MidiKeyboardState &state);
   ~KeyboardComponent() override;
 
   void resized() override;
@@ -40,7 +40,7 @@ private:
   int keyPressOctave = 3;
   bool isReinjecting = false; // noteOn 再注入のガード
 
-  juce::MidiKeyboardState keyboardState;
+  juce::MidiKeyboardState &keyboardState;
   juce::MidiKeyboardComponent keyboard{
       keyboardState, juce::MidiKeyboardComponent::horizontalKeyboard};
 

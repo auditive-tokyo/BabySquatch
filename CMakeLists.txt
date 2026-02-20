@@ -14,7 +14,7 @@ add_subdirectory(/Volumes/AUDITIVE/development/JUCE JUCE)
 juce_add_plugin(BabySquatch
     COMPANY_NAME "YourCompany"
     IS_SYNTH FALSE
-    NEEDS_MIDI_INPUT FALSE
+    NEEDS_MIDI_INPUT TRUE
     NEEDS_MIDI_OUTPUT FALSE
     IS_MIDI_EFFECT FALSE
     EDITOR_WANTS_KEYBOARD_FOCUS FALSE
@@ -37,6 +37,8 @@ target_sources(BabySquatch
         Source/GUI/PanelComponent.cpp
         Source/GUI/KeyboardComponent.h
         Source/GUI/KeyboardComponent.cpp
+        Source/DSP/OomphOscillator.h
+        Source/DSP/OomphOscillator.cpp
 )
 
 target_compile_definitions(BabySquatch
