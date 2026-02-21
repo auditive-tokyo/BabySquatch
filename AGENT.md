@@ -115,17 +115,25 @@ BabySquatchは3つのモジュールで構成されています：
 
 **実装ステップ:**
 
-### Phase 1: AMP フラット波形 + ノブ連動
+### Phase 1: AMP フラット波形 + ノブ連動 ✅ **完了**
 
 **目標:** デフォルト状態（ポイントなし）で、AMPノブの値に応じたフラット波形を表示・編集
 
-1. **`Source/DSP/EnvelopeData.h` 新規作成**（ヘッダオンリー）
+**実装完了日:** 2026-02-21  
+**成果:**
+- `EnvelopeData` ヘッダオンリーモデル実装
+- `EnvelopeCurveEditor` paint()-ベース波形描画実装
+- OOMPHノブ dB → 線形ゲイン変換 → フラット波形連動
+- UI完全統合、ビルド・リント・実行すべて ✓
+- **状態:** Timer/FIFO 除去、WaveformDisplay からの移行完了
+
+1. ✅ **`Source/DSP/EnvelopeData.h` 新規作成**（ヘッダオンリー）
    - `EnvelopeData` クラス：定数値 `float defaultValue{1.0f}`（線形ゲイン 0.0〜2.0）のみ
    - `getValue()` → 常に `defaultValue` を返す
    - `setDefaultValue(float v)` / `getDefaultValue()` アクセッサ
    - **`EnvelopePoint` 構造体は Phase 2 で追加**（Phase 1 では不要）
 
-2. **`Source/GUI/EnvelopeCurveEditor.h/.cpp` 新規作成**
+2. ✅ **`Source/GUI/EnvelopeCurveEditor.h/.cpp` 新規作成**
    - `juce::Component` 継承（OpenGLなし、`paint()` ベース）
    - コンストラクタ: `EnvelopeCurveEditor(EnvelopeData& data)`
    - `paint()`: 背景 → フラット波形塗りつぶし（`defaultValue` に基づく高さ）
@@ -134,10 +142,10 @@ BabySquatchは3つのモジュールで構成されています：
    - `setOnChange(std::function<void()>)` コールバック（将来の自動再計算用）
    - **Phase 1 ではマウス操作なし**（描画のみ）
 
-3. **`CMakeLists.txt` 更新**
+3. ✅ **`CMakeLists.txt` 更新**
    - `EnvelopeData.h`, `EnvelopeCurveEditor.h`, `EnvelopeCurveEditor.cpp` を `target_sources` に追加
 
-4. **`PluginEditor.h` 更新**
+4. ✅ **`PluginEditor.h` 更新**
    - `#include "GUI/WaveformDisplay.h"` を削除 → `#include "GUI/EnvelopeCurveEditor.h"` / `#include "DSP/EnvelopeData.h"` 追加
    - `WaveformDisplay waveformDisplay` メンバ削除（ファイルは CMakeLists に残す）
    - `waveformTransferBuffer` メンバ削除
@@ -146,7 +154,7 @@ BabySquatchは3つのモジュールで構成されています：
    - `EnvelopeData ampEnvData` メンバ追加
    - `EnvelopeCurveEditor envelopeCurveEditor{ampEnvData}` メンバ追加
 
-5. **`PluginEditor.cpp` 更新**
+5. ✅ **`PluginEditor.cpp` 更新**
    - コンストラクタ: `addChildComponent(envelopeCurveEditor)`
    - OOMPHノブ `onValueChange`: dB → `Decibels::decibelsToGain()` → `ampEnvData.setDefaultValue(gain)` + `envelopeCurveEditor.repaint()`
    - `requestExpand`: `envelopeCurveEditor.setVisible(isOpen)`
@@ -156,22 +164,82 @@ BabySquatchは3つのモジュールで構成されています：
      3. `expandableArea` → 不使用（Phase 1 では bounds 設定不要、将来チャンネル固有UIの器）
    - `timerCallback` 完全削除（Timer 継承ごと除去）
 
-6. **`PluginProcessor.cpp` 更新**
+6. ✅ **`PluginProcessor.cpp` 更新**
    - `pushWaveformBlock()` 呼び出しをコメントアウト（Editor が pop しないため FIFO が満杯で空振り続ける。コード自体は残す）
 
-7. **`make cmake` → `make check && make lint` → `make run` で動作確認**
+7. ✅ **`make cmake` → `make check && make lint` → `make run` で動作確認**
 
 ### Phase 2: Automation（複数ポイント制御）
 
 **目標:** ポイント追加・削除・ドラッグで複数ポイント Automation を作成、Catmull-Rom スプライン補間で滑らかにつなぐ
 
-- `EnvelopeData` に `EnvelopePoint { float time, value; }` 構造体と `std::vector<EnvelopePoint> points` 追加
-- `addPoint` / `removePoint` / `movePoint` / `evaluate(t)` 実装
-- `EnvelopeCurveEditor` に `mouseDown` / `mouseDrag` / `mouseUp` でポイント操作追加
-- `paint()` 拡張: スプライン線 + コントロールポイント描画
-- `displayDurationMs` を可変に（ズーム/パン対応）
-- `PluginProcessor` に `EnvelopeData ampEnvData` を移し、`processBlock` でゲイン適用
-- Timer/FIFO を必要に応じて復活
+**実装ステップ:**
+
+1. **`EnvelopeData.h` 拡張**（ヘッダオンリー）
+   - `EnvelopePoint { float timeMs; float value; }` 構造体を追加（timeMs: 0〜displayDurationMs、value: linear gain 0.0〜2.0）
+   - `std::vector<EnvelopePoint> points` メンバ追加
+   - `addPoint(float timeMs, float value)` — timeMs 昇順に挿入
+   - `removePoint(int index)`
+   - `movePoint(int index, float newTimeMs, float newValue) → int` — **戻り値は移動後の新インデックス**。`newTimeMs` は**隣接ポイント間にクランプ**（ソート不要、インデックス安定を保証）
+   - `evaluate(float timeMs) const` — 以下の補間ルール：
+     - 0 点 → `defaultValue`
+     - 1 点 → その点の `value`（定数）
+     - 2 点 → **線形補間**（Catmull-Rom は最低4制御点必要なため）
+     - 3 点以上 → **Catmull-Rom スプライン補間**（端点はファントムポイントを生成: 始端 P₋₁ = P₀ を複製、終端 Pₙ = Pₙ₋₁ を複製）
+     - **範囲外**: `timeMs < points[0].timeMs` → `points[0].value`、`timeMs > points.back().timeMs` → `points.back().value`（最端値でサスティン）
+   - `hasPoints() const → bool`
+   - `getPoints() const → const std::vector<EnvelopePoint>&`
+
+2. **`EnvelopeCurveEditor.h` 拡張**
+   - `displayDurationMs` を固定定数から可変メンバへ（`setDisplayDurationMs(float)` 追加）
+   - マウスコールバック宣言追加:
+     ```cpp
+     void mouseDoubleClick(const juce::MouseEvent&) override;
+     void mouseDown(const juce::MouseEvent&) override;
+     void mouseDrag(const juce::MouseEvent&) override;
+     void mouseUp(const juce::MouseEvent&) override;
+     ```
+   - ドラッグ状態: `int dragPointIndex{-1}`
+   - 座標変換ヘルパー（private）:
+     - `float timeMsToX(float timeMs) const`
+     - `float valueToY(float value) const`
+     - `float xToTimeMs(float x) const`
+     - `float yToValue(float y) const`
+   - **ヒット判定（ピクセル空間）**: `int findPointAtPixel(float px, float py) const` — 各ポイントをピクセル変換し `pointHitRadius` で判定（-1: なし）。`EnvelopeData` 側ではなくエディタ側で実施
+   - `static constexpr float pointHitRadius = 8.0f`
+
+3. **`EnvelopeCurveEditor.cpp` — `paint()` 拡張**
+   - ポイントが1点以上あるとき、`evaluate()` を width ピクセル分サンプリングしてスプライン波形パスを生成（フラット波形を置き換え）
+   - エンベロープカーブ（スプライン線）をオーバーレイ描画（`oomphArc.brighter()` など）
+   - コントロールポイントを白い小円（半径 `pointHitRadius`）で描画
+   - `dragPointIndex` に対応するポイントをハイライト（明るい塗りつぶし）
+
+4. **`EnvelopeCurveEditor.cpp` — マウス操作実装**
+   - `mouseDoubleClick`: `findPointAtPixel()` → ポイント上なら `removePoint`、空白なら `addPoint` → `onChange` コール → `repaint()`
+   - `mouseDown`: `findPointAtPixel()` → ポイント上なら `dragPointIndex` セット
+   - `mouseDrag`: `dragPointIndex >= 0` なら `dragPointIndex = movePoint(dragPointIndex, xToTimeMs, yToValue)` — **戻り値で `dragPointIndex` を更新**（隣接クランプ済みなのでインデックスは通常不変だが安全のため）→ `onChange` → `repaint()`
+   - `mouseUp`: `dragPointIndex = -1` リセット
+   - 座標クランプ: timeMs は `[0, displayDurationMs]`、value は `[0.0f, 2.0f]`
+
+5. **`PluginProcessor` 側への統合**（ロックフリー・ベイク方式）
+   - **方針:** オーディオスレッドで `std::mutex` は**絶対に使わない**（ブロッキング → ドロップアウト発生のため）
+   - **ベイク LUT 方式:**
+     1. `PluginProcessor.h` に以下を追加:
+        - `static constexpr int envLutSize = 512` — LUT 解像度
+        - `std::array<float, envLutSize> envLut[2]` — ダブルバッファ
+        - `std::atomic<int> envLutActiveIndex{0}` — 現在オーディオスレッドが読む側
+        - `float noteTimeSamples{0.0f}` — ノートオンからの経過サンプル数
+        - `float envDurationMs{300.0f}` — エンベロープの表示/適用期間
+     2. Editor 側で `EnvelopeData` を保持（Phase 1 と同様）
+     3. ノブ／ポイント変更時に Editor が `EnvelopeData::evaluate()` を LUT サイズ分サンプリング → `processorRef.bakeEnvelopeLut(const float* lut, int size)` を呼び出し
+     4. `bakeEnvelopeLut`: 非アクティブ側バッファにコピー → `envLutActiveIndex` をアトミックフリップ
+     5. `processBlock`: MIDI ノートオンで `noteTimeSamples = 0` リセット → サンプル毎に加算 → `noteTimeMs` → LUT インデックス算出（`noteTimeMs / envDurationMs * envLutSize`、範囲外は末尾固定）→ `envLut[envLutActiveIndex.load()] [index]` でゲイン取得
+   - **OOMPHノブ `onValueChange`:**
+     - `ampEnvData.setDefaultValue(gain)` → LUT ベイク → `processorRef.bakeEnvelopeLut(...)` → `envelopeCurveEditor.repaint()`
+   - **ポイント変更時（`onChange` コールバック）:**
+     - 同様に LUT を再ベイク → `processorRef.bakeEnvelopeLut(...)` → `repaint()`
+
+6. **`make check && make lint` → `make run` で動作確認**
 
 **将来の拡張（Phase 3以降）:**
 - `EnvelopeData pitchEnvData` — ピッチ包絡（`EnvelopeCurveEditor` 再利用）

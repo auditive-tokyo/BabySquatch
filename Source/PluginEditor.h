@@ -1,14 +1,12 @@
 #pragma once
 
+#include "DSP/EnvelopeData.h"
+#include "GUI/EnvelopeCurveEditor.h"
 #include "GUI/KeyboardComponent.h"
 #include "GUI/PanelComponent.h"
-#include "GUI/WaveformDisplay.h"
 #include "PluginProcessor.h"
 
-#include <array>
-
-class BabySquatchAudioProcessorEditor : public juce::AudioProcessorEditor,
-                                        private juce::Timer {
+class BabySquatchAudioProcessorEditor : public juce::AudioProcessorEditor {
 public:
   explicit BabySquatchAudioProcessorEditor(BabySquatchAudioProcessor &);
   ~BabySquatchAudioProcessorEditor() override;
@@ -17,14 +15,12 @@ public:
   void resized() override;
 
 private:
-  void timerCallback() override;
-
   // 展開チャンネル（None = 閉じた状態）
   enum class ExpandChannel { none, oomph, click, dry };
 
   void requestExpand(ExpandChannel ch);
   void updateExpandIndicators();
-  void updateWaveformVisibility();
+  void updateEnvelopeEditorVisibility();
 
   PanelComponent oomphPanel{"OOMPH", UIConstants::Colours::oomphArc,
                             UIConstants::Colours::oomphThumb};
@@ -42,8 +38,8 @@ private:
   // ── MIDI 鍵盤（展開パネル下部・全チャンネル共通） ──
   BabySquatchAudioProcessor &processorRef;
   KeyboardComponent keyboard;
-  WaveformDisplay waveformDisplay;
-  std::array<float, 1024> waveformTransferBuffer{};
+  EnvelopeData ampEnvData;
+  EnvelopeCurveEditor envelopeCurveEditor{ampEnvData};
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(BabySquatchAudioProcessorEditor)
 };

@@ -141,7 +141,7 @@ void BabySquatchAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   } else {
     std::fill_n(oomphScratchBuffer.data(), numSamples, 0.0f);
   }
-  pushWaveformBlock(oomphScratchBuffer.data(), numSamples);
+  // pushWaveformBlock(oomphScratchBuffer.data(), numSamples); // Phase 2 で復活予定
 }
 
 bool BabySquatchAudioProcessor::hasEditor() const { return true; }

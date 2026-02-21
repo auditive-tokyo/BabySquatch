@@ -22,34 +22,26 @@ BabySquatchAudioProcessorEditor::BabySquatchAudioProcessorEditor(
   // ── MIDI 鍵盤（展開パネル下部） ──
   keyboard.setOnModeChanged([this, &p](KeyboardComponent::Mode mode) {
     p.setFixedModeActive(mode == KeyboardComponent::Mode::fixed);
-    updateWaveformVisibility();
+    updateEnvelopeEditorVisibility();
   });
   addChildComponent(keyboard);
 
-  // ── 波形ディスプレイ（MIDIモード時のみ表示） ──
-  addChildComponent(waveformDisplay);
+  // ── エンベロープカーブエディタ（展開パネル） ──
+  addChildComponent(envelopeCurveEditor);
 
-  // ── OOMPHノブ → Processorゲイン配線 ──
+  // ── OOMPHノブ → Processorゲイン配線 + エンベロープ連動 ──
   oomphPanel.getKnob().onValueChange = [this] {
-    processorRef.setOomphGainDb(
-        static_cast<float>(oomphPanel.getKnob().getValue()));
+    const auto dB = static_cast<float>(oomphPanel.getKnob().getValue());
+    processorRef.setOomphGainDb(dB);
+    const float gain = juce::Decibels::decibelsToGain(dB);
+    ampEnvData.setDefaultValue(gain);
+    envelopeCurveEditor.repaint();
   };
 
   setSize(UIConstants::windowWidth, UIConstants::windowHeight);
-  startTimerHz(60);
 }
 
-BabySquatchAudioProcessorEditor::~BabySquatchAudioProcessorEditor() {
-  stopTimer();
-}
-
-void BabySquatchAudioProcessorEditor::timerCallback() {
-  const int got = processorRef.popWaveformSamples(
-      waveformTransferBuffer.data(),
-      static_cast<int>(waveformTransferBuffer.size()));
-  if (got > 0)
-    waveformDisplay.updateWaveform(waveformTransferBuffer.data(), got);
-}
+BabySquatchAudioProcessorEditor::~BabySquatchAudioProcessorEditor() = default;
 
 void BabySquatchAudioProcessorEditor::paint(juce::Graphics &g) {
   using enum ExpandChannel;
@@ -70,15 +62,12 @@ void BabySquatchAudioProcessorEditor::resized() {
   if (activeChannel != none) {
     auto expandArea = area.removeFromBottom(UIConstants::expandedAreaHeight);
 
-    // 鍵盤を展開エリア下部に配置（モードボタン + 鍵盤本体）
+    // 1. 鍵盤を展開エリア下部に配置（モードボタン + 鍵盤本体）
     keyboard.setBounds(expandArea.removeFromBottom(
         UIConstants::keyboardHeight + UIConstants::modeButtonHeight));
 
-    // 波形ディスプレイを鍵盤の上に配置
-    waveformDisplay.setBounds(
-        expandArea.removeFromBottom(UIConstants::waveformDisplayHeight));
-
-    expandableArea.setBounds(expandArea);
+    // 2. エンベロープカーブエディタ → 残り全域
+    envelopeCurveEditor.setBounds(expandArea);
     area.removeFromBottom(UIConstants::panelGap);
   }
 
@@ -106,7 +95,7 @@ void BabySquatchAudioProcessorEditor::requestExpand(ExpandChannel ch) {
   const bool isOpen = (activeChannel != none);
   expandableArea.setVisible(isOpen);
   keyboard.setVisible(isOpen);
-  updateWaveformVisibility();
+  updateEnvelopeEditorVisibility();
 
   if (isOpen)
     keyboard.grabFocus();
@@ -125,9 +114,8 @@ void BabySquatchAudioProcessorEditor::updateExpandIndicators() {
   dryPanel.setExpandIndicator(activeChannel == dry);
 }
 
-void BabySquatchAudioProcessorEditor::updateWaveformVisibility() {
+void BabySquatchAudioProcessorEditor::updateEnvelopeEditorVisibility() {
   using enum ExpandChannel;
   const bool isOpen = (activeChannel != none);
-  const bool isMidi = (keyboard.getMode() == KeyboardComponent::Mode::midi);
-  waveformDisplay.setVisible(isOpen && isMidi);
+  envelopeCurveEditor.setVisible(isOpen);
 }

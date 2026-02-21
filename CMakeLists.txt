@@ -39,6 +39,9 @@ target_sources(BabySquatch
         Source/GUI/KeyboardComponent.cpp
         Source/GUI/WaveformDisplay.h
         Source/GUI/WaveformDisplay.cpp
+        Source/GUI/EnvelopeCurveEditor.h
+        Source/GUI/EnvelopeCurveEditor.cpp
+        Source/DSP/EnvelopeData.h
         Source/DSP/OomphOscillator.h
         Source/DSP/OomphOscillator.cpp
 )
