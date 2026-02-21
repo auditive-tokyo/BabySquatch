@@ -42,7 +42,7 @@ BabySquatchは3つのモジュールで構成されています：
 - グラデーションアーク（指数的グロー）
 - ノブ中央にdB値表示、クリックでキーボード入力、ダブルクリックで0.0dBリセット
 - 展開パネル（per-channel ▼ボタン、共有展開エリア）
-- MIDI鍵盤（KeyboardComponent）
+- MIDI鍵盤（KeyboardComponent）  
   - C0〜C7表示、PCキー演奏対応（A=C2ベース）
   - Z/Xでオクターブシフト（両モード共通）
   - MIDI / FIXED モード切り替えボタン
@@ -74,7 +74,7 @@ BabySquatchは3つのモジュールで構成されています：
 
 4. **FIXEDモード時のMIDI発音を無効化**
    - FIXEDモードはオーディオ入力に対してfixedノートを適用するモード（OSCが音を生成するのではなく、入力オーディオを加工する用途）
-   - `processBlock` で `KeyboardComponent::getMode()` を参照し、FIXEDモード時は `keyboardState.processNextMidiBuffer()` をスキップ（GUI鍵盤のMIDIをバッファにマージしない）
+   - `processBlock` で `KeyboardComponent::getMode()` を参照し、FIXEDモード時は `keyboardState.processNextMidiBuffer()` をスキップ（GUI鍵盤のMIDIをバッファにマージしない）  
   > Processor が Editor の `KeyboardComponent` を参照できるよう `getMode()` を Processor 側に公開する方法を検討（例：`std::atomic<bool> fixedModeActive` を Processor に持ち、Editor から書き込む）
 
 5. **`juce::AbstractFifo` で波形データをスレッドセーフ受け渡し**
@@ -96,7 +96,7 @@ BabySquatchは3つのモジュールで構成されています：
    - MIDIモード時のみ表示
    - OOMPHロータリースライダーを Oomph出力レベルに紐づけ（最終段のボリュームとして適用）
      > 方針: Oomphチェーン（Oscillator → 将来ADSR）の最後でゲイン適用し、チャンネル出力直前の最終音量をノブで制御する
-  > 実装案: ノブ値はUIでdB表示、Processor側で `juce::Decibels::decibelsToGain()` によりlinear gainへ変換して適用（DSP責務はProcessorに集約）
+    > 実装案: ノブ値はUIでdB表示、Processor側で `juce::Decibels::decibelsToGain()` によりlinear gainへ変換して適用（DSP責務はProcessorに集約）
      > 参考: BassSplitter の GPU描画実装を参照すること
 
 ### Oscillator vs Wavetable 検討メモ（未決定）
@@ -128,3 +128,171 @@ BabySquatchは3つのモジュールで構成されています：
   - 音: 低域の安定感、アタック感、クリックノイズ有無
   - 負荷: `Release` ビルドでCPU使用率比較
   - 保守: 波形追加時の変更箇所（クラス/APIの拡張容易性）
+
+---
+
+## OomphOscillator Wavetable化 実装メモ（方針決定済み）
+
+### 決定事項
+
+**→ Wavetable方式に切り替える（現行の `std::sin()` Oscillatorを置き換え）**
+
+タイミングとして、Step 5（AbstractFifo）・Step 6（WaveformDisplay）実装前のこのタイミングが最もリファクタリングコストが低い。
+GPUパイプラインを繋いでしまうと `getNextSample()` への依存が深まり、後から変えにくくなるため今やる。
+
+### なぜ Wavetable か（技術的根拠）
+
+#### 現行コードの問題点
+
+`OomphOscillator.cpp` の `getNextSample()` は毎サンプル `std::sin()` を呼んでいる：
+
+```cpp
+std::sin(phase * juce::MathConstants<double>::twoPi)
+```
+
+`std::sin()` はCPU的にコストの高い超越関数。現在はOomph単体で問題ないが、
+ADSR・ポリフォニー・Clickモジュールの波形追加が進むと無視できなくなる。
+
+#### Wavetableの仕組み（概要）
+
+Wavetableとは「1周期分の波形を配列（テーブル）として事前に計算しておき、
+再生時はそのテーブルをインデックスで読み出す」方式。
+
+```
+初期化時（prepareToPlay）:
+  テーブルサイズ = 2048サンプル（+ wrap用に末尾に先頭と同じ値を追加 → 計2049要素）
+  for i in 0..2047:
+    table[i] = sin(2π * i / 2048)
+  table[2048] = table[0]  // 線形補間用のwrap
+
+再生時（getNextSample）:
+  index0 = (int)currentIndex
+  index1 = index0 + 1
+  frac = currentIndex - index0        // 小数部分（0.0〜1.0）
+  sample = table[index0] + frac * (table[index1] - table[index0])  // 線形補間
+  currentIndex += tableDelta
+  if (currentIndex >= tableSize): currentIndex -= tableSize
+```
+
+`tableDelta` の計算：
+```
+tableDelta = frequency * tableSize / sampleRate
+```
+例: 44100Hz サンプルレート、C2（65.41Hz）、テーブルサイズ2048の場合:
+```
+tableDelta = 65.41 * 2048 / 44100 ≈ 3.04
+```
+→ 毎サンプル3.04インデックス分進む = 65.41Hzの波形を再生
+
+#### BabySquatch固有の利点
+
+| 観点 | 現行 (std::sin) | Wavetable |
+|------|----------------|-----------|
+| CPU負荷（ランタイム） | 毎サンプル超越関数呼び出し | テーブル読み出し＋補間のみ（軽い） |
+| エイリアシング（Oomph/サブ帯域） | 実用上ほぼ問題なし | 同様に問題なし（サブは高調波少ない） |
+| エイリアシング（Click/Square/Saw） | **問題あり**（折り返し雑音が出る） | **対応可能**（Band-limited tableを用意すれば解決） |
+| 波形拡張性 | 波形ごとに別クラス必要 | テーブルを差し替えるだけで波形切り替え可能 |
+| WaveformDisplay連携 | getNextSample()の戻り値をFifoへ | 同じ。インターフェースは変わらない |
+
+→ 特に **Click モジュール（Square/Triangle/Saw）への拡張**を見据えると、
+今Wavetable基盤を作っておくと後がシンプルになる。
+
+### 実装方針（変更スコープを最小化）
+
+**ポイント：外部インターフェース（API）は一切変えない。内部実装だけ差し替える。**
+
+これにより `PluginProcessor.cpp` の変更は不要。Step 1〜3の既実装も壊れない。
+
+#### 変更ファイル
+
+- `Source/DSP/OomphOscillator.h` — privateメンバを変更
+- `Source/DSP/OomphOscillator.cpp` — 実装を全面置き換え
+
+#### `OomphOscillator.h` の変更点
+
+```cpp
+// 変更前（privateメンバ）
+int currentNote = -1;
+double sampleRate = 44100.0;
+double phase = 0.0;
+double phaseIncrement = 0.0;
+
+// 変更後（privateメンバ）
+static constexpr int tableSize = 2048;
+std::vector<float> wavetable;   // tableSize + 1 要素（wrap用）
+
+int currentNote = -1;
+double sampleRate = 44100.0;
+float currentIndex = 0.0f;
+float tableDelta = 0.0f;        // phaseIncrementに相当
+
+void buildWavetable();          // prepareToPlay()内で呼び出す
+```
+
+#### `OomphOscillator.cpp` の変更点
+
+```cpp
+void OomphOscillator::prepareToPlay(double newSampleRate) {
+  sampleRate = newSampleRate;
+  currentIndex = 0.0f;
+  buildWavetable();
+}
+
+void OomphOscillator::buildWavetable() {
+  wavetable.resize(tableSize + 1);
+  for (int i = 0; i < tableSize; ++i)
+    wavetable[i] = std::sin(2.0f * juce::MathConstants<float>::pi * i / tableSize);
+  wavetable[tableSize] = wavetable[0];  // wrap用
+}
+
+void OomphOscillator::setNote(int midiNoteNumber) {
+  if (midiNoteNumber < 0) {
+    currentNote = -1;
+    tableDelta = 0.0f;
+    currentIndex = 0.0f;
+    return;
+  }
+  currentNote = midiNoteNumber;
+  const double freq = 440.0 * std::pow(2.0, (midiNoteNumber - 69) / 12.0);
+  tableDelta = static_cast<float>(freq * tableSize / sampleRate);
+}
+
+float OomphOscillator::getNextSample() {
+  if (currentNote < 0)
+    return 0.0f;
+
+  const int index0 = static_cast<int>(currentIndex);
+  const int index1 = index0 + 1;
+  const float frac = currentIndex - index0;
+
+  // 線形補間
+  const float sample = wavetable[index0] + frac * (wavetable[index1] - wavetable[index0]);
+
+  currentIndex += tableDelta;
+  if (currentIndex >= static_cast<float>(tableSize))
+    currentIndex -= static_cast<float>(tableSize);
+
+  return sample;
+}
+```
+
+### 実装後の確認手順
+
+1. `make cmake`（ファイル変更はなし、CMakeLists.txt も変更なし → 不要かもしれないがひとまず実行）
+2. `make check && make lint`
+3. `make run` で Standalone 起動、鍵盤を弾いてサイン波が鳴るか確認
+4. 音質に違和感がないか（ブツ切れ・クリックノイズ・音程ズレがないか）確認
+
+### 将来の波形拡張メモ（Click モジュール向け）
+
+Clickで Square/Saw を追加する際は `wavetable` を差し替えるだけで対応可能：
+
+```cpp
+// Square波テーブル生成例（Band-limited版は別途検討）
+for (int i = 0; i < tableSize; ++i)
+  wavetable[i] = (i < tableSize / 2) ? 1.0f : -1.0f;
+wavetable[tableSize] = wavetable[0];
+```
+
+ただしSquare/Sawはエイリアシング対策（Band-limited Wavetable or BLEP）が別途必要。
+その際は `buildWavetable()` をパラメータ付きに拡張する方針で対応する。
