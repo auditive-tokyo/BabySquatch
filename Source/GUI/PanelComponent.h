@@ -25,6 +25,14 @@ public:
   // 展開インジケータ更新（親から呼ばれる）
   void setExpandIndicator(bool isThisPanelExpanded);
 
+  // Mute / Solo コールバック設定
+  void setOnMuteChanged(std::function<void(bool)> cb);
+  void setOnSoloChanged(std::function<void(bool)> cb);
+
+  // 外部からボタン状態を更新（Solo ハイライト用）
+  void setMuteState(bool muted);
+  void setSoloState(bool soloed);
+
 private:
   // ── 透明クリック領域（ノブ中央の値テキスト上に配置） ──
   class ValueClickArea : public juce::Component {
@@ -52,8 +60,12 @@ private:
   ValueClickArea clickArea;
   juce::TextEditor valueEditor;
   GlobalClickListener globalClickListener;
+  juce::TextButton muteButton{"M"};
+  juce::TextButton soloButton{"S"};
   juce::TextButton expandButton;
   std::function<void()> onExpandRequested;
+  std::function<void(bool)> onMuteChanged;
+  std::function<void(bool)> onSoloChanged;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PanelComponent)
 };

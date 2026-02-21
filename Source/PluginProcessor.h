@@ -49,6 +49,11 @@ public:
     void setOomphGainDb(float db) { oomphGainDb.store(db); }
     float getOomphGainDb() const { return oomphGainDb.load(); }
 
+    // ── Mute / Solo ──
+    enum class Channel { oomph = 0, click = 1, dry = 2 };
+    void setMute(Channel ch, bool muted);
+    void setSolo(Channel ch, bool soloed);
+
     // ── エンベロープ LUT（ロックフリー・ダブルバッファ） ──
 
     static constexpr int envLutSize = 512;
@@ -71,6 +76,8 @@ private:
     OomphOscillator oomphOsc;
     std::atomic<bool> fixedModeActive{false};
     std::atomic<float> oomphGainDb{0.0f};
+    std::array<std::atomic<bool>, 3> channelMute{};
+    std::array<std::atomic<bool>, 3> channelSolo{};
     juce::AbstractFifo waveformFifo{waveformFifoSize};
     std::array<float, waveformFifoSize> waveformBuffer{};
     std::vector<float> oomphScratchBuffer; // prepareToPlay でリサイズ

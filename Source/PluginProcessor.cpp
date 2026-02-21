@@ -129,9 +129,31 @@ void BabySquatchAudioProcessor::bakeEnvelopeLut(const float *data, int size) {
   envLutActiveIndex.store(1 - activeIdx, std::memory_order_release);
 }
 
+void BabySquatchAudioProcessor::setMute(Channel ch, bool muted) {
+  channelMute[static_cast<size_t>(ch)].store(muted);
+}
+
+void BabySquatchAudioProcessor::setSolo(Channel ch, bool soloed) {
+  channelSolo[static_cast<size_t>(ch)].store(soloed);
+}
+
 void BabySquatchAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
                                              juce::MidiBuffer &midiMessages) {
   juce::ScopedNoDenormals noDenormals;
+
+  // ── Mute / Solo ロジック ──
+  using Ch = Channel;
+  const bool anySolo = channelSolo[static_cast<size_t>(Ch::oomph)].load()
+                    || channelSolo[static_cast<size_t>(Ch::click)].load()
+                    || channelSolo[static_cast<size_t>(Ch::dry)].load();
+  const auto muted = [&](Ch ch) { return channelMute[static_cast<size_t>(ch)].load(); };
+  const auto solod = [&](Ch ch) { return channelSolo[static_cast<size_t>(ch)].load(); };
+  const bool oomphPass = !muted(Ch::oomph) && (!anySolo || solod(Ch::oomph));
+  const bool dryPass   = !muted(Ch::dry)   && (!anySolo || solod(Ch::dry));
+
+  // Dry ミュート: 入力信号ごと消去（Oomph はこの後加算するので影響なし）
+  if (!dryPass)
+    buffer.clear();
 
   // FIXEDモード時はGUI鍵盤のMIDIマージとOSC発音をスキップ
   if (fixedModeActive.load()) {
@@ -178,8 +200,10 @@ void BabySquatchAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
 
       const float oscSample = oomphOsc.getNextSample() * gain * envGain;
       oomphScratchBuffer[static_cast<size_t>(sample)] = oscSample;
-      for (int ch = 0; ch < numChannels; ++ch)
-        buffer.addSample(ch, sample, oscSample);
+      if (oomphPass) {
+        for (int ch = 0; ch < numChannels; ++ch)
+          buffer.addSample(ch, sample, oscSample);
+      }
 
       noteTimeSamples += 1.0f;
     }

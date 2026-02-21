@@ -20,7 +20,7 @@ BabySquatchは3つのモジュールで構成されています：
 - VST3
 - Standalone
 
-## ビルル環境
+## ビルド環境
 
 - macOS
 - CMake/Xcode
@@ -38,7 +38,7 @@ BabySquatchは3つのモジュールで構成されています：
 
 ## 実装済み機能
 
-- 3パネルUI（OOMPH / CLICK / DRY）、各カラー付きロータリーノブ
+- 3パネルUI（OOMPH / CLICK / DRY）、各カラー付きロータリーノブ、Mute（グレー/赤）/ Solo（グレー/黄）トグルボタン、展開ボタン（▼）を下部に配置
 - グラデーションアーク（指数的グロー）
 - ノブ中央にdB値表示、クリックでキーボード入力、ダブルクリックで0.0dBリセット
 - 展開パネル（per-channel ▼ボタン、共有展開エリア）
@@ -114,15 +114,6 @@ BabySquatchは3つのモジュールで構成されています：
     2. Pitchエンベロープ用のパラメータ/ノブ追加（`EnvelopeData pitchEnvData` + `EnvelopeCurveEditor`）
     3. Blendエンベロープ用のパラメータ/ノブ追加（Sine/他波形のミックス比）
     4. Oomphロータリーノブは最終段で全体にかかるゲインとして処理
-
-- **Mute / Solo ボタン実装**
-  - 各チャンネル（Oomph / Click / Dry）にMute/Soloボタンを追加
-  - 実装:
-    1. `PanelComponent` に `MuteButton`, `SoloButton` を追加（トグルボタン）
-    2. `PluginProcessor` に `std::atomic<bool> oomphMute{false}, oomphSolo{false}` 等の状態変数追加
-    3. `processBlock` 内でMute/Solo状態に応じてチャンネルのゲインを制御
-    4. Solo優先ロジック: いずれかのSoloがON → Soloチャンネルのみ出力、OFFチャンネルはミュート
-    5. UIデザイン: Muteボタン（グレー/赤）、Soloボタン（グレー/黄色）、パネル上部またはノブ横に配置
 
 - **出力レベルメーター追加**
   - 各チャンネル（Oomph / Click / Dry）のロータリーノブ横に縦型レベルメーターを配置

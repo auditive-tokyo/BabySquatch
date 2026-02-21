@@ -63,6 +63,36 @@ PanelComponent::PanelComponent(const juce::String &name, juce::Colour arcColour,
       onExpandRequested();
   };
   addAndMakeVisible(expandButton);
+
+  // ── Mute ボタン ──
+  muteButton.setClickingTogglesState(true);
+  muteButton.setColour(juce::TextButton::buttonColourId,
+                       UIConstants::Colours::muteOff);
+  muteButton.setColour(juce::TextButton::buttonOnColourId,
+                       UIConstants::Colours::muteOn);
+  muteButton.setColour(juce::TextButton::textColourOffId,
+                       UIConstants::Colours::labelText);
+  muteButton.setColour(juce::TextButton::textColourOnId, juce::Colours::white);
+  muteButton.onClick = [this] {
+    if (onMuteChanged)
+      onMuteChanged(muteButton.getToggleState());
+  };
+  addAndMakeVisible(muteButton);
+
+  // ── Solo ボタン ──
+  soloButton.setClickingTogglesState(true);
+  soloButton.setColour(juce::TextButton::buttonColourId,
+                       UIConstants::Colours::soloOff);
+  soloButton.setColour(juce::TextButton::buttonOnColourId,
+                       UIConstants::Colours::soloOn);
+  soloButton.setColour(juce::TextButton::textColourOffId,
+                       UIConstants::Colours::labelText);
+  soloButton.setColour(juce::TextButton::textColourOnId, juce::Colours::white);
+  soloButton.onClick = [this] {
+    if (onSoloChanged)
+      onSoloChanged(soloButton.getToggleState());
+  };
+  addAndMakeVisible(soloButton);
 }
 
 // ────────────────────────────────────────────────────
@@ -86,9 +116,12 @@ void PanelComponent::resized() {
 
   titleLabel.setBounds(area.removeFromTop(UIConstants::labelHeight));
 
-  // 展開ボタン（下から確保）
-  expandButton.setBounds(
-      area.removeFromBottom(UIConstants::expandButtonHeight));
+  // 下部ボタン行: M | S | ▼
+  auto bottomRow = area.removeFromBottom(UIConstants::expandButtonHeight);
+  const int btnW = bottomRow.getWidth() / 3;
+  muteButton.setBounds(bottomRow.removeFromLeft(btnW));
+  soloButton.setBounds(bottomRow.removeFromLeft(btnW));
+  expandButton.setBounds(bottomRow);
 
   knob.setBounds(area);
 
@@ -189,4 +222,23 @@ void PanelComponent::setOnExpandRequested(std::function<void()> callback) {
 void PanelComponent::setExpandIndicator(bool isThisPanelExpanded) {
   expandButton.setButtonText(
       juce::String::charToString(isThisPanelExpanded ? 0x25B2 : 0x25BC));
+}
+
+// ────────────────────────────────────────────────
+// Mute / Solo コールバック + 外部状態更新
+// ────────────────────────────────────────────────
+void PanelComponent::setOnMuteChanged(std::function<void(bool)> cb) {
+  onMuteChanged = std::move(cb);
+}
+
+void PanelComponent::setOnSoloChanged(std::function<void(bool)> cb) {
+  onSoloChanged = std::move(cb);
+}
+
+void PanelComponent::setMuteState(bool muted) {
+  muteButton.setToggleState(muted, juce::dontSendNotification);
+}
+
+void PanelComponent::setSoloState(bool soloed) {
+  soloButton.setToggleState(soloed, juce::dontSendNotification);
 }

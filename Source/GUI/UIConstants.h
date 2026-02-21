@@ -53,5 +53,11 @@ inline const juce::Colour labelText{0xFFBBBBBB};
 
 // 波形表示エリア
 inline const juce::Colour waveformBg{0xFF1E1E1E};
+
+// Mute/Solo ボタン
+inline const juce::Colour muteOff{0xFF444444};
+inline const juce::Colour muteOn{0xFFCC2222};
+inline const juce::Colour soloOff{0xFF444444};
+inline const juce::Colour soloOn{0xFFCCAA00};
 } // namespace Colours
 } // namespace UIConstants
