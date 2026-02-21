@@ -1,6 +1,8 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
+#include <algorithm>
+
 BabySquatchAudioProcessor::BabySquatchAudioProcessor()
     : AudioProcessor(
           BusesProperties()
@@ -43,8 +45,8 @@ void BabySquatchAudioProcessor::changeProgramName(int index,
 
 void BabySquatchAudioProcessor::prepareToPlay(double sampleRate,
                                               int samplesPerBlock) {
-  juce::ignoreUnused(samplesPerBlock);
   oomphOsc.prepareToPlay(sampleRate);
+  oomphScratchBuffer.resize(static_cast<size_t>(samplesPerBlock));
 }
 
 void BabySquatchAudioProcessor::releaseResources() {
@@ -61,6 +63,42 @@ bool BabySquatchAudioProcessor::isBusesLayoutSupported(
     return false;
 
   return true;
+}
+
+void BabySquatchAudioProcessor::pushWaveformBlock(const float *data,
+                                                   int numSamples) noexcept {
+  int start1 = 0;
+  int size1 = 0;
+  int start2 = 0;
+  int size2 = 0;
+  waveformFifo.prepareToWrite(numSamples, start1, size1, start2, size2);
+
+  if (size1 > 0)
+    std::copy_n(data, size1, waveformBuffer.data() + start1);
+  if (size2 > 0)
+    std::copy_n(data + size1, size2, waveformBuffer.data() + start2);
+
+  waveformFifo.finishedWrite(size1 + size2);
+}
+
+int BabySquatchAudioProcessor::popWaveformSamples(float *destination,
+                                                  int maxSamples) noexcept {
+  if (destination == nullptr || maxSamples <= 0)
+    return 0;
+
+  int start1 = 0;
+  int size1 = 0;
+  int start2 = 0;
+  int size2 = 0;
+  waveformFifo.prepareToRead(maxSamples, start1, size1, start2, size2);
+
+  if (size1 > 0)
+    std::copy_n(waveformBuffer.data() + start1, size1, destination);
+  if (size2 > 0)
+    std::copy_n(waveformBuffer.data() + start2, size2, destination + size1);
+
+  waveformFifo.finishedRead(size1 + size2);
+  return size1 + size2;
 }
 
 void BabySquatchAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
@@ -89,17 +127,20 @@ void BabySquatchAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     }
   }
 
-  // サイン波を出力バッファに加算
+  // サイン波を出力バッファに加算（スクラッチバッファに記録してブロック単位でFIFOへ送出）
+  const int numSamples = buffer.getNumSamples();
   if (oomphOsc.isActive()) {
-    const int numSamples = buffer.getNumSamples();
     const int numChannels = buffer.getNumChannels();
     for (int sample = 0; sample < numSamples; ++sample) {
       const float oscSample = oomphOsc.getNextSample();
-      for (int ch = 0; ch < numChannels; ++ch) {
+      oomphScratchBuffer[static_cast<size_t>(sample)] = oscSample;
+      for (int ch = 0; ch < numChannels; ++ch)
         buffer.addSample(ch, sample, oscSample);
-      }
     }
+  } else {
+    std::fill_n(oomphScratchBuffer.data(), numSamples, 0.0f);
   }
+  pushWaveformBlock(oomphScratchBuffer.data(), numSamples);
 }
 
 bool BabySquatchAudioProcessor::hasEditor() const { return true; }

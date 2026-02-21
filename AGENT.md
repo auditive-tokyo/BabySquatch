@@ -83,7 +83,7 @@ BabySquatchは3つのモジュールで構成されています：
    - `processBlock` で `KeyboardComponent::getMode()` を参照し、FIXEDモード時は `keyboardState.processNextMidiBuffer()` をスキップ（GUI鍵盤のMIDIをバッファにマージしない）
      > Processor が Editor の `KeyboardComponent` を参照できるよう `getMode()` を Processor 側に公開する方法を検討（例：`std::atomic<bool> fixedModeActive` を Processor に持ち、Editor から書き込む）
 
-6. **`juce::AbstractFifo` で波形データをスレッドセーフ受け渡し**
+6. ✅ **`juce::AbstractFifo` で波形データをスレッドセーフ受け渡し**
    - オーディオスレッド → push サンプル
    - UIスレッド（60Hz Timer） → pop → GPU転送
      > 注意: AtomicRingBuffer は使わず `juce::AbstractFifo` を使用（自前実装不要）

@@ -4,7 +4,10 @@
 #include "GUI/PanelComponent.h"
 #include "PluginProcessor.h"
 
-class BabySquatchAudioProcessorEditor : public juce::AudioProcessorEditor {
+#include <array>
+
+class BabySquatchAudioProcessorEditor : public juce::AudioProcessorEditor,
+                                        private juce::Timer {
 public:
   explicit BabySquatchAudioProcessorEditor(BabySquatchAudioProcessor &);
   ~BabySquatchAudioProcessorEditor() override;
@@ -13,6 +16,8 @@ public:
   void resized() override;
 
 private:
+  void timerCallback() override;
+
   // 展開チャンネル（None = 閉じた状態）
   enum class ExpandChannel { none, oomph, click, dry };
 
@@ -33,7 +38,9 @@ private:
   ExpandChannel activeChannel = ExpandChannel::none;
 
   // ── MIDI 鍵盤（展開パネル下部・全チャンネル共通） ──
+  BabySquatchAudioProcessor &processorRef;
   KeyboardComponent keyboard;
+  std::array<float, 1024> waveformTransferBuffer{};
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(BabySquatchAudioProcessorEditor)
 };

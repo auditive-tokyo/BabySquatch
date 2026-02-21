@@ -1,7 +1,9 @@
 #pragma once
 
 #include "DSP/OomphOscillator.h"
+#include <array>
 #include <atomic>
+#include <vector>
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_audio_utils/juce_audio_utils.h>
 
@@ -43,10 +45,19 @@ public:
     void setFixedModeActive(bool active) { fixedModeActive.store(active); }
     bool isFixedModeActive() const { return fixedModeActive.load(); }
 
+    /// UIスレッド（60Hz Timer）から呼び出して波形サンプルを取得
+    int popWaveformSamples(float* destination, int maxSamples) noexcept;
+
 private:
+    void pushWaveformBlock(const float* data, int numSamples) noexcept;
+
+    static constexpr int waveformFifoSize = 16384;
     juce::MidiKeyboardState keyboardState;
     OomphOscillator oomphOsc;
     std::atomic<bool> fixedModeActive{false};
+    juce::AbstractFifo waveformFifo{waveformFifoSize};
+    std::array<float, waveformFifoSize> waveformBuffer{};
+    std::vector<float> oomphScratchBuffer; // prepareToPlay でリサイズ
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (BabySquatchAudioProcessor)
 };

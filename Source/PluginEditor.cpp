@@ -3,7 +3,7 @@
 
 BabySquatchAudioProcessorEditor::BabySquatchAudioProcessorEditor(
     BabySquatchAudioProcessor &p)
-    : AudioProcessorEditor(&p),
+    : AudioProcessorEditor(&p), processorRef(p),
       keyboard(p.getKeyboardState()) {
   addAndMakeVisible(oomphPanel);
   addAndMakeVisible(clickPanel);
@@ -26,9 +26,18 @@ BabySquatchAudioProcessorEditor::BabySquatchAudioProcessorEditor(
   addChildComponent(keyboard);
 
   setSize(UIConstants::windowWidth, UIConstants::windowHeight);
+  startTimerHz(60);
 }
 
-BabySquatchAudioProcessorEditor::~BabySquatchAudioProcessorEditor() = default;
+BabySquatchAudioProcessorEditor::~BabySquatchAudioProcessorEditor() {
+  stopTimer();
+}
+
+void BabySquatchAudioProcessorEditor::timerCallback() {
+  juce::ignoreUnused(processorRef.popWaveformSamples(
+      waveformTransferBuffer.data(),
+      static_cast<int>(waveformTransferBuffer.size())));
+}
 
 void BabySquatchAudioProcessorEditor::paint(juce::Graphics &g) {
   using enum ExpandChannel;
