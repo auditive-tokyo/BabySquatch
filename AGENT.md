@@ -48,6 +48,32 @@ BabySquatchは3つのモジュールで構成されています：
   - MIDI / FIXED モード切り替えボタン
   - FIXEDモード：単音固定、同じ鍵盤クリックで解除
 
+## Source構成（概要）
+
+`tree` の生出力を貼り付け（更新時は `cd Source && tree` を再実行して置き換える）:
+
+```text
+.
+├── DSP
+│   ├── OomphOscillator.cpp   // Oomph用Wavetable OSC実装（波形生成・補間）
+│   └── OomphOscillator.h     // Oomph用Wavetable OSC宣言（公開API）
+├── GUI
+│   ├── CustomSliderLAF.h      // ノブ描画LookAndFeel（グラデーション/値表示）
+│   ├── KeyboardComponent.cpp  // 鍵盤UI実装（MIDI/FIXED切替・PCキー入力）
+│   ├── KeyboardComponent.h    // 鍵盤UI宣言（モード/固定ノート制御API）
+│   ├── PanelComponent.cpp     // OOMPH/CLICK/DRY共通パネル実装
+│   ├── PanelComponent.h       // 共通パネル宣言（ノブ・展開ボタン）
+│   ├── UIConstants.h          // UI定数集約（色・レイアウト寸法）
+│   ├── WaveformDisplay.cpp    // OpenGL波形描画実装（Shader/VBO描画）
+│   └── WaveformDisplay.h      // OpenGL波形描画コンポーネント宣言
+├── PluginEditor.cpp           // Editor実装（レイアウト/タイマー/UIイベント）
+├── PluginEditor.h             // Editor宣言（UI構成とメンバー）
+├── PluginProcessor.cpp        // Processor実装（MIDI処理・DSP・FIFO）
+└── PluginProcessor.h          // Processor宣言（AudioProcessorインターフェース）
+
+3 directories, 14 files
+```
+
 ## TODO
 
 ### Oomph Wavetable OSC + 波形表示（OpenGL GPU描画）
