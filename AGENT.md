@@ -42,7 +42,7 @@ BabySquatchは3つのモジュールで構成されています：
 - グラデーションアーク（指数的グロー）
 - ノブ中央にdB値表示、クリックでキーボード入力、ダブルクリックで0.0dBリセット
 - 展開パネル（per-channel ▼ボタン、共有展開エリア）
-- MIDI鍵盤（KeyboardComponent）  
+- MIDI鍵盤（KeyboardComponent）
   - C0〜C7表示、PCキー演奏対応（A=C2ベース）
   - Z/Xでオクターブシフト（両モード共通）
   - MIDI / FIXED モード切り替えボタン
@@ -88,7 +88,7 @@ BabySquatchは3つのモジュールで構成されています：
    - UIスレッド（60Hz Timer） → pop → GPU転送
      > 注意: AtomicRingBuffer は使わず `juce::AbstractFifo` を使用（自前実装不要）
 
-7. **`WaveformDisplay` 実装**（`Source/GUI/WaveformDisplay.h/.cpp`）
+7. ✅ **`WaveformDisplay` 実装**（`Source/GUI/WaveformDisplay.h/.cpp`）
    - `juce::Component` + `juce::OpenGLRenderer` 継承
    - `glContext.setRenderer(this)` + `glContext.attachTo(*this)` + `setContinuousRepainting(true)`
    - `newOpenGLContextCreated()`: GLSL シェーダー + VBO 初期化
@@ -151,24 +151,28 @@ Wavetableとは「1周期分の波形を配列（テーブル）として事前�
 ```
 
 `tableDelta` の計算：
+
 ```
 tableDelta = frequency * tableSize / sampleRate
 ```
+
 例: 44100Hz サンプルレート、C2（65.41Hz）、テーブルサイズ2048の場合:
+
 ```
 tableDelta = 65.41 * 2048 / 44100 ≈ 3.04
 ```
+
 → 毎サンプル3.04インデックス分進む = 65.41Hzの波形を再生
 
 #### BabySquatch固有の利点
 
-| 観点 | 現行 (std::sin) | Wavetable |
-|------|----------------|-----------|
-| CPU負荷（ランタイム） | 毎サンプル超越関数呼び出し | テーブル読み出し＋補間のみ（軽い） |
-| エイリアシング（Oomph/サブ帯域） | 実用上ほぼ問題なし | 同様に問題なし（サブは高調波少ない） |
+| 観点                               | 現行 (std::sin)                    | Wavetable                                          |
+| ---------------------------------- | ---------------------------------- | -------------------------------------------------- |
+| CPU負荷（ランタイム）              | 毎サンプル超越関数呼び出し         | テーブル読み出し＋補間のみ（軽い）                 |
+| エイリアシング（Oomph/サブ帯域）   | 実用上ほぼ問題なし                 | 同様に問題なし（サブは高調波少ない）               |
 | エイリアシング（Click/Square/Saw） | **問題あり**（折り返し雑音が出る） | **対応可能**（Band-limited tableを用意すれば解決） |
-| 波形拡張性 | 波形ごとに別クラス必要 | テーブルを差し替えるだけで波形切り替え可能 |
-| WaveformDisplay連携 | getNextSample()の戻り値をFifoへ | 同じ。インターフェースは変わらない |
+| 波形拡張性                         | 波形ごとに別クラス必要             | テーブルを差し替えるだけで波形切り替え可能         |
+| WaveformDisplay連携                | getNextSample()の戻り値をFifoへ    | 同じ。インターフェースは変わらない                 |
 
 → 特に **Click モジュール（Square/Triangle/Saw）への拡張**を見据えると、
 今Wavetable基盤を作っておくと後がシンプルになる。

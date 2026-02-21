@@ -37,6 +37,8 @@ target_sources(BabySquatch
         Source/GUI/PanelComponent.cpp
         Source/GUI/KeyboardComponent.h
         Source/GUI/KeyboardComponent.cpp
+        Source/GUI/WaveformDisplay.h
+        Source/GUI/WaveformDisplay.cpp
         Source/DSP/OomphOscillator.h
         Source/DSP/OomphOscillator.cpp
 )
@@ -52,6 +54,7 @@ target_link_libraries(BabySquatch
     PRIVATE
         juce::juce_audio_utils
         juce::juce_dsp
+        juce::juce_opengl
     PUBLIC
         juce::juce_recommended_config_flags
         juce::juce_recommended_lto_flags
