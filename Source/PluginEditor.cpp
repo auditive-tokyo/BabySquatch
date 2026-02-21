@@ -20,10 +20,20 @@ BabySquatchAudioProcessorEditor::BabySquatchAudioProcessorEditor(
   addChildComponent(expandableArea);
 
   // ── MIDI 鍵盤（展開パネル下部） ──
-  keyboard.setOnModeChanged([&p](KeyboardComponent::Mode mode) {
+  keyboard.setOnModeChanged([this, &p](KeyboardComponent::Mode mode) {
     p.setFixedModeActive(mode == KeyboardComponent::Mode::fixed);
+    updateWaveformVisibility();
   });
   addChildComponent(keyboard);
+
+  // ── 波形ディスプレイ（MIDIモード時のみ表示） ──
+  addChildComponent(waveformDisplay);
+
+  // ── OOMPHノブ → Processorゲイン配線 ──
+  oomphPanel.getKnob().onValueChange = [this] {
+    processorRef.setOomphGainDb(
+        static_cast<float>(oomphPanel.getKnob().getValue()));
+  };
 
   setSize(UIConstants::windowWidth, UIConstants::windowHeight);
   startTimerHz(60);
@@ -34,9 +44,11 @@ BabySquatchAudioProcessorEditor::~BabySquatchAudioProcessorEditor() {
 }
 
 void BabySquatchAudioProcessorEditor::timerCallback() {
-  juce::ignoreUnused(processorRef.popWaveformSamples(
+  const int got = processorRef.popWaveformSamples(
       waveformTransferBuffer.data(),
-      static_cast<int>(waveformTransferBuffer.size())));
+      static_cast<int>(waveformTransferBuffer.size()));
+  if (got > 0)
+    waveformDisplay.updateWaveform(waveformTransferBuffer.data(), got);
 }
 
 void BabySquatchAudioProcessorEditor::paint(juce::Graphics &g) {
@@ -61,6 +73,10 @@ void BabySquatchAudioProcessorEditor::resized() {
     // 鍵盤を展開エリア下部に配置（モードボタン + 鍵盤本体）
     keyboard.setBounds(expandArea.removeFromBottom(
         UIConstants::keyboardHeight + UIConstants::modeButtonHeight));
+
+    // 波形ディスプレイを鍵盤の上に配置
+    waveformDisplay.setBounds(
+        expandArea.removeFromBottom(UIConstants::waveformDisplayHeight));
 
     expandableArea.setBounds(expandArea);
     area.removeFromBottom(UIConstants::panelGap);
@@ -90,6 +106,7 @@ void BabySquatchAudioProcessorEditor::requestExpand(ExpandChannel ch) {
   const bool isOpen = (activeChannel != none);
   expandableArea.setVisible(isOpen);
   keyboard.setVisible(isOpen);
+  updateWaveformVisibility();
 
   if (isOpen)
     keyboard.grabFocus();
@@ -106,4 +123,11 @@ void BabySquatchAudioProcessorEditor::updateExpandIndicators() {
   oomphPanel.setExpandIndicator(activeChannel == oomph);
   clickPanel.setExpandIndicator(activeChannel == click);
   dryPanel.setExpandIndicator(activeChannel == dry);
+}
+
+void BabySquatchAudioProcessorEditor::updateWaveformVisibility() {
+  using enum ExpandChannel;
+  const bool isOpen = (activeChannel != none);
+  const bool isMidi = (keyboard.getMode() == KeyboardComponent::Mode::midi);
+  waveformDisplay.setVisible(isOpen && isMidi);
 }

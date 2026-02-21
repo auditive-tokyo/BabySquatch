@@ -22,6 +22,7 @@ constexpr int valueHeight = 20;
 // ── 展開パネル ──
 constexpr int expandButtonHeight = 20;
 constexpr int expandedAreaHeight = 360;
+constexpr int waveformDisplayHeight = 80;
 
 // ── 鍵盤 ──
 constexpr int keyboardHeight = 70;

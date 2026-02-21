@@ -76,229 +76,104 @@ BabySquatchは3つのモジュールで構成されています：
 
 ## TODO
 
-### Oomph Wavetable OSC + 波形表示（OpenGL GPU描画）
+### AMP Envelope エディタ実装（Kick Ninja スタイル）
 
-**目的:** MIDIモード時に鍵盤入力でWavetable方式のサイン波を発音し、波形を展開エリアに表示する
+**目的:** OOMPHパネル展開エリアに、ユーザーが制御点を打ってサイン波の振幅包絡を視覚的に編集できるインタラクティブカーブエディタを実装する。
 
-**実装ステップ（順番に実施）:**
+**設計方針:**
 
-1. ✅ **`acceptsMidi()` を `true` に変更**（Standalone/DAW共通MIDI経路確立）
-   - `CMakeLists.txt`: `NEEDS_MIDI_INPUT TRUE`
-   - `PluginProcessor.cpp`: `acceptsMidi()` → `true`
-   - `IS_SYNTH` は `FALSE` のまま（Effect扱いを維持）
+- 表示するのはリアルタイム波形ではなく、**パラメータから計算したプレビュー**
+  - `sin(t) × envelope(t)` をオフラインで計算 → 描画
+- 制御点を打ってCatmull-Romスプライン補間でカーブを生成
+- カーブエディタと波形プレビューを**1コンポーネントに一体化**（Kick Ninja スタイル）
+- `WaveformDisplay`（OpenGL）はファイルとして残すが、Editorからは外す
+- Phase 1はUI完結（DSPへの適用は後のステップ）
 
-2. ✅ **`OomphOscillator` 実装**（`Source/DSP/OomphOscillator.h/.cpp`）
-   - sine波生成（`std::sin` 直接呼び出し版）、`setNote(int midiNote)` でHz変換
-   - `prepareToPlay(sampleRate)` で初期化
-   - `getNextSample()` → オーディオスレッドで呼び出し
+**描画レイヤー（`paint()` 内）:**
 
-3. ✅ **`PluginProcessor::processBlock` でMIDI→OSC接続**
-   - `MidiKeyboardState` を Processor に移動（GUI鍵盤→processBlock のMIDI受け渡し）
-   - MIDIバッファを走査、noteOn/noteOff → OomphOscillatorに通知
-   - 出力バッファにサイン波を加算
-   - `KeyboardComponent` は外部から `MidiKeyboardState&` を受け取る形にリファクタリング
+1. 背景（`UIConstants::Colours::waveformBg`）
+2. 波形塗りつぶし（`sin(t) × envelope(t)` + `oomphArc` グラデーション）
+3. エンベロープカーブ（スプライン線）
+4. コントロールポイント（ドラッグ可能な白い小円）
 
-4. ✅ **`OomphOscillator` を Wavetable 方式に切り替え**
-   - 外部API（`prepareToPlay`, `setNote`, `getNextSample`, `isActive`, `getCurrentNote`）は変更なし
-   - 内部を `std::sin()` 毎サンプル呼び出し → テーブル読み出し＋線形補間に置き換え
-   - `PluginProcessor.cpp` の変更は不要（API不変のため）
-     > 詳細: 後述「OomphOscillator Wavetable化 実装メモ」を参照
+**マウス操作:**
+| 操作 | 動作 |
+|------|------|
+| 空白を左ダブルクリック | ポイント追加 |
+| ポイント上を左ダブルクリック | ポイント削除 |
+| ポイントをドラッグ | 移動（横軸: ms, 縦軸: Amplitude 0〜200, 中央=100） |
 
-5. ✅ **FIXEDモード時のMIDI発音を無効化**
-   - FIXEDモードはオーディオ入力に対してfixedノートを適用するモード（OSCが音を生成するのではなく、入力オーディオを加工する用途）
-   - `processBlock` で `KeyboardComponent::getMode()` を参照し、FIXEDモード時は `keyboardState.processNextMidiBuffer()` をスキップ（GUI鍵盤のMIDIをバッファにマージしない）
-     > Processor が Editor の `KeyboardComponent` を参照できるよう `getMode()` を Processor 側に公開する方法を検討（例：`std::atomic<bool> fixedModeActive` を Processor に持ち、Editor から書き込む）
+**状態遷移（Kick Ninja スタイル）:**
+- **デフォルト（ポイントなし）** → フラット波形、AMPノブで値調整可能
+- **ポイント追加** → Automation モード、複数ポイント間を Catmull-Rom スプライン補間
+- **全ポイント削除** → デフォルト状態に戻る
 
-6. ✅ **`juce::AbstractFifo` で波形データをスレッドセーフ受け渡し**
-   - オーディオスレッド → push サンプル
-   - UIスレッド（60Hz Timer） → pop → GPU転送
-     > 注意: AtomicRingBuffer は使わず `juce::AbstractFifo` を使用（自前実装不要）
+**単位系:**
+- `EnvelopeData.defaultValue`: **0.0〜2.0 の線形ゲイン**（0% 〜 200%、中央 1.0 = 100%）
+- OOMPHノブ（dB）→ `Decibels::decibelsToGain()` で変換してから `setDefaultValue()` に渡す
+- 描画時は `defaultValue × 100` で 0〜200 スケール表示
 
-7. ✅ **`WaveformDisplay` 実装**（`Source/GUI/WaveformDisplay.h/.cpp`）
-   - `juce::Component` + `juce::OpenGLRenderer` 継承
-   - `glContext.setRenderer(this)` + `glContext.attachTo(*this)` + `setContinuousRepainting(true)`
-   - `newOpenGLContextCreated()`: GLSL シェーダー + VBO 初期化
-   - `renderOpenGL()`: 波形データ → VRAM転送 → 描画（Wavetableで生成したサンプル値をそのまま使う）
-   - `openGLContextClosing()`: リソース解放
-     > 注意: OpenGLコンポーネントでは `paint()` は使わず `renderOpenGL()` を使用
-     > 注意: 波形はCPU側で生成したサンプル列をGPUへ転送し、GPU側でsineを再計算しない
+**実装ステップ:**
 
-8. **PluginEditor に WaveformDisplay 統合**
-   - 展開エリアの上部（鍵盤の上）に配置
-   - MIDIモード時のみ表示
-   - OOMPHロータリースライダーを Oomph出力レベルに紐づけ（最終段のボリュームとして適用）
-     > 方針: Oomphチェーン（Wavetable OSC → 将来ADSR）の最後でゲイン適用し、チャンネル出力直前の最終音量をノブで制御する
-     > 実装案: ノブ値はUIでdB表示、Processor側で `juce::Decibels::decibelsToGain()` によりlinear gainへ変換して適用（DSP責務はProcessorに集約）
-     > 参考: BassSplitter の GPU描画実装を参照すること
+### Phase 1: AMP フラット波形 + ノブ連動
 
----
+**目標:** デフォルト状態（ポイントなし）で、AMPノブの値に応じたフラット波形を表示・編集
 
-## OomphOscillator Wavetable化 実装メモ（方針決定済み）
+1. **`Source/DSP/EnvelopeData.h` 新規作成**（ヘッダオンリー）
+   - `EnvelopeData` クラス：定数値 `float defaultValue{1.0f}`（線形ゲイン 0.0〜2.0）のみ
+   - `getValue()` → 常に `defaultValue` を返す
+   - `setDefaultValue(float v)` / `getDefaultValue()` アクセッサ
+   - **`EnvelopePoint` 構造体は Phase 2 で追加**（Phase 1 では不要）
 
-### 決定事項
+2. **`Source/GUI/EnvelopeCurveEditor.h/.cpp` 新規作成**
+   - `juce::Component` 継承（OpenGLなし、`paint()` ベース）
+   - コンストラクタ: `EnvelopeCurveEditor(EnvelopeData& data)`
+   - `paint()`: 背景 → フラット波形塗りつぶし（`defaultValue` に基づく高さ）
+   - `setDisplayCycles(float)` で波の山数制御
+   - `displayDurationMs` は Phase 1 では固定定数（`static constexpr float defaultDurationMs = 300.0f`）、可変化は Phase 2
+   - `setOnChange(std::function<void()>)` コールバック（将来の自動再計算用）
+   - **Phase 1 ではマウス操作なし**（描画のみ）
 
-**→ Wavetable方式に切り替える（現行の `std::sin()` Oscillatorを置き換え）**
+3. **`CMakeLists.txt` 更新**
+   - `EnvelopeData.h`, `EnvelopeCurveEditor.h`, `EnvelopeCurveEditor.cpp` を `target_sources` に追加
 
-タイミングとして、Step 5（AbstractFifo）・Step 6（WaveformDisplay）実装前のこのタイミングが最もリファクタリングコストが低い。
-GPUパイプラインを繋いでしまうと `getNextSample()` への依存が深まり、後から変えにくくなるため今やる。
+4. **`PluginEditor.h` 更新**
+   - `#include "GUI/WaveformDisplay.h"` を削除 → `#include "GUI/EnvelopeCurveEditor.h"` / `#include "DSP/EnvelopeData.h"` 追加
+   - `WaveformDisplay waveformDisplay` メンバ削除（ファイルは CMakeLists に残す）
+   - `waveformTransferBuffer` メンバ削除
+   - `juce::Timer` 継承を削除（`timerCallback` / `startTimerHz` / `stopTimer` も除去）
+   - `updateWaveformVisibility()` → `updateEnvelopeEditorVisibility()` にリネーム
+   - `EnvelopeData ampEnvData` メンバ追加
+   - `EnvelopeCurveEditor envelopeCurveEditor{ampEnvData}` メンバ追加
 
-### なぜ Wavetable か（技術的根拠）
+5. **`PluginEditor.cpp` 更新**
+   - コンストラクタ: `addChildComponent(envelopeCurveEditor)`
+   - OOMPHノブ `onValueChange`: dB → `Decibels::decibelsToGain()` → `ampEnvData.setDefaultValue(gain)` + `envelopeCurveEditor.repaint()`
+   - `requestExpand`: `envelopeCurveEditor.setVisible(isOpen)`
+   - `resized` レイアウト順:
+     1. `keyboard` → `expandArea.removeFromBottom(keyboardHeight + modeButtonHeight)`
+     2. `envelopeCurveEditor` → `expandArea` の残り全域
+     3. `expandableArea` → 不使用（Phase 1 では bounds 設定不要、将来チャンネル固有UIの器）
+   - `timerCallback` 完全削除（Timer 継承ごと除去）
 
-#### 現行コードの問題点
+6. **`PluginProcessor.cpp` 更新**
+   - `pushWaveformBlock()` 呼び出しをコメントアウト（Editor が pop しないため FIFO が満杯で空振り続ける。コード自体は残す）
 
-`OomphOscillator.cpp` の `getNextSample()` は毎サンプル `std::sin()` を呼んでいる：
+7. **`make cmake` → `make check && make lint` → `make run` で動作確認**
 
-```cpp
-std::sin(phase * juce::MathConstants<double>::twoPi)
-```
+### Phase 2: Automation（複数ポイント制御）
 
-`std::sin()` はCPU的にコストの高い超越関数。現在はOomph単体で問題ないが、
-ADSR・ポリフォニー・Clickモジュールの波形追加が進むと無視できなくなる。
+**目標:** ポイント追加・削除・ドラッグで複数ポイント Automation を作成、Catmull-Rom スプライン補間で滑らかにつなぐ
 
-#### Wavetableの仕組み（概要）
+- `EnvelopeData` に `EnvelopePoint { float time, value; }` 構造体と `std::vector<EnvelopePoint> points` 追加
+- `addPoint` / `removePoint` / `movePoint` / `evaluate(t)` 実装
+- `EnvelopeCurveEditor` に `mouseDown` / `mouseDrag` / `mouseUp` でポイント操作追加
+- `paint()` 拡張: スプライン線 + コントロールポイント描画
+- `displayDurationMs` を可変に（ズーム/パン対応）
+- `PluginProcessor` に `EnvelopeData ampEnvData` を移し、`processBlock` でゲイン適用
+- Timer/FIFO を必要に応じて復活
 
-Wavetableとは「1周期分の波形を配列（テーブル）として事前に計算しておき、
-再生時はそのテーブルをインデックスで読み出す」方式。
-
-```
-初期化時（prepareToPlay）:
-  テーブルサイズ = 2048サンプル（+ wrap用に末尾に先頭と同じ値を追加 → 計2049要素）
-  for i in 0..2047:
-    table[i] = sin(2π * i / 2048)
-  table[2048] = table[0]  // 線形補間用のwrap
-
-再生時（getNextSample）:
-  index0 = (int)currentIndex
-  index1 = index0 + 1
-  frac = currentIndex - index0        // 小数部分（0.0〜1.0）
-  sample = table[index0] + frac * (table[index1] - table[index0])  // 線形補間
-  currentIndex += tableDelta
-  if (currentIndex >= tableSize): currentIndex -= tableSize
-```
-
-`tableDelta` の計算：
-
-```
-tableDelta = frequency * tableSize / sampleRate
-```
-
-例: 44100Hz サンプルレート、C2（65.41Hz）、テーブルサイズ2048の場合:
-
-```
-tableDelta = 65.41 * 2048 / 44100 ≈ 3.04
-```
-
-→ 毎サンプル3.04インデックス分進む = 65.41Hzの波形を再生
-
-#### BabySquatch固有の利点
-
-| 観点                               | 現行 (std::sin)                    | Wavetable                                          |
-| ---------------------------------- | ---------------------------------- | -------------------------------------------------- |
-| CPU負荷（ランタイム）              | 毎サンプル超越関数呼び出し         | テーブル読み出し＋補間のみ（軽い）                 |
-| エイリアシング（Oomph/サブ帯域）   | 実用上ほぼ問題なし                 | 同様に問題なし（サブは高調波少ない）               |
-| エイリアシング（Click/Square/Saw） | **問題あり**（折り返し雑音が出る） | **対応可能**（Band-limited tableを用意すれば解決） |
-| 波形拡張性                         | 波形ごとに別クラス必要             | テーブルを差し替えるだけで波形切り替え可能         |
-| WaveformDisplay連携                | getNextSample()の戻り値をFifoへ    | 同じ。インターフェースは変わらない                 |
-
-→ 特に **Click モジュール（Square/Triangle/Saw）への拡張**を見据えると、
-今Wavetable基盤を作っておくと後がシンプルになる。
-
-### 実装方針（変更スコープを最小化）
-
-**ポイント：外部インターフェース（API）は一切変えない。内部実装だけ差し替える。**
-
-これにより `PluginProcessor.cpp` の変更は不要。Step 1〜3の既実装も壊れない。
-
-#### 変更ファイル
-
-- `Source/DSP/OomphOscillator.h` — privateメンバを変更
-- `Source/DSP/OomphOscillator.cpp` — 実装を全面置き換え
-
-#### `OomphOscillator.h` の変更点
-
-```cpp
-// 変更前（privateメンバ）
-int currentNote = -1;
-double sampleRate = 44100.0;
-double phase = 0.0;
-double phaseIncrement = 0.0;
-
-// 変更後（privateメンバ）
-static constexpr int tableSize = 2048;
-std::vector<float> wavetable;   // tableSize + 1 要素（wrap用）
-
-int currentNote = -1;
-double sampleRate = 44100.0;
-float currentIndex = 0.0f;
-float tableDelta = 0.0f;        // phaseIncrementに相当
-
-void buildWavetable();          // prepareToPlay()内で呼び出す
-```
-
-#### `OomphOscillator.cpp` の変更点
-
-```cpp
-void OomphOscillator::prepareToPlay(double newSampleRate) {
-  sampleRate = newSampleRate;
-  currentIndex = 0.0f;
-  buildWavetable();
-}
-
-void OomphOscillator::buildWavetable() {
-  wavetable.resize(tableSize + 1);
-  for (int i = 0; i < tableSize; ++i)
-    wavetable[i] = std::sin(2.0f * juce::MathConstants<float>::pi * i / tableSize);
-  wavetable[tableSize] = wavetable[0];  // wrap用
-}
-
-void OomphOscillator::setNote(int midiNoteNumber) {
-  if (midiNoteNumber < 0) {
-    currentNote = -1;
-    tableDelta = 0.0f;
-    currentIndex = 0.0f;
-    return;
-  }
-  currentNote = midiNoteNumber;
-  const double freq = 440.0 * std::pow(2.0, (midiNoteNumber - 69) / 12.0);
-  tableDelta = static_cast<float>(freq * tableSize / sampleRate);
-}
-
-float OomphOscillator::getNextSample() {
-  if (currentNote < 0)
-    return 0.0f;
-
-  const int index0 = static_cast<int>(currentIndex);
-  const int index1 = index0 + 1;
-  const float frac = currentIndex - index0;
-
-  // 線形補間
-  const float sample = wavetable[index0] + frac * (wavetable[index1] - wavetable[index0]);
-
-  currentIndex += tableDelta;
-  if (currentIndex >= static_cast<float>(tableSize))
-    currentIndex -= static_cast<float>(tableSize);
-
-  return sample;
-}
-```
-
-### 実装後の確認手順
-
-1. `make cmake`（ファイル変更はなし、CMakeLists.txt も変更なし → 不要かもしれないがひとまず実行）
-2. `make check && make lint`
-3. `make run` で Standalone 起動、鍵盤を弾いてサイン波が鳴るか確認
-4. 音質に違和感がないか（ブツ切れ・クリックノイズ・音程ズレがないか）確認
-
-### 将来の波形拡張メモ（Click モジュール向け）
-
-Clickで Square/Saw を追加する際は `wavetable` を差し替えるだけで対応可能：
-
-```cpp
-// Square波テーブル生成例（Band-limited版は別途検討）
-for (int i = 0; i < tableSize; ++i)
-  wavetable[i] = (i < tableSize / 2) ? 1.0f : -1.0f;
-wavetable[tableSize] = wavetable[0];
-```
-
-ただしSquare/Sawはエイリアシング対策（Band-limited Wavetable or BLEP）が別途必要。
-その際は `buildWavetable()` をパラメータ付きに拡張する方針で対応する。
+**将来の拡張（Phase 3以降）:**
+- `EnvelopeData pitchEnvData` — ピッチ包絡（`EnvelopeCurveEditor` 再利用）
+- `EnvelopeData blendEnvData` — Sine/他ウェーブシェイプのミックス比
+- Click/Dry パネルの展開エリアに同様のエディタを配置（CLICK: 時間軸と高さ制御、DRY: パス制御など）

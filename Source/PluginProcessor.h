@@ -45,6 +45,10 @@ public:
     void setFixedModeActive(bool active) { fixedModeActive.store(active); }
     bool isFixedModeActive() const { return fixedModeActive.load(); }
 
+    /// Oomph出力ゲイン（dB）— UIノブから書き込み、processBlockで適用
+    void setOomphGainDb(float db) { oomphGainDb.store(db); }
+    float getOomphGainDb() const { return oomphGainDb.load(); }
+
     /// UIスレッド（60Hz Timer）から呼び出して波形サンプルを取得
     int popWaveformSamples(float* destination, int maxSamples) noexcept;
 
@@ -55,6 +59,7 @@ private:
     juce::MidiKeyboardState keyboardState;
     OomphOscillator oomphOsc;
     std::atomic<bool> fixedModeActive{false};
+    std::atomic<float> oomphGainDb{0.0f};
     juce::AbstractFifo waveformFifo{waveformFifoSize};
     std::array<float, waveformFifoSize> waveformBuffer{};
     std::vector<float> oomphScratchBuffer; // prepareToPlay でリサイズ

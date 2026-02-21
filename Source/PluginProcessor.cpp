@@ -130,9 +130,10 @@ void BabySquatchAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   // サイン波を出力バッファに加算（スクラッチバッファに記録してブロック単位でFIFOへ送出）
   const int numSamples = buffer.getNumSamples();
   if (oomphOsc.isActive()) {
+    const float gain = juce::Decibels::decibelsToGain(oomphGainDb.load());
     const int numChannels = buffer.getNumChannels();
     for (int sample = 0; sample < numSamples; ++sample) {
-      const float oscSample = oomphOsc.getNextSample();
+      const float oscSample = oomphOsc.getNextSample() * gain;
       oomphScratchBuffer[static_cast<size_t>(sample)] = oscSample;
       for (int ch = 0; ch < numChannels; ++ch)
         buffer.addSample(ch, sample, oscSample);

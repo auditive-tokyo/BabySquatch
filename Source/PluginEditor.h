@@ -2,6 +2,7 @@
 
 #include "GUI/KeyboardComponent.h"
 #include "GUI/PanelComponent.h"
+#include "GUI/WaveformDisplay.h"
 #include "PluginProcessor.h"
 
 #include <array>
@@ -23,6 +24,7 @@ private:
 
   void requestExpand(ExpandChannel ch);
   void updateExpandIndicators();
+  void updateWaveformVisibility();
 
   PanelComponent oomphPanel{"OOMPH", UIConstants::Colours::oomphArc,
                             UIConstants::Colours::oomphThumb};
@@ -40,6 +42,7 @@ private:
   // ── MIDI 鍵盤（展開パネル下部・全チャンネル共通） ──
   BabySquatchAudioProcessor &processorRef;
   KeyboardComponent keyboard;
+  WaveformDisplay waveformDisplay;
   std::array<float, 1024> waveformTransferBuffer{};
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(BabySquatchAudioProcessorEditor)
