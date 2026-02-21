@@ -47,6 +47,12 @@ void BabySquatchAudioProcessor::prepareToPlay(double sampleRate,
                                               int samplesPerBlock) {
   oomphOsc.prepareToPlay(sampleRate);
   oomphScratchBuffer.resize(static_cast<size_t>(samplesPerBlock));
+
+  // LUT の初期値: 全スロット 1.0（ユニティゲイン）
+  envLut0.fill(1.0f);
+  envLut1.fill(1.0f);
+  envLutActiveIndex.store(0);
+  noteTimeSamples = 0.0f;
 }
 
 void BabySquatchAudioProcessor::releaseResources() {
@@ -66,7 +72,7 @@ bool BabySquatchAudioProcessor::isBusesLayoutSupported(
 }
 
 void BabySquatchAudioProcessor::pushWaveformBlock(const float *data,
-                                                   int numSamples) noexcept {
+                                                  int numSamples) noexcept {
   int start1 = 0;
   int size1 = 0;
   int start2 = 0;
@@ -101,6 +107,28 @@ int BabySquatchAudioProcessor::popWaveformSamples(float *destination,
   return size1 + size2;
 }
 
+void BabySquatchAudioProcessor::bakeEnvelopeLut(const float *data, int size) {
+  // 非アクティブ側バッファに書き込み → アトミックフリップ
+  const int activeIdx = envLutActiveIndex.load(std::memory_order_acquire);
+  auto &dst = (activeIdx == 0) ? envLut1 : envLut0;
+
+  // ソースを LUT サイズにリサンプル（線形補間）
+  for (int i = 0; i < envLutSize; ++i) {
+    const float srcPos = static_cast<float>(i) /
+                         static_cast<float>(envLutSize - 1) *
+                         static_cast<float>(size - 1);
+    const auto idx0 = static_cast<int>(srcPos);
+    const auto idx1 = std::min(idx0 + 1, size - 1);
+    const float frac = srcPos - static_cast<float>(idx0);
+    dst[static_cast<size_t>(i)] =
+        data[idx0] * (1.0f - frac) +
+        data[idx1] * frac; // NOLINT: pointer arithmetic
+  }
+
+  // フリップ: オーディオスレッドが次回から新しい側を読む
+  envLutActiveIndex.store(1 - activeIdx, std::memory_order_release);
+}
+
 void BabySquatchAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
                                              juce::MidiBuffer &midiMessages) {
   juce::ScopedNoDenormals noDenormals;
@@ -112,14 +140,15 @@ void BabySquatchAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
       oomphOsc.setNote(-1);
   } else {
     // GUI鍵盤のMIDIイベントをバッファにマージ
-    keyboardState.processNextMidiBuffer(midiMessages, 0,
-                                        buffer.getNumSamples(), true);
+    keyboardState.processNextMidiBuffer(midiMessages, 0, buffer.getNumSamples(),
+                                        true);
 
     // MIDIバッファを走査 → OomphOscillator に通知
     for (const auto metadata : midiMessages) {
       const auto msg = metadata.getMessage();
       if (msg.isNoteOn()) {
         oomphOsc.setNote(msg.getNoteNumber());
+        noteTimeSamples = 0.0f; // エンベロープリセット
       } else if (msg.isNoteOff() &&
                  msg.getNoteNumber() == oomphOsc.getCurrentNote()) {
         oomphOsc.setNote(-1);
@@ -127,21 +156,36 @@ void BabySquatchAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     }
   }
 
-  // サイン波を出力バッファに加算（スクラッチバッファに記録してブロック単位でFIFOへ送出）
+  // サイン波を出力バッファに加算（LUT エンベロープ適用）
   const int numSamples = buffer.getNumSamples();
   if (oomphOsc.isActive()) {
     const float gain = juce::Decibels::decibelsToGain(oomphGainDb.load());
     const int numChannels = buffer.getNumChannels();
+    const int lutIdx = envLutActiveIndex.load(std::memory_order_acquire);
+    const auto &lut = (lutIdx == 0) ? envLut0 : envLut1;
+    const float durMs = envDurationMs.load();
+    const auto sr = static_cast<float>(getSampleRate());
+
     for (int sample = 0; sample < numSamples; ++sample) {
-      const float oscSample = oomphOsc.getNextSample() * gain;
+      // LUT 参照でエンベロープゲインを取得
+      const float noteTimeMs = noteTimeSamples * 1000.0f / sr;
+      const float lutPos =
+          (durMs > 0.0f)
+              ? (noteTimeMs / durMs) * static_cast<float>(envLutSize - 1)
+              : 0.0f;
+      const auto lutIndex = std::min(static_cast<int>(lutPos), envLutSize - 1);
+      const float envGain = lut[static_cast<size_t>(lutIndex)];
+
+      const float oscSample = oomphOsc.getNextSample() * gain * envGain;
       oomphScratchBuffer[static_cast<size_t>(sample)] = oscSample;
       for (int ch = 0; ch < numChannels; ++ch)
         buffer.addSample(ch, sample, oscSample);
+
+      noteTimeSamples += 1.0f;
     }
   } else {
     std::fill_n(oomphScratchBuffer.data(), numSamples, 0.0f);
   }
-  // pushWaveformBlock(oomphScratchBuffer.data(), numSamples); // Phase 2 で復活予定
 }
 
 bool BabySquatchAudioProcessor::hasEditor() const { return true; }

@@ -29,12 +29,30 @@ BabySquatchAudioProcessorEditor::BabySquatchAudioProcessorEditor(
   // ── エンベロープカーブエディタ（展開パネル） ──
   addChildComponent(envelopeCurveEditor);
 
-  // ── OOMPHノブ → Processorゲイン配線 + エンベロープ連動 ──
-  oomphPanel.getKnob().onValueChange = [this] {
+  // ── LUT ベイクヘルパー ──
+  auto bakeLut = [this] {
+    constexpr int lutSize = BabySquatchAudioProcessor::envLutSize;
+    std::array<float, lutSize> lut{};
+    const float durationMs = envelopeCurveEditor.getDisplayDurationMs();
+    for (int i = 0; i < lutSize; ++i) {
+      const float timeMs =
+          static_cast<float>(i) / static_cast<float>(lutSize - 1) * durationMs;
+      lut[static_cast<size_t>(i)] = ampEnvData.evaluate(timeMs);
+    }
+    processorRef.setEnvDurationMs(durationMs);
+    processorRef.bakeEnvelopeLut(lut.data(), lutSize);
+  };
+
+  // ── ポイント変更 → LUT 再ベイク ──
+  envelopeCurveEditor.setOnChange(bakeLut);
+
+  // ── OOMPHノブ → Processorゲイン配線 + エンベロープ連動 + LUT ベイク ──
+  oomphPanel.getKnob().onValueChange = [this, bakeLut] {
     const auto dB = static_cast<float>(oomphPanel.getKnob().getValue());
     processorRef.setOomphGainDb(dB);
     const float gain = juce::Decibels::decibelsToGain(dB);
     ampEnvData.setDefaultValue(gain);
+    bakeLut();
     envelopeCurveEditor.repaint();
   };
 

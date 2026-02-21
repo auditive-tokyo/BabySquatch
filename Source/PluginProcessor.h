@@ -49,6 +49,17 @@ public:
     void setOomphGainDb(float db) { oomphGainDb.store(db); }
     float getOomphGainDb() const { return oomphGainDb.load(); }
 
+    // ── エンベロープ LUT（ロックフリー・ダブルバッファ） ──
+
+    static constexpr int envLutSize = 512;
+
+    /// UIスレッドから呼び出し: 非アクティブ側バッファにコピー → アトミックフリップ
+    void bakeEnvelopeLut(const float* data, int size);
+
+    /// エンベロープ適用期間（ms）— UI側から設定
+    void setEnvDurationMs(float ms) { envDurationMs.store(ms); }
+    float getEnvDurationMs() const { return envDurationMs.load(); }
+
     /// UIスレッド（60Hz Timer）から呼び出して波形サンプルを取得
     int popWaveformSamples(float* destination, int maxSamples) noexcept;
 
@@ -63,6 +74,13 @@ private:
     juce::AbstractFifo waveformFifo{waveformFifoSize};
     std::array<float, waveformFifoSize> waveformBuffer{};
     std::vector<float> oomphScratchBuffer; // prepareToPlay でリサイズ
+
+    // ── エンベロープ LUT ダブルバッファ ──
+    std::array<float, envLutSize> envLut0{};
+    std::array<float, envLutSize> envLut1{};
+    std::atomic<int> envLutActiveIndex{0};   ///< オーディオスレッドが読む側
+    std::atomic<float> envDurationMs{300.0f};
+    float noteTimeSamples{0.0f};             ///< ノートオンからの経過サンプル数
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (BabySquatchAudioProcessor)
 };
