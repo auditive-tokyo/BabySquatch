@@ -1,7 +1,7 @@
 #pragma once
 
 #include <algorithm>
-#include <cmath>
+#include <limits>
 #include <vector>
 
 /// エンベロープ制御点（Phase 2）

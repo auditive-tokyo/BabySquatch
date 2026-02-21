@@ -208,13 +208,13 @@ BabySquatchは3つのモジュールで構成されています：
    - **ヒット判定（ピクセル空間）**: `int findPointAtPixel(float px, float py) const` — 各ポイントをピクセル変換し `pointHitRadius` で判定（-1: なし）。`EnvelopeData` 側ではなくエディタ側で実施
    - `static constexpr float pointHitRadius = 8.0f`
 
-3. **`EnvelopeCurveEditor.cpp` — `paint()` 拡張**
+3. ✅ **`EnvelopeCurveEditor.cpp` — `paint()` 拡張**
    - ポイントが1点以上あるとき、`evaluate()` を width ピクセル分サンプリングしてスプライン波形パスを生成（フラット波形を置き換え）
    - エンベロープカーブ（スプライン線）をオーバーレイ描画（`oomphArc.brighter()` など）
    - コントロールポイントを白い小円（半径 `pointHitRadius`）で描画
    - `dragPointIndex` に対応するポイントをハイライト（明るい塗りつぶし）
 
-4. **`EnvelopeCurveEditor.cpp` — マウス操作実装**
+4. ✅ **`EnvelopeCurveEditor.cpp` — マウス操作実装**
    - `mouseDoubleClick`: `findPointAtPixel()` → ポイント上なら `removePoint`、空白なら `addPoint` → `onChange` コール → `repaint()`
    - `mouseDown`: `findPointAtPixel()` → ポイント上なら `dragPointIndex` セット
    - `mouseDrag`: `dragPointIndex >= 0` なら `dragPointIndex = movePoint(dragPointIndex, xToTimeMs, yToValue)` — **戻り値で `dragPointIndex` を更新**（隣接クランプ済みなのでインデックスは通常不変だが安全のため）→ `onChange` → `repaint()`
