@@ -1,13 +1,16 @@
 #pragma once
 
-/// Oomph用サイン波オシレーター（オーディオスレッドで使用）
-/// MIDIノート → Hz 変換 → サイン波生成
+#include <vector>
+
+/// Oomph用 Wavetable オシレーター（オーディオスレッドで使用）
+/// 1周期分のサイン波をテーブルに事前生成し、再生時は線形補間で読み出す
+/// MIDIノート → Hz 変換 → テーブルインデックス進行
 class OomphOscillator {
 public:
   OomphOscillator() = default;
   ~OomphOscillator() = default;
 
-  /// processBlock 前に呼び出し（サンプルレート設定）
+  /// processBlock 前に呼び出し（サンプルレート設定 + テーブル構築）
   void prepareToPlay(double sampleRate);
 
   /// MIDIノートを設定（-1 でサイレンス）
@@ -23,8 +26,13 @@ public:
   bool isActive() const { return currentNote >= 0; }
 
 private:
+  static constexpr int tableSize = 2048;
+  std::vector<float> wavetable; // tableSize + 1 要素（wrap用）
+
   int currentNote = -1;
   double sampleRate = 44100.0;
-  double phase = 0.0;
-  double phaseIncrement = 0.0;
+  float currentIndex = 0.0f;
+  float tableDelta = 0.0f; // phaseIncrementに相当
+
+  void buildWavetable();
 };
