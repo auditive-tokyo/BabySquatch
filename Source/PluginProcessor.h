@@ -1,6 +1,7 @@
 #pragma once
 
 #include "DSP/OomphOscillator.h"
+#include <atomic>
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_audio_utils/juce_audio_utils.h>
 
@@ -38,9 +39,14 @@ public:
     /// GUI鍵盤との共有 MidiKeyboardState
     juce::MidiKeyboardState& getKeyboardState() { return keyboardState; }
 
+    /// FIXEDモード時にMIDI発音を無効化するフラグ（Editor から書き込み）
+    void setFixedModeActive(bool active) { fixedModeActive.store(active); }
+    bool isFixedModeActive() const { return fixedModeActive.load(); }
+
 private:
     juce::MidiKeyboardState keyboardState;
     OomphOscillator oomphOsc;
+    std::atomic<bool> fixedModeActive{false};
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (BabySquatchAudioProcessor)
 };

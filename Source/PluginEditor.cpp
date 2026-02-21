@@ -20,6 +20,9 @@ BabySquatchAudioProcessorEditor::BabySquatchAudioProcessorEditor(
   addChildComponent(expandableArea);
 
   // ── MIDI 鍵盤（展開パネル下部） ──
+  keyboard.setOnModeChanged([&p](KeyboardComponent::Mode mode) {
+    p.setFixedModeActive(mode == KeyboardComponent::Mode::fixed);
+  });
   addChildComponent(keyboard);
 
   setSize(UIConstants::windowWidth, UIConstants::windowHeight);

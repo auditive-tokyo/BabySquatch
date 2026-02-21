@@ -27,6 +27,9 @@ public:
   /// FIXEDモードでノートが固定されたときのコールバック (int noteNumber)
   void setOnNoteFixed(std::function<void(int)> callback);
 
+  /// モード変更時のコールバック
+  void setOnModeChanged(std::function<void(Mode)> callback);
+
 private:
   void handleNoteOn(juce::MidiKeyboardState *, int midiChannel,
                     int midiNoteNumber, float velocity) override;
@@ -48,4 +51,5 @@ private:
   juce::TextButton fixedButton{"FIXED"};
 
   std::function<void(int)> onNoteFixed;
+  std::function<void(Mode)> onModeChanged;
 };

@@ -58,6 +58,10 @@ void KeyboardComponent::setOnNoteFixed(std::function<void(int)> callback) {
   onNoteFixed = std::move(callback);
 }
 
+void KeyboardComponent::setOnModeChanged(std::function<void(Mode)> callback) {
+  onModeChanged = std::move(callback);
+}
+
 // ── MidiKeyboardState::Listener ──
 
 void KeyboardComponent::handleNoteOn(juce::MidiKeyboardState *,
@@ -120,6 +124,9 @@ void KeyboardComponent::setMode(Mode m) {
 
   currentMode = m;
   updateButtonStates();
+
+  if (onModeChanged)
+    onModeChanged(currentMode);
 
   keyboard.grabKeyboardFocus();
 }

@@ -78,7 +78,7 @@ BabySquatchは3つのモジュールで構成されています：
    - `PluginProcessor.cpp` の変更は不要（API不変のため）
      > 詳細: 後述「OomphOscillator Wavetable化 実装メモ」を参照
 
-5. **FIXEDモード時のMIDI発音を無効化**
+5. ✅ **FIXEDモード時のMIDI発音を無効化**
    - FIXEDモードはオーディオ入力に対してfixedノートを適用するモード（OSCが音を生成するのではなく、入力オーディオを加工する用途）
    - `processBlock` で `KeyboardComponent::getMode()` を参照し、FIXEDモード時は `keyboardState.processNextMidiBuffer()` をスキップ（GUI鍵盤のMIDIをバッファにマージしない）
      > Processor が Editor の `KeyboardComponent` を参照できるよう `getMode()` を Processor 側に公開する方法を検討（例：`std::atomic<bool> fixedModeActive` を Processor に持ち、Editor から書き込む）

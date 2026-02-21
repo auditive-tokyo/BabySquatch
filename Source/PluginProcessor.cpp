@@ -67,18 +67,25 @@ void BabySquatchAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
                                              juce::MidiBuffer &midiMessages) {
   juce::ScopedNoDenormals noDenormals;
 
-  // GUI鍵盤のMIDIイベントをバッファにマージ
-  keyboardState.processNextMidiBuffer(midiMessages, 0,
-                                      buffer.getNumSamples(), true);
-
-  // MIDIバッファを走査 → OomphOscillator に通知
-  for (const auto metadata : midiMessages) {
-    const auto msg = metadata.getMessage();
-    if (msg.isNoteOn()) {
-      oomphOsc.setNote(msg.getNoteNumber());
-    } else if (msg.isNoteOff() &&
-               msg.getNoteNumber() == oomphOsc.getCurrentNote()) {
+  // FIXEDモード時はGUI鍵盤のMIDIマージとOSC発音をスキップ
+  if (fixedModeActive.load()) {
+    // FIXEDモード移行時に発音中のOSCを停止
+    if (oomphOsc.isActive())
       oomphOsc.setNote(-1);
+  } else {
+    // GUI鍵盤のMIDIイベントをバッファにマージ
+    keyboardState.processNextMidiBuffer(midiMessages, 0,
+                                        buffer.getNumSamples(), true);
+
+    // MIDIバッファを走査 → OomphOscillator に通知
+    for (const auto metadata : midiMessages) {
+      const auto msg = metadata.getMessage();
+      if (msg.isNoteOn()) {
+        oomphOsc.setNote(msg.getNoteNumber());
+      } else if (msg.isNoteOff() &&
+                 msg.getNoteNumber() == oomphOsc.getCurrentNote()) {
+        oomphOsc.setNote(-1);
+      }
     }
   }
 
