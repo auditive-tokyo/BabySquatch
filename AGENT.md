@@ -175,7 +175,7 @@ BabySquatchは3つのモジュールで構成されています：
 
 **実装ステップ:**
 
-1. **`EnvelopeData.h` 拡張**（ヘッダオンリー）
+1. ✅ **`EnvelopeData.h` 拡張**（ヘッダオンリー）
    - `EnvelopePoint { float timeMs; float value; }` 構造体を追加（timeMs: 0〜displayDurationMs、value: linear gain 0.0〜2.0）
    - `std::vector<EnvelopePoint> points` メンバ追加
    - `addPoint(float timeMs, float value)` — timeMs 昇順に挿入
@@ -190,7 +190,7 @@ BabySquatchは3つのモジュールで構成されています：
    - `hasPoints() const → bool`
    - `getPoints() const → const std::vector<EnvelopePoint>&`
 
-2. **`EnvelopeCurveEditor.h` 拡張**
+2. ✅ **`EnvelopeCurveEditor.h` 拡張**
    - `displayDurationMs` を固定定数から可変メンバへ（`setDisplayDurationMs(float)` 追加）
    - マウスコールバック宣言追加:
      ```cpp
