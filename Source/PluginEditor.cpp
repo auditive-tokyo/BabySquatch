@@ -90,12 +90,35 @@ BabySquatchAudioProcessorEditor::BabySquatchAudioProcessorEditor(
     addChildComponent(knob);
 
     auto &label = tempKnobLabels[idx];
-    label.setText(i == 1 ? "AMP" : "temp " + juce::String(i + 1),
-                  juce::dontSendNotification);
+    juce::String labelText;
+    if (i == 0)      labelText = "PITCH";
+    else if (i == 1) labelText = "AMP";
+    else             labelText = "temp " + juce::String(i + 1);
+    label.setText(labelText, juce::dontSendNotification);
     label.setFont(juce::Font(juce::FontOptions(10.0f)));
     label.setJustificationType(juce::Justification::centred);
     label.setColour(juce::Label::textColourId, UIConstants::Colours::labelText);
     addChildComponent(label);
+  }
+
+  // ── PITCH ノブ（tempKnobs[0]）: range・初期値・コールバック設定 ──
+  // 20〜20000 Hz、対数スケール、デフォルト 200 Hz
+  tempKnobs[0].setRange(20.0, 20000.0);
+  tempKnobs[0].setSkewFactorFromMidPoint(200.0);
+  tempKnobs[0].setValue(200.0, juce::dontSendNotification);
+  tempKnobs[0].setDoubleClickReturnValue(true, 200.0);
+  tempKnobs[0].onValueChange = [this] {
+    // 周波数からサイクル数を計算: cycles = Hz * durationMs / 1000
+    const auto hz = static_cast<float>(tempKnobs[0].getValue());
+    const float cycles = hz * envelopeCurveEditor.getDisplayDurationMs() / 1000.0f;
+    envelopeCurveEditor.setDisplayCycles(cycles);
+    envelopeCurveEditor.repaint();
+  };
+  // 初期サイクル数を設定
+  {
+    const float initHz = 200.0f;
+    envelopeCurveEditor.setDisplayCycles(
+        initHz * envelopeCurveEditor.getDisplayDurationMs() / 1000.0f);
   }
 
   // ── AMP ノブ（tempKnobs[1]）: range・初期値・コールバック設定 ──

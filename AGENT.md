@@ -121,7 +121,7 @@ BabySquatchは3つのモジュールで構成されています：
   - 変更方針:
     - **Oomphロータリーノブ**（メインパネル）→ `oomphGainDb` のみ制御（マスターアウト専用）に整理
     - **temp 1〜8 ノブ群** → 将来的に AMP、Pitch、Blend など各エンベロープ/パラメータを割り当てる。例:
-      - temp 1 → Pitch Start（Pitch Envelope の開始値）
+      - temp 1 → Pitch
       - temp 2 → Amplitude（`EnvelopeData::defaultValue`）
       - temp 3 → Pitch End（Pitch Envelope の終端値）
       - temp 4 → Blend（Sine/他波形のミックス比）
