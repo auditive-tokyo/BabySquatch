@@ -6,6 +6,8 @@
 #include "GUI/PanelComponent.h"
 #include "PluginProcessor.h"
 
+#include <array>
+
 class BabySquatchAudioProcessorEditor : public juce::AudioProcessorEditor {
 public:
   explicit BabySquatchAudioProcessorEditor(BabySquatchAudioProcessor &);
@@ -40,6 +42,10 @@ private:
   KeyboardComponent keyboard;
   EnvelopeData ampEnvData;
   EnvelopeCurveEditor envelopeCurveEditor{ampEnvData};
+
+  // ── OOMPH展開パネル: temp ノブ行（8本） ──
+  std::array<juce::Slider, 8> tempKnobs;
+  std::array<juce::Label, 8> tempKnobLabels;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(BabySquatchAudioProcessorEditor)
 };

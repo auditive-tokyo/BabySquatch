@@ -78,6 +78,23 @@ BabySquatchAudioProcessorEditor::BabySquatchAudioProcessorEditor(
   };
 
   setSize(UIConstants::windowWidth, UIConstants::windowHeight);
+
+  // ── OOMPH temp ノブ行（8本）初期化 ──
+  for (int i = 0; i < 8; ++i) {
+    const auto idx = static_cast<size_t>(i);
+    auto &knob = tempKnobs[idx];
+    knob.setSliderStyle(juce::Slider::RotaryVerticalDrag);
+    knob.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+    knob.setRange(0.0, 1.0);
+    addChildComponent(knob);
+
+    auto &label = tempKnobLabels[idx];
+    label.setText("temp " + juce::String(i + 1), juce::dontSendNotification);
+    label.setFont(juce::Font(juce::FontOptions(10.0f)));
+    label.setJustificationType(juce::Justification::centred);
+    label.setColour(juce::Label::textColourId, UIConstants::Colours::labelText);
+    addChildComponent(label);
+  }
 }
 
 BabySquatchAudioProcessorEditor::~BabySquatchAudioProcessorEditor() = default;
@@ -105,7 +122,22 @@ void BabySquatchAudioProcessorEditor::resized() {
     keyboard.setBounds(expandArea.removeFromBottom(
         UIConstants::keyboardHeight + UIConstants::modeButtonHeight));
 
-    // 2. エンベロープカーブエディタ → 残り全域
+    // 2. 全チャンネル共通: パラメータノブ行のスペースを上部から確保
+    //    （OOMPH以外ではノブは非表示だが、波形エリアの高さを揃えるため常に確保）
+    {
+      auto knobRow = expandArea.removeFromTop(UIConstants::tempKnobRowHeight);
+      if (activeChannel == oomph) {
+        const int slotW = knobRow.getWidth() / 8;
+        for (int i = 0; i < 8; ++i) {
+          const auto idx = static_cast<size_t>(i);
+          auto slot = knobRow.removeFromLeft(slotW);
+          tempKnobLabels[idx].setBounds(slot.removeFromBottom(18));
+          tempKnobs[idx].setBounds(slot);
+        }
+      }
+    }
+
+    // 3. エンベロープカーブエディタ → 残り全域
     envelopeCurveEditor.setBounds(expandArea);
     area.removeFromBottom(UIConstants::panelGap);
   }
@@ -143,6 +175,10 @@ void BabySquatchAudioProcessorEditor::requestExpand(ExpandChannel ch) {
       isOpen ? UIConstants::expandedAreaHeight + UIConstants::panelGap : 0;
   setSize(UIConstants::windowWidth, UIConstants::windowHeight + extra);
 
+  // setSize でサイズが変わらない場合（チャンネル切替）は resized() が
+  // 自動呼出しされないため、明示的にレイアウトを更新
+  resized();
+
   updateExpandIndicators();
 }
 
@@ -157,4 +193,10 @@ void BabySquatchAudioProcessorEditor::updateEnvelopeEditorVisibility() {
   using enum ExpandChannel;
   const bool isOpen = (activeChannel != none);
   envelopeCurveEditor.setVisible(isOpen);
+
+  const bool oomphOpen = (activeChannel == oomph);
+  for (size_t i = 0; i < 8; ++i) {
+    tempKnobs[i].setVisible(oomphOpen);
+    tempKnobLabels[i].setVisible(oomphOpen);
+  }
 }

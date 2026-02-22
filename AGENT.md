@@ -117,15 +117,21 @@ BabySquatchは3つのモジュールで構成されています：
 
 - **Oomph パラメータ設計の見直し**
   - 現状: Oomphロータリーノブが `oomphGainDb`（マスターアウト乗算）と `ampEnvData.setDefaultValue()`（AMPエンベロープの`defaultValue`）を同時に書き込んでいる。`defaultValue` はエンベロープにコントロールポイントが**ない**場合のみ `evaluate()` で使われるため、ポイント未設定時はノブが実質的にAMPの振幅も兼ねて制御するが、ポイントが1つ以上設定されると`defaultValue`は無視される
+  - **実装済み（UI骨格）**: OOMPHの展開パネル上部に8個のロータリーノブ（"temp 1〜8"）を追加済み。`PluginEditor` の `tempKnobs[8]` / `tempKnobLabels[8]`（`std::array`）として宣言。現時点では外観のみで DSP 未接続
   - 変更方針:
-    - **Oomphロータリーノブ** → `oomphGainDb` のみ制御（マスターアウト専用）に整理
-    - **Amplitude専用ノブ** → 新設（`EnvelopeData::defaultValue` を制御）
-    - 今後の拡張: Pitch、Blend、Amplitudeなど複数のパラメータが追加予定。AMPはその一つという位置付け
-  - 実装:
-    1. 展開パネル内にAmplitude専用ノブを追加
-    2. Pitchエンベロープ用のパラメータ/ノブ追加（`EnvelopeData pitchEnvData` + `EnvelopeCurveEditor`）
-    3. Blendエンベロープ用のパラメータ/ノブ追加（Sine/他波形のミックス比）
-    4. Oomphロータリーノブは最終段で全体にかかるゲインとして処理
+    - **Oomphロータリーノブ**（メインパネル）→ `oomphGainDb` のみ制御（マスターアウト専用）に整理
+    - **temp 1〜8 ノブ群** → 将来的に AMP、Pitch、Blend など各エンベロープ/パラメータを割り当てる。例:
+      - temp 1 → Amplitude（`EnvelopeData::defaultValue`）
+      - temp 2 → Pitch Start（Pitch Envelope の開始値）
+      - temp 3 → Pitch End（Pitch Envelope の終端値）
+      - temp 4 → Blend（Sine/他波形のミックス比）
+      - temp 5〜8 → 拡張予定
+    - ラベル名は確定次第 "temp N" から正式名称に置換
+  - 残作業:
+    1. 各ノブに DSP パラメータを接続（`juce::AudioParameterFloat` / 直接参照）
+    2. Pitchエンベロープ用 `EnvelopeData pitchEnvData` + `EnvelopeCurveEditor` 追加
+    3. Blendエンベロープ用パラメータ追加
+    4. Oomphロータリーノブを最終段ゲインに整理
 
 - **KeyboardComponent FIXEDモードのキーボード入力問題**
   - 現状: FIXEDモードでもmacのキーボード入力に反応してしまい、noteが選択されてしまう
