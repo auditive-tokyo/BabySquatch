@@ -65,21 +65,19 @@ public:
     void setEnvDurationMs(float ms) { envDurationMs.store(ms); }
     float getEnvDurationMs() const { return envDurationMs.load(); }
 
-    /// UIスレッド（60Hz Timer）から呼び出して波形サンプルを取得
-    int popWaveformSamples(float* destination, int maxSamples) noexcept;
-
 private:
-    void pushWaveformBlock(const float* data, int numSamples) noexcept;
+    // ── processBlock ヘルパー ──
+    struct ChannelPasses { bool oomph; bool dry; };
+    ChannelPasses computeChannelPasses() const;
+    void handleMidiEvents(juce::MidiBuffer& midiMessages, int numSamples);
+    void renderOomph(juce::AudioBuffer<float>& buffer, int numSamples, bool oomphPass);
 
-    static constexpr int waveformFifoSize = 16384;
     juce::MidiKeyboardState keyboardState;
     OomphOscillator oomphOsc;
     std::atomic<bool> fixedModeActive{false};
     std::atomic<float> oomphGainDb{0.0f};
     std::array<std::atomic<bool>, 3> channelMute{};
     std::array<std::atomic<bool>, 3> channelSolo{};
-    juce::AbstractFifo waveformFifo{waveformFifoSize};
-    std::array<float, waveformFifoSize> waveformBuffer{};
     std::vector<float> oomphScratchBuffer; // prepareToPlay でリサイズ
 
     // ── エンベロープ LUT ダブルバッファ ──

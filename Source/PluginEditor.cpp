@@ -17,13 +17,13 @@ BabySquatchAudioProcessorEditor::BabySquatchAudioProcessorEditor(
   dryPanel.setOnExpandRequested([this] { requestExpand(ExpandChannel::dry); });
 
   // ── Mute / Solo 配線 ──
-  using Ch = BabySquatchAudioProcessor::Channel;
-  oomphPanel.setOnMuteChanged([&p](bool m) { p.setMute(Ch::oomph, m); });
-  oomphPanel.setOnSoloChanged([&p](bool s) { p.setSolo(Ch::oomph, s); });
-  clickPanel.setOnMuteChanged([&p](bool m) { p.setMute(Ch::click, m); });
-  clickPanel.setOnSoloChanged([&p](bool s) { p.setSolo(Ch::click, s); });
-  dryPanel.setOnMuteChanged([&p](bool m)   { p.setMute(Ch::dry,   m); });
-  dryPanel.setOnSoloChanged([&p](bool s)   { p.setSolo(Ch::dry,   s); });
+  using enum BabySquatchAudioProcessor::Channel;
+  oomphPanel.setOnMuteChanged([&p](bool m) { p.setMute(oomph, m); });
+  oomphPanel.setOnSoloChanged([&p](bool s) { p.setSolo(oomph, s); });
+  clickPanel.setOnMuteChanged([&p](bool m) { p.setMute(click, m); });
+  clickPanel.setOnSoloChanged([&p](bool s) { p.setSolo(click, s); });
+  dryPanel.setOnMuteChanged([&p](bool m)   { p.setMute(dry,   m); });
+  dryPanel.setOnSoloChanged([&p](bool s)   { p.setSolo(dry,   s); });
 
   // ── 展開エリア（初期非表示） ──
   addChildComponent(expandableArea);
