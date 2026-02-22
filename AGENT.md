@@ -116,7 +116,7 @@ BabySquatchは3つのモジュールで構成されています：
 ### Phase 3以降（将来の拡張）
 
 - **Oomph パラメータ設計の見直し**
-  - 現状: Oomphロータリーノブが `oomphGainDb`（マスターアウト乗算）と `ampEnvData.setDefaultValue()`（AMPエンベロープのフラット値）を**同時に**書き込んでいる（二役混在）
+  - 現状: Oomphロータリーノブが `oomphGainDb`（マスターアウト乗算）と `ampEnvData.setDefaultValue()`（AMPエンベロープの`defaultValue`）を同時に書き込んでいる。`defaultValue` はエンベロープにコントロールポイントが**ない**場合のみ `evaluate()` で使われるため、ポイント未設定時はノブが実質的にAMPの振幅も兼ねて制御するが、ポイントが1つ以上設定されると`defaultValue`は無視される
   - 変更方針:
     - **Oomphロータリーノブ** → `oomphGainDb` のみ制御（マスターアウト専用）に整理
     - **Amplitude専用ノブ** → 新設（`EnvelopeData::defaultValue` を制御）
@@ -135,6 +135,15 @@ BabySquatchは3つのモジュールで構成されています：
     2. FIXEDモードの場合はキーボードイベントを無視（`return false` でイベントを親に伝播）
     3. または `setWantsKeyboardFocus(isMidiMode)` でフォーカス制御
   - 関連ファイル: `Source/GUI/KeyboardComponent.cpp`
+
+- **CapsLock 中はキーボードフォーカスを常に鍵盤に固定**
+  - 現状: 展開パネルを開くか鍵盤をクリックした場合のみ `KeyboardComponent` がフォーカスを持つ。ロータリーノブ操作後などはフォーカスが外れ、PCキーからのMIDI入力が効かなくなる
+  - 期待動作: CapsLockがONの間は、他のUI操作（ノブ・ボタン等）をしても常に `KeyboardComponent` がフォーカスを保持する
+  - 実装案:
+    1. `PluginEditor` の `focusOfChildComponentChanged()` または各コンポーネントの `mouseDown()` をオーバーライドし、CapsLock状態を `juce::ModifierKeys::getCapsLockState()` で確認
+    2. CapsLockがONなら即座に `keyboard.grabKeyboardFocus()` を呼び直す
+    3. または `KeyboardComponent` 側で `juce::ComponentPeer` レベルのフォーカス監視を行い、自律的に再取得する
+  - 関連ファイル: `Source/GUI/KeyboardComponent.cpp`, `Source/PluginEditor.cpp`
 
 - **エンベロープ横軸タイムライン表示**
   - 現状: タイムライン表示なし（軸ラベル・目盛りなし）
