@@ -1,16 +1,22 @@
 #pragma once
 
+#include <array>
+#include <atomic>
 #include <vector>
 
-/// Oomph用 Wavetable オシレーター（オーディオスレッドで使用）
-/// 1周期分のサイン波をテーブルに事前生成し、再生時は線形補間で読み出す
+/// 波形選択 enum（Sine / Tri / Square / Saw）
+enum class WaveShape { Sine = 0, Tri = 1, Square = 2, Saw = 3 };
+
+/// Oomph用 Band-limited Wavetable オシレーター（オーディオスレッドで使用）
+/// 4波形 × 10帯域のテーブルを prepareToPlay で事前生成し、
+/// 再生周波数に応じてバンドを自動選択、線形補間で読み出す。
 /// triggerNote() で発音開始、setFrequencyHz() で毎サンプル周波数更新
 class OomphOscillator {
 public:
   OomphOscillator() = default;
   ~OomphOscillator() = default;
 
-  /// processBlock 前に呼び出し（サンプルレート設定 + テーブル構築）
+  /// processBlock 前に呼び出し（サンプルレート設定 + 全テーブル構築）
   void prepareToPlay(double sampleRate);
 
   /// 発音開始（トリガーのみ、ピッチは setFrequencyHz で制御）
@@ -28,14 +34,40 @@ public:
   /// 発音中かどうか
   bool isActive() const { return active; }
 
-private:
-  static constexpr int tableSize = 2048;
-  std::vector<float> wavetable; // tableSize + 1 要素（wrap用）
+  /// 波形選択（UIスレッドから呼び出し可）
+  void setWaveShape(WaveShape shape);
 
+  /// 現在の波形を取得
+  WaveShape getWaveShape() const;
+
+  // ── 定数（外部から参照可能にするため public）──
+  static constexpr int tableSize  = 2048;
+  static constexpr int numBands   = 10;   // 20Hz〜20480Hz を 10 オクターブ分割
+  static constexpr int numShapes  = 4;    // Sine / Tri / Square / Saw
+
+private:
+
+  /// [shape][band] → tableSize+1 要素（wrap用に +1）
+  std::array<std::array<std::vector<float>, numBands>, numShapes> tables;
+
+  // ── 再生状態 ──
   bool active = false;
   double sampleRate = 44100.0;
   float currentIndex = 0.0f;
-  float tableDelta = 0.0f; // phaseIncrementに相当
+  float tableDelta   = 0.0f;  // phaseIncrement に相当
 
-  void buildWavetable();
+  /// setFrequencyHz() が算出した帯域テーブルへのポインタ（Sine 用）
+  const float* activeSineTable = nullptr;
+  /// setFrequencyHz() が算出した帯域テーブルへのポインタ（選択波形用）
+  const float* activeShapeTable = nullptr;
+
+  std::atomic<int> currentShape{0};  // WaveShape の int 値
+  int activeBand = 0;
+
+  // ── テーブル構築 ──
+  void buildAllTables();
+  static int bandIndexForFreq(float hz);
+
+  /// テーブルから線形補間で1サンプル読み出す
+  float readTable(const float* table) const;
 };

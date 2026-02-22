@@ -68,7 +68,15 @@ BabySquatchは3つのモジュールで構成されています：
   - Oomphロータリーノブ → `oomphGainDb`（最終段ゲイン）のみ制御
   - AMP ノブ（oomphKnobs[1]）→ `ampEnvData.setDefaultValue()` を担当（0〜200%）。エンベロープポイントがある間は無効化・ツールチップ表示
   - PITCH ノブ（oomphKnobs[0]）→ `pitchEnvData.setDefaultValue()` を担当（20〜20000 Hz）。同様に無効化制御
-  - oomphKnobs[2〜7] は引き続き未接続（"temp 3〜8" ラベル）
+  - oomphKnobs[2〜7] はラベル設定済み（BLEND/DIST/H1〜H4）、DSP 未接続
+- **Band-limited Wavetable 基盤**（Phase 1 完了）
+  - `OomphOscillator` を 4 波形 × 10 帯域の 2D Wavetable 構造に拡張
+  - `WaveShape` enum 追加（Sine / Tri / Square / Saw）
+  - `buildAllTables()`: 各帯域の Nyquist 制限倍音数でフーリエ合成（Tri/Square/Saw）
+  - `setFrequencyHz()` 内で `bandIndexForFreq()` により再生帯域を自動選択、`activeSineTable` / `activeShapeTable` ポインタを更新
+  - `setWaveShape()` / `getWaveShape()` API 追加（`std::atomic<int>` 経由でスレッドセーフ）
+  - `readTable()` 共通補間ヘルパー追加
+  - 現状は Sine テーブルのみ再生（音に変化なし）。Phase 3 で BLEND クロスフェード追加予定
 
 ## Pitch / MIDI 設計方針（Kick Ninja準拠）
 
@@ -164,9 +172,16 @@ BabySquatchは3つのモジュールで構成されています：
 
     Phase 1〜3 は C++ の変更のみで UI 不要。Phase 4 だけ UI が必要。
 
+    | Phase | 内容 | 状態 |
+    |-------|------|------|
+    | 1 | Band-limited Wavetable 基盤 | ✅ 完了 |
+    | 2 | H1〜H4 加算合成 OSC 追加 | ⬜ 未着手 |
+    | 3 | BLEND クロスフェード配線 | ⬜ 未着手 |
+    | 4 | 波形選択 UI（Tri/Square/Saw） | ⬜ 未着手 |
+
     ---
 
-    ### Phase 1：Band-limited Wavetable 基盤
+    ### Phase 1：Band-limited Wavetable 基盤（✅ 完了）
 
     **なぜ Band-limited が必要か**
     - 現在の `buildWavetable()` はサイン波（常にエイリアスなし）なので問題ない
