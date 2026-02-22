@@ -151,32 +151,155 @@ BabySquatchは3つのモジュールで構成されています：
     - **Triangle**: 奇数倍音のみ（3×, 5×, 7×...）、高域は急減衰。滑らかなボディ音
     - **Square**: 奇数倍音のみ（3×, 5×, 7×...）、Triより高域倍音が強い。中高域強調
     - **Saw**: 偶数・奇数両方（2×, 3×, 4×...）。最も密度が濃く鋭い音
-  - **残作業**:
-    - **Band-limited Wavetable + Additive Synthesis 実装（Oomph モジュール拡張）**
-      - **信号フロー（設計確定）**:
+  - **BLEND / H1〜H4 実装計画**（確定）
 
-        ```
-        [Sine OSC] ─┬─(BLEND 左側: -1〜0 で Wavetable とクロスフェード)─ Wavetable(Tri/Sqr/Saw)
-                    │
-                    └─(BLEND 右側: 0〜+1 で Additive とクロスフェード)── H1〜H4 加算合成
-        ```
+    ### 実装順序
 
-        - 中央(0): 純サイン波
-        - 左端(-1): 選択波形（Tri/Square/Saw）のみ
-        - 右端(+1): H1〜H4 加算ハーモニクスのみ
+    ```
+    Phase 1: Band-limited Wavetable 基盤（OomphOscillator 拡張）
+    Phase 2: H1〜H4 加算合成 OSC 追加
+    Phase 3: BLEND クロスフェード配線
+    Phase 4: 波形選択 UI（Tri / Square / Saw セレクター）
+    ```
 
-      - **Wavetable 方針**: Band-limited Wavetable 方式（BLEPではなく）
-        - 理由: エイリアシング除去を波形生成前に完結できる。後段フィルターでは不可
-        - 周波数帯域ごとに事前計算したテーブル（例: 10オクターブ分）を保持
-        - 再生周波数に応じてテーブルを選択 + クロスフェード
-      - **Additive Synthesis 方針**: H1〜H4 それぞれ独立したサイン波 OSC をパラレル加算
-        - 基底周波数（Pitch Envelope が制御）× 1, 2, 3, 4 倍を各 OSC に設定
-        - 波形選択に依存しない（Tri を選んでいても H2 で偶数倍音を追加可能）
-      - 参考: The Him DSP `Kick Ninja` の加算合成セクション、Serum 風 Wavetable 設計
-      - **注意**: 単純なローパスフィルター後付けはエイリアシング除去には無効（音色変化の演出用途のみ）
+    Phase 1〜3 は C++ の変更のみで UI 不要。Phase 4 だけ UI が必要。
 
-    - 波形選択 UI（Tri / Square / Saw セレクター）の設計・実装
-    - 各ノブに `juce::AudioParameterFloat` 接続
+    ---
+
+    ### Phase 1：Band-limited Wavetable 基盤
+
+    **なぜ Band-limited が必要か**
+    - 現在の `buildWavetable()` はサイン波（常にエイリアスなし）なので問題ない
+    - Tri / Square / Saw を単純フーリエ合成すると **Nyquist 超え倍音がエイリアシング** を起こす
+    - 対策: 各周波数帯域で「その帯域内に収まる最大倍音数」に限定したテーブルを事前生成
+
+    **帯域定義（`prepareToPlay` で自動算出）**
+
+    ```
+    Band 0:  20〜40 Hz    → maxHarmonic = floor(22050 / 40)  = 551
+    Band 1:  40〜80 Hz    → maxHarmonic = 275
+    Band 2:  80〜160 Hz   → maxHarmonic = 137
+    Band 3: 160〜320 Hz   → maxHarmonic = 68
+    Band 4: 320〜640 Hz   → maxHarmonic = 34
+    Band 5: 640〜1280 Hz  → maxHarmonic = 17
+    Band 6: 1280〜2560 Hz → maxHarmonic = 8
+    Band 7: 2560〜5120 Hz → maxHarmonic = 4
+    Band 8: 5120〜10240 Hz→ maxHarmonic = 2
+    Band 9: 10240〜20480 Hz→ maxHarmonic = 1  ← 実質サイン波
+    ```
+
+    **各波形のフーリエ係数**
+
+    | 波形 | 次数 n | 係数 |
+    |------|--------|------|
+    | Triangle | 奇数のみ | `(-1)^((n-1)/2) / n²` |
+    | Square   | 奇数のみ | `1 / n` |
+    | Saw      | 全次数   | `(-1)^(n+1) / n` |
+
+    **`OomphOscillator` 構造変更**
+
+    ```cpp
+    enum class WaveShape { Sine = 0, Tri = 1, Square = 2, Saw = 3 };
+
+    static constexpr int tableSize = 2048;
+    static constexpr int numBands  = 10;
+    static constexpr int numShapes = 4;   // Sine/Tri/Sqr/Saw
+
+    // [shape][band] → tableSize+1 要素
+    std::vector<float> tables[numShapes][numBands];
+
+    // setFrequencyHz() が帯域を算出してポインタを更新
+    const float* activeWaveTable = nullptr;
+
+    void setWaveShape(WaveShape shape);   // UI スレッドから（atomic 経由）
+    ```
+
+    - `buildWavetable()` → `buildAllTables()` に拡張
+    - Sine テーブルは帯域不要（1本だけ）、Tri/Sqr/Saw は 10 本ずつ
+    - メモリ: `(1 + 3×10) × 2049 × 4 ≈ 248 KB`（問題なし）
+    - `setFrequencyHz()` 内でバンドインデックスを算出し `activeWaveTable` を差し替え
+    - **この段階では音に変化なし**（activeShape = Sine のまま）
+
+    ---
+
+    ### Phase 2：H1〜H4 加算合成
+
+    **実装方針**: 位相アキュムレーター 4 本を OSC 本体に内蔵（最も軽量）
+
+    ```cpp
+    struct HarmonicOsc {
+        float phase = 0.0f;
+        float gain  = 0.0f;   // setHarmonicGain() で設定
+    };
+    std::array<HarmonicOsc, 4> harmonics;   // H1〜H4
+    std::atomic<float> harmonicGains[4] = {};
+
+    void setHarmonicGain(int n, float gain);   // n = 1〜4
+    ```
+
+    `getNextSample()` 内で追加（gain=0 なら加算なし = 無音で安全）：
+
+    ```cpp
+    float additiveSample = 0.0f;
+    for (int n = 0; n < 4; ++n) {
+        if (harmonics[n].gain > 0.0f) {
+            additiveSample += harmonics[n].gain * std::sin(harmonics[n].phase);
+            harmonics[n].phase += phaseDelta * (n + 1);   // fundamental × (n+1)
+            if (harmonics[n].phase >= juce::MathConstants<float>::twoPi)
+                harmonics[n].phase -= juce::MathConstants<float>::twoPi;
+        }
+    }
+    ```
+
+    - `oomphKnobs[4〜7].onValueChange` → `setHarmonicGain(1〜4, value)` 配線
+    - **この段階で H1〜H4 ノブが動作可能**
+
+    ---
+
+    ### Phase 3：BLEND クロスフェード配線
+
+    **信号フロー**
+
+    ```
+    [Sine OSC] ─┬─(BLEND 左側: -1〜0 で Wavetable とクロスフェード)─ Wavetable(Tri/Sqr/Saw)
+                │
+                └─(BLEND 右側: 0〜+1 で Additive とクロスフェード)── H1〜H4 加算合成
+    ```
+
+    **クロスフェード式**（b = BLEND を -1〜+1 に正規化）
+
+    ```
+    b ≤ 0:  output = lerp(sine, wavetable, -b)
+    b > 0:  output = lerp(sine, additive,   b)
+    中央(0): 純サイン波
+    左端(-1): 選択波形（Tri/Sqr/Saw）のみ
+    右端(+1): H1〜H4 加算ハーモニクスのみ
+    ```
+
+    **配線実装**
+
+    ```cpp
+    // OomphOscillator.h
+    void setBlend(float blend);   // -1.0〜+1.0
+
+    // PluginEditor.cpp
+    oomphKnobs[2].setRange(-100.0, 100.0, 1.0);
+    oomphKnobs[2].setValue(0.0);
+    oomphKnobs[2].onValueChange = [this] {
+        processorRef.getOomphOsc().setBlend(
+            static_cast<float>(oomphKnobs[2].getValue()) / 100.0f);
+    };
+    ```
+
+    - **この段階で BLEND ノブが左右とも動作可能**
+
+    ---
+
+    ### Phase 4：波形選択 UI
+
+    - Tri / Square / Saw の 3 ボタン（TextButton グループ）
+    - クリック → `OomphOscillator::setWaveShape()` 呼び出し
+    - 配置場所: 展開パネル内（oomphKnobs 行の下など、要レイアウト検討）
 
 - **KeyboardComponent FIXEDモードのキーボード入力問題**
   - 現状: FIXEDモードでもmacのキーボード入力に反応してしまい、noteが選択されてしまう

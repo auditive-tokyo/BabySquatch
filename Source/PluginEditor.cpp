@@ -94,12 +94,12 @@ BabySquatchAudioProcessorEditor::BabySquatchAudioProcessorEditor(
     const bool ampControlled = ampEnvData.hasPoints();
     oomphKnobs[1].setEnabled(!ampControlled);
     oomphKnobs[1].setTooltip(ampControlled ? "Value is controlled by envelope"
-                                          : "");
+                                           : "");
     // PITCH ノブ: エンベロープポイントがあれば無効化
     const bool pitchControlled = pitchEnvData.hasPoints();
     oomphKnobs[0].setEnabled(!pitchControlled);
     oomphKnobs[0].setTooltip(pitchControlled ? "Value is controlled by envelope"
-                                            : "");
+                                             : "");
   });
 
   // ── OOMPHノブ → Processorゲイン配線のみ（振幅は AMP ノブで制御） ──
@@ -125,6 +125,18 @@ BabySquatchAudioProcessorEditor::BabySquatchAudioProcessorEditor(
       labelText = "PITCH";
     else if (i == 1)
       labelText = "AMP";
+    else if (i == 2)
+      labelText = "BLEND";
+    else if (i == 3)
+      labelText = "DIST";
+    else if (i == 4)
+      labelText = "H1";
+    else if (i == 5)
+      labelText = "H2";
+    else if (i == 6)
+      labelText = "H3";
+    else if (i == 7)
+      labelText = "H4";
     else
       labelText = "temp " + juce::String(i + 1);
     label.setText(labelText, juce::dontSendNotification);
@@ -140,13 +152,13 @@ BabySquatchAudioProcessorEditor::BabySquatchAudioProcessorEditor(
       [this](EnvelopeCurveEditor::EditTarget target) {
         using enum EnvelopeCurveEditor::EditTarget;
         oomphKnobLabels[0].setColour(juce::Label::textColourId,
-                                    target == pitch
-                                        ? juce::Colours::cyan
-                                        : UIConstants::Colours::labelText);
+                                     target == pitch
+                                         ? juce::Colours::cyan
+                                         : UIConstants::Colours::labelText);
         oomphKnobLabels[1].setColour(juce::Label::textColourId,
-                                    target == amp
-                                        ? juce::Colours::white
-                                        : UIConstants::Colours::labelText);
+                                     target == amp
+                                         ? juce::Colours::white
+                                         : UIConstants::Colours::labelText);
       });
 
   // ── PITCH ノブ（oomphKnobs[0]）: range・初期値・コールバック設定 ──
@@ -178,7 +190,7 @@ BabySquatchAudioProcessorEditor::BabySquatchAudioProcessorEditor(
   // 表示値は 0〜200％、内部変換: gain = value / 100.0f
   oomphKnobs[1].setRange(0.0, 200.0);
   oomphKnobs[1].setValue(ampEnvData.getDefaultValue() * 100.0,
-                        juce::dontSendNotification);
+                         juce::dontSendNotification);
   oomphKnobs[1].setDoubleClickReturnValue(true, 100.0);
   oomphKnobs[1].onValueChange = [this, bakeAmpLut] {
     const auto gain = static_cast<float>(oomphKnobs[1].getValue()) / 100.0f;
@@ -191,7 +203,7 @@ BabySquatchAudioProcessorEditor::BabySquatchAudioProcessorEditor(
     const bool controlled = ampEnvData.hasPoints();
     oomphKnobs[1].setEnabled(!controlled);
     oomphKnobs[1].setTooltip(controlled ? "Value is controlled by envelope"
-                                       : "");
+                                        : "");
   }
 }
 
