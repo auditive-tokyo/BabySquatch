@@ -46,6 +46,7 @@ private:
   // ── OOMPH展開パネル: temp ノブ行（8本） ──
   std::array<juce::Slider, 8> tempKnobs;
   std::array<juce::Label, 8> tempKnobLabels;
-
+  // ── ツールチップ（AMPノブの無効時などに使用） ──
+  juce::TooltipWindow tooltipWindow{this, 500};
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(BabySquatchAudioProcessorEditor)
 };

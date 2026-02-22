@@ -64,17 +64,18 @@ BabySquatchAudioProcessorEditor::BabySquatchAudioProcessorEditor(
     processorRef.envLut().bake(lut.data(), lutSize);
   };
 
-  // ── ポイント変更 → LUT 再ベイク ──
-  envelopeCurveEditor.setOnChange(bakeLut);
+  // ── ポイント変更 → LUT 再ベイク + AMP ノブ状態更新 ──
+  envelopeCurveEditor.setOnChange([this, bakeLut] {
+    bakeLut();
+    const bool controlled = ampEnvData.hasPoints();
+    tempKnobs[1].setEnabled(!controlled);
+    tempKnobs[1].setTooltip(controlled ? "Value is controlled by envelope" : "");
+  });
 
-  // ── OOMPHノブ → Processorゲイン配線 + エンベロープ連動 + LUT ベイク ──
-  oomphPanel.getKnob().onValueChange = [this, bakeLut] {
+  // ── OOMPHノブ → Processorゲイン配線のみ（振幅は AMP ノブで制御） ──
+  oomphPanel.getKnob().onValueChange = [this] {
     const auto dB = static_cast<float>(oomphPanel.getKnob().getValue());
     processorRef.setOomphGainDb(dB);
-    const float gain = juce::Decibels::decibelsToGain(dB);
-    ampEnvData.setDefaultValue(gain);
-    bakeLut();
-    envelopeCurveEditor.repaint();
   };
 
   setSize(UIConstants::windowWidth, UIConstants::windowHeight);
@@ -89,11 +90,31 @@ BabySquatchAudioProcessorEditor::BabySquatchAudioProcessorEditor(
     addChildComponent(knob);
 
     auto &label = tempKnobLabels[idx];
-    label.setText("temp " + juce::String(i + 1), juce::dontSendNotification);
+    label.setText(i == 1 ? "AMP" : "temp " + juce::String(i + 1),
+                  juce::dontSendNotification);
     label.setFont(juce::Font(juce::FontOptions(10.0f)));
     label.setJustificationType(juce::Justification::centred);
     label.setColour(juce::Label::textColourId, UIConstants::Colours::labelText);
     addChildComponent(label);
+  }
+
+  // ── AMP ノブ（tempKnobs[1]）: range・初期値・コールバック設定 ──
+  // 表示値は 0〜200％、内部変換: gain = value / 100.0f
+  tempKnobs[1].setRange(0.0, 200.0);
+  tempKnobs[1].setValue(ampEnvData.getDefaultValue() * 100.0,
+                        juce::dontSendNotification);
+  tempKnobs[1].setDoubleClickReturnValue(true, 100.0);
+  tempKnobs[1].onValueChange = [this, bakeLut] {
+    const auto gain = static_cast<float>(tempKnobs[1].getValue()) / 100.0f;
+    ampEnvData.setDefaultValue(gain);
+    bakeLut();
+    envelopeCurveEditor.repaint();
+  };
+  // 初期状態: ポイントがあれば無効化
+  {
+    const bool controlled = ampEnvData.hasPoints();
+    tempKnobs[1].setEnabled(!controlled);
+    tempKnobs[1].setTooltip(controlled ? "Value is controlled by envelope" : "");
   }
 }
 
