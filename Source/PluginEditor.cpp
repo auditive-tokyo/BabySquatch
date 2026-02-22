@@ -206,6 +206,15 @@ BabySquatchAudioProcessorEditor::BabySquatchAudioProcessorEditor(
                                         : "");
   }
 
+  // ── BLEND ノブ（oomphKnobs[2]）: range・コールバック設定 ──
+  oomphKnobs[2].setRange(-100.0, 100.0, 1.0);
+  oomphKnobs[2].setValue(0.0, juce::dontSendNotification);
+  oomphKnobs[2].setDoubleClickReturnValue(true, 0.0);
+  oomphKnobs[2].onValueChange = [this] {
+    processorRef.oomphOscillator().setBlend(
+        static_cast<float>(oomphKnobs[2].getValue()) / 100.0f);
+  };
+
   // ── H1〜H4 ノブ（oomphKnobs[4〜7]）: range・コールバック設定 ──
   for (int i = 0; i < 4; ++i) {
     const auto idx = static_cast<size_t>(i + 4); // knobs[4]〜[7]

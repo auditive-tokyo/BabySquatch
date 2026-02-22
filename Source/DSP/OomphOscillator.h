@@ -40,6 +40,10 @@ public:
   /// 現在の波形を取得
   WaveShape getWaveShape() const;
 
+  /// BLEND 値を設定（UIスレッドから呼び出し可）
+  /// @param blend -1.0〜+1.0（0=Sine, -1=Wavetable, +1=Additive）
+  void setBlend(float blend);
+
   /// H1〜H4 倍音ゲイン設定（UIスレッドから呼び出し可）
   /// @param n 倍音番号 1〜4（H1=基底音×1, H2=×2, H3=×3, H4=×4）
   /// @param gain 0.0〜1.0
@@ -68,6 +72,9 @@ private:
 
   std::atomic<int> currentShape{0};  // WaveShape の int 値
   int activeBand = 0;
+
+  // ── BLEND ──
+  std::atomic<float> blend_{0.0f};  // -1.0〜+1.0
 
   // ── H1〜H4 加算合成 ──
   static constexpr int numHarmonics = 4;

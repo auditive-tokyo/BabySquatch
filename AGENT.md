@@ -68,9 +68,10 @@ BabySquatchは3つのモジュールで構成されています：
   - Oomphロータリーノブ → `oomphGainDb`（最終段ゲイン）のみ制御
   - AMP ノブ（oomphKnobs[1]）→ `ampEnvData.setDefaultValue()` を担当（0〜200%）。エンベロープポイントがある間は無効化・ツールチップ表示
   - PITCH ノブ（oomphKnobs[0]）→ `pitchEnvData.setDefaultValue()` を担当（20〜20000 Hz）。同様に無効化制御
-  - oomphKnobs[2〜7] はラベル設定済み（BLEND/DIST/H1〜H4）、DSP 未接続
-- **Band-limited Wavetable 基盤**（Phase 1 完了）: `OomphOscillator` を 4波形（Sine/Tri/Square/Saw）× 10帯域 2D テーブル構造に拡張。`WaveShape` enum、`buildAllTables()`、`bandIndexForFreq()`、`readTable()` 実装済み。現状は Sine のみ再生（Phase 3 の BLEND 配線後に波形切替が有効化）
-- **H1〜H4 加算合成**（Phase 2 完了）: `HarmonicOsc` × 4 + `harmonicGains[4]`（atomic）を `OomphOscillator` に内蔵。`setHarmonicGain(int n, float gain)` API、`oomphOscillator()` アクセサ、oomphKnobs[4〜7] 配線済み。現状: Sine + H1〜H4 直接加算（Phase 3 で BLEND クロスフェードに変更予定）
+  - oomphKnobs[2〜7] はラベル設定済み（BLEND/DIST/H1〜H4）。BLEND（[2]）・H1〜H4（[4〜7]）は DSP 接続済み。Dist（[3]）は未接続（TBD）
+- **Band-limited Wavetable 基盤**（Phase 1 完了）: `OomphOscillator` を 4波形（Sine/Tri/Square/Saw）× 10帯域 2D テーブル構造に拡張。`WaveShape` enum、`buildAllTables()`、`bandIndexForFreq()`、`readTable()` 実装済み。BLEND ノブ左側で波形切替が有効（Phase 4 で UI セレクター追加予定）
+- **H1〜H4 加算合成**（Phase 2 完了）: `HarmonicOsc` × 4 + `harmonicGains[4]`（atomic）を `OomphOscillator` に内蔵。`setHarmonicGain(int n, float gain)` API、`oomphOscillator()` アクセサ、oomphKnobs[4〜7] 配線済み
+- **BLEND クロスフェード**（Phase 3 完了）: `setBlend(float)` API（-1.0〜+1.0）追加、`getNextSample()` 内で `std::lerp` によるクロスフェード実装。b≤0: Sine↔Wavetable、b>0: Sine↔Additive。oomphKnobs[2]（BLEND）-100〜+100 配線済み
 
 ## Pitch / MIDI 設計方針（Kick Ninja準拠）
 
@@ -170,47 +171,8 @@ BabySquatchは3つのモジュールで構成されています：
     |-------|------|------|
     | 1 | Band-limited Wavetable 基盤 | ✅ 完了 |
     | 2 | H1〜H4 加算合成 OSC 追加 | ✅ 完了 |
-    | 3 | BLEND クロスフェード配線 | ⬜ 未着手 |
+    | 3 | BLEND クロスフェード配線 | ✅ 完了 |
     | 4 | 波形選択 UI（Tri/Square/Saw） | ⬜ 未着手 |
-
-    ---
-
-    ### Phase 3：BLEND クロスフェード配線
-
-    **信号フロー**
-
-    ```
-    [Sine OSC] ─┬─(BLEND 左側: -1〜0 で Wavetable とクロスフェード)─ Wavetable(Tri/Sqr/Saw)
-                │
-                └─(BLEND 右側: 0〜+1 で Additive とクロスフェード)── H1〜H4 加算合成
-    ```
-
-    **クロスフェード式**（b = BLEND を -1〜+1 に正規化）
-
-    ```
-    b ≤ 0:  output = lerp(sine, wavetable, -b)
-    b > 0:  output = lerp(sine, additive,   b)
-    中央(0): 純サイン波
-    左端(-1): 選択波形（Tri/Sqr/Saw）のみ
-    右端(+1): H1〜H4 加算ハーモニクスのみ
-    ```
-
-    **配線実装**
-
-    ```cpp
-    // OomphOscillator.h
-    void setBlend(float blend);   // -1.0〜+1.0
-
-    // PluginEditor.cpp
-    oomphKnobs[2].setRange(-100.0, 100.0, 1.0);
-    oomphKnobs[2].setValue(0.0);
-    oomphKnobs[2].onValueChange = [this] {
-        processorRef.getOomphOsc().setBlend(
-            static_cast<float>(oomphKnobs[2].getValue()) / 100.0f);
-    };
-    ```
-
-    - **この段階で BLEND ノブが左右とも動作可能**
 
     ---
 

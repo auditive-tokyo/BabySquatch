@@ -149,6 +149,13 @@ WaveShape OomphOscillator::getWaveShape() const {
 }
 
 // ────────────────────────────────────────────────────
+// setBlend — BLEND 値設定（-1.0〜+1.0）
+// ────────────────────────────────────────────────────
+void OomphOscillator::setBlend(float blend) {
+  blend_.store(std::clamp(blend, -1.0f, 1.0f));
+}
+
+// ────────────────────────────────────────────────────
 // setHarmonicGain — H1〜H4 倍音ゲイン設定
 // ────────────────────────────────────────────────────
 void OomphOscillator::setHarmonicGain(int n, float gain) {
@@ -167,8 +174,9 @@ float OomphOscillator::readTable(const float *table) const {
 }
 
 // ────────────────────────────────────────────────────
-// getNextSample — Sine + H1〜H4 加算合成
-//   （Phase 3 で BLEND クロスフェード追加予定）
+// getNextSample — BLEND クロスフェード + H1〜H4 加算合成
+//   b ≤ 0: lerp(sine, wavetable, -b)
+//   b > 0: lerp(sine, additive,   b)
 // ────────────────────────────────────────────────────
 float OomphOscillator::getNextSample() {
   if (!active)
@@ -176,6 +184,9 @@ float OomphOscillator::getNextSample() {
 
   // Sine テーブル読み出し
   const float sineSample = readTable(activeSineTable);
+
+  // 選択波形（Tri/Square/Saw）テーブル読み出し
+  const float shapeSample = readTable(activeShapeTable);
 
   // H1〜H4 加算合成（gain=0 のハーモニクスはスキップ）
   float additiveSample = 0.0f;
@@ -195,9 +206,17 @@ float OomphOscillator::getNextSample() {
     }
   }
 
-  // Phase 2: サイン波 + 加算合成を単純加算
-  //   Phase 3 で BLEND クロスフェードに変更予定
-  const float sample = sineSample + additiveSample;
+  // BLEND クロスフェード
+  const float b = blend_.load();
+  float sample;
+  if (b <= 0.0f) {
+    // 左側: Sine ← → Wavetable（Tri/Sqr/Saw）
+    const float t = -b; // 0.0〜1.0
+    sample = std::lerp(sineSample, shapeSample, t);
+  } else {
+    // 右側: Sine ← → Additive（H1〜H4）
+    sample = std::lerp(sineSample, additiveSample, b);
+  }
 
   currentIndex += tableDelta;
   if (currentIndex >= static_cast<float>(tableSize))
