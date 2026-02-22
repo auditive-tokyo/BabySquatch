@@ -109,6 +109,9 @@ int OomphOscillator::bandIndexForFreq(float hz) {
 void OomphOscillator::triggerNote() {
   active = true;
   currentIndex = 0.0f;
+  // H1〜H4 位相リセット
+  for (auto& h : harmonics)
+    h.phase = 0.0f;
 }
 
 void OomphOscillator::stopNote() {
@@ -146,6 +149,14 @@ WaveShape OomphOscillator::getWaveShape() const {
 }
 
 // ────────────────────────────────────────────────────
+// setHarmonicGain — H1〜H4 倍音ゲイン設定
+// ────────────────────────────────────────────────────
+void OomphOscillator::setHarmonicGain(int n, float gain) {
+  if (n >= 1 && n <= numHarmonics)
+    harmonicGains[static_cast<size_t>(n - 1)].store(gain);
+}
+
+// ────────────────────────────────────────────────────
 // readTable — テーブルから線形補間で1サンプル
 // ────────────────────────────────────────────────────
 float OomphOscillator::readTable(const float *table) const {
@@ -156,15 +167,37 @@ float OomphOscillator::readTable(const float *table) const {
 }
 
 // ────────────────────────────────────────────────────
-// getNextSample — 現在は activeSineTable のみ読み出し
+// getNextSample — Sine + H1〜H4 加算合成
 //   （Phase 3 で BLEND クロスフェード追加予定）
 // ────────────────────────────────────────────────────
 float OomphOscillator::getNextSample() {
   if (!active)
     return 0.0f;
 
-  // Phase 1: サイン波テーブルのみ（既存動作と同一）
-  const float sample = readTable(activeSineTable);
+  // Sine テーブル読み出し
+  const float sineSample = readTable(activeSineTable);
+
+  // H1〜H4 加算合成（gain=0 のハーモニクスはスキップ）
+  float additiveSample = 0.0f;
+  const float phaseDelta =
+      tableDelta * (juce::MathConstants<float>::twoPi /
+                    static_cast<float>(tableSize));
+  for (int n = 0; n < numHarmonics; ++n) {
+    const float g = harmonicGains[static_cast<size_t>(n)].load();
+    if (g > 0.0f) {
+      additiveSample += g * std::sin(harmonics[static_cast<size_t>(n)].phase);
+      harmonics[static_cast<size_t>(n)].phase +=
+          phaseDelta * static_cast<float>(n + 1);
+      if (harmonics[static_cast<size_t>(n)].phase >=
+          juce::MathConstants<float>::twoPi)
+        harmonics[static_cast<size_t>(n)].phase -=
+            juce::MathConstants<float>::twoPi;
+    }
+  }
+
+  // Phase 2: サイン波 + 加算合成を単純加算
+  //   Phase 3 で BLEND クロスフェードに変更予定
+  const float sample = sineSample + additiveSample;
 
   currentIndex += tableDelta;
   if (currentIndex >= static_cast<float>(tableSize))

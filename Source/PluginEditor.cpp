@@ -205,6 +205,19 @@ BabySquatchAudioProcessorEditor::BabySquatchAudioProcessorEditor(
     oomphKnobs[1].setTooltip(controlled ? "Value is controlled by envelope"
                                         : "");
   }
+
+  // ── H1〜H4 ノブ（oomphKnobs[4〜7]）: range・コールバック設定 ──
+  for (int i = 0; i < 4; ++i) {
+    const auto idx = static_cast<size_t>(i + 4); // knobs[4]〜[7]
+    oomphKnobs[idx].setRange(0.0, 1.0, 0.01);
+    oomphKnobs[idx].setValue(0.0, juce::dontSendNotification);
+    oomphKnobs[idx].setDoubleClickReturnValue(true, 0.0);
+    const int harmonicNum = i + 1; // H1〜H4
+    oomphKnobs[idx].onValueChange = [this, idx, harmonicNum] {
+      processorRef.oomphOscillator().setHarmonicGain(
+          harmonicNum, static_cast<float>(oomphKnobs[idx].getValue()));
+    };
+  }
 }
 
 BabySquatchAudioProcessorEditor::~BabySquatchAudioProcessorEditor() = default;

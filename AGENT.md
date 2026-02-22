@@ -69,7 +69,23 @@ BabySquatchは3つのモジュールで構成されています：
   - AMP ノブ（oomphKnobs[1]）→ `ampEnvData.setDefaultValue()` を担当（0〜200%）。エンベロープポイントがある間は無効化・ツールチップ表示
   - PITCH ノブ（oomphKnobs[0]）→ `pitchEnvData.setDefaultValue()` を担当（20〜20000 Hz）。同様に無効化制御
   - oomphKnobs[2〜7] はラベル設定済み（BLEND/DIST/H1〜H4）、DSP 未接続
-- **Band-limited Wavetable 基盤**（Phase 1 完了）
+  - **Band-limited Wavetable 基盤**（Phase 1 完了）
+  - `OomphOscillator` を 4 波形 × 10 帯域の 2D Wavetable 構造に拡張
+  - `WaveShape` enum 追加（Sine / Tri / Square / Saw）
+  - `buildAllTables()`: 各帯域の Nyquist 制限倍音数でフーリエ合成（Tri/Square/Saw）
+  - `setFrequencyHz()` 内で `bandIndexForFreq()` により再生帯域を自動選択、`activeSineTable` / `activeShapeTable` ポインタを更新
+  - `setWaveShape()` / `getWaveShape()` API 追加（`std::atomic<int>` 経由でスレッドセーフ）
+  - `readTable()` 共通補間ヘルパー追加
+  - 現状は Sine テーブルのみ再生（音に変化なし）。Phase 3 で BLEND クロスフェード追加予定
+- **H1〜H4 加算合成**（Phase 2 完了）
+    - `HarmonicOsc` 構造体（`phase` フィールド）を 4 本 `OomphOscillator` に内蔵
+    - `harmonicGains[4]`（`std::atomic<float>`）で UIスレッドセーフなゲイン受け渡し
+    - `setHarmonicGain(int n, float gain)` API 追加（n=1〜4）
+    - `getNextSample()` 内で位相アキュムレーター方式の倍音合成（基底周波数 × n）
+    - `triggerNote()` 時に全倍音位相をリセット
+    - `PluginProcessor` に `oomphOscillator()` アクセサ追加
+    - `PluginEditor` で oomphKnobs[4〜7]（H1〜H4）→ `setHarmonicGain()` 配線
+    - 現状: Sine + H1〜H4 を直接加算（Phase 3 で BLEND クロスフェードに変更予定）
   - `OomphOscillator` を 4 波形 × 10 帯域の 2D Wavetable 構造に拡張
   - `WaveShape` enum 追加（Sine / Tri / Square / Saw）
   - `buildAllTables()`: 各帯域の Nyquist 制限倍音数でフーリエ合成（Tri/Square/Saw）
@@ -175,7 +191,7 @@ BabySquatchは3つのモジュールで構成されています：
     | Phase | 内容 | 状態 |
     |-------|------|------|
     | 1 | Band-limited Wavetable 基盤 | ✅ 完了 |
-    | 2 | H1〜H4 加算合成 OSC 追加 | ⬜ 未着手 |
+    | 2 | H1〜H4 加算合成 OSC 追加 | ✅ 完了 |
     | 3 | BLEND クロスフェード配線 | ⬜ 未着手 |
     | 4 | 波形選択 UI（Tri/Square/Saw） | ⬜ 未着手 |
 
@@ -237,7 +253,7 @@ BabySquatchは3つのモジュールで構成されています：
 
     ---
 
-    ### Phase 2：H1〜H4 加算合成
+    ### Phase 2：H1〜H4 加算合成（✅ 完了）
 
     **実装方針**: 位相アキュムレーター 4 本を OSC 本体に内蔵（最も軽量）
 
@@ -340,6 +356,16 @@ BabySquatchは3つのモジュールで構成されています：
   - 各セクション境界は `EnvelopeCurveEditor` 内で定義可能なメンバ変数（例: `attackEndMs`, `bodyEndMs`, `decayEndMs`）または `EnvelopeData` 側で保持
   - `paint()` 内で縦線 + テキストラベル描画
   - UI的に境界を調整可能にするか（ドラッグで移動）は要検討
+
+- **全ノブに `ColouredSliderLAF` を適用してUI統一**
+  - `Source/GUI/CustomSliderLAF.h` に `ColouredSliderLAF` クラスが既存（`arcColour` / `thumbColour` をコンストラクタ引数で差し替えるだけで色変更可）
+  - 現状: Oomph チャンネルノブ（`PanelComponent`）には適用済みだが、展開パネル内の `oomphKnobs[8]` には未適用
+  - 対応方針:
+    - Oomph 展開ノブ → `UIConstants::Colours::oomphArc`（橙）ベースの `ColouredSliderLAF` インスタンスを適用
+    - Click 展開ノブ（将来）→ Click カラー（緑系）
+    - Dry 展開ノブ（将来）→ Dry カラー（紫系）
+  - `PluginEditor.h` に `ColouredSliderLAF oomphKnobLAF` メンバーを追加し、全 `oomphKnobs[i]` に `setLookAndFeel(&oomphKnobLAF)` を呼ぶだけで実装可能
+  - LAF はスライダーのライフタイムより長く生きている必要あり（メンバー保持で解決）
 
 - **Click モジュール実装**（より高度な処理: 短いトランジェント/ノイズバースト生成等）
 

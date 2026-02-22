@@ -40,6 +40,11 @@ public:
   /// 現在の波形を取得
   WaveShape getWaveShape() const;
 
+  /// H1〜H4 倍音ゲイン設定（UIスレッドから呼び出し可）
+  /// @param n 倍音番号 1〜4（H1=基底音×1, H2=×2, H3=×3, H4=×4）
+  /// @param gain 0.0〜1.0
+  void setHarmonicGain(int n, float gain);
+
   // ── 定数（外部から参照可能にするため public）──
   static constexpr int tableSize  = 2048;
   static constexpr int numBands   = 10;   // 20Hz〜20480Hz を 10 オクターブ分割
@@ -63,6 +68,14 @@ private:
 
   std::atomic<int> currentShape{0};  // WaveShape の int 値
   int activeBand = 0;
+
+  // ── H1〜H4 加算合成 ──
+  static constexpr int numHarmonics = 4;
+  struct HarmonicOsc {
+    float phase = 0.0f;
+  };
+  std::array<HarmonicOsc, numHarmonics> harmonics{};
+  std::array<std::atomic<float>, numHarmonics> harmonicGains{0.0f, 0.0f, 0.0f, 0.0f};
 
   // ── テーブル構築 ──
   void buildAllTables();

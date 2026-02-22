@@ -53,6 +53,7 @@ public:
     const ChannelState& channelState() const noexcept { return channelState_; }
     EnvelopeLutManager& envLut()             noexcept { return envLut_; }
     EnvelopeLutManager& pitchLut()            noexcept { return pitchLut_; }
+    OomphOscillator&    oomphOscillator()     noexcept { return oomphOsc; }
 
 private:
     void handleMidiEvents(juce::MidiBuffer& midiMessages, int numSamples);
