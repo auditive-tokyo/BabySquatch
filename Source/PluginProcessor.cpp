@@ -1,8 +1,6 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
-#include <algorithm>
-
 BabySquatchAudioProcessor::BabySquatchAudioProcessor()
     : AudioProcessor(
           BusesProperties()
@@ -47,12 +45,10 @@ void BabySquatchAudioProcessor::prepareToPlay(double sampleRate,
                                               int samplesPerBlock) {
   oomphOsc.prepareToPlay(sampleRate);
   oomphScratchBuffer.resize(static_cast<size_t>(samplesPerBlock));
-
-  // LUT の初期値: 全スロット 1.0（ユニティゲイン）
-  envLut0.fill(1.0f);
-  envLut1.fill(1.0f);
-  envLutActiveIndex.store(0);
   noteTimeSamples = 0.0f;
+
+  envLut_.reset();
+  channelState_.resetDetectors();
 }
 
 void BabySquatchAudioProcessor::releaseResources() {
@@ -71,52 +67,8 @@ bool BabySquatchAudioProcessor::isBusesLayoutSupported(
   return true;
 }
 
-void BabySquatchAudioProcessor::bakeEnvelopeLut(const float *data, int size) {
-  // 非アクティブ側バッファに書き込み → アトミックフリップ
-  const int activeIdx = envLutActiveIndex.load(std::memory_order_acquire);
-  auto &dst = (activeIdx == 0) ? envLut1 : envLut0;
-
-  // ソースを LUT サイズにリサンプル（線形補間）
-  for (int i = 0; i < envLutSize; ++i) {
-    const float srcPos = static_cast<float>(i) /
-                         static_cast<float>(envLutSize - 1) *
-                         static_cast<float>(size - 1);
-    const auto idx0 = static_cast<int>(srcPos);
-    const auto idx1 = std::min(idx0 + 1, size - 1);
-    const float frac = srcPos - static_cast<float>(idx0);
-    dst[static_cast<size_t>(i)] =
-        data[idx0] * (1.0f - frac) +
-        data[idx1] * frac; // NOLINT: pointer arithmetic
-  }
-
-  // フリップ: オーディオスレッドが次回から新しい側を読む
-  envLutActiveIndex.store(1 - activeIdx, std::memory_order_release);
-}
-
-void BabySquatchAudioProcessor::setMute(Channel ch, bool muted) {
-  channelMute[static_cast<size_t>(ch)].store(muted);
-}
-
-void BabySquatchAudioProcessor::setSolo(Channel ch, bool soloed) {
-  channelSolo[static_cast<size_t>(ch)].store(soloed);
-}
-
-BabySquatchAudioProcessor::ChannelPasses
-BabySquatchAudioProcessor::computeChannelPasses() const {
-  using enum Channel;
-  const bool anySolo = channelSolo[static_cast<size_t>(oomph)].load()
-                    || channelSolo[static_cast<size_t>(click)].load()
-                    || channelSolo[static_cast<size_t>(dry)].load();
-  const auto isMuted  = [&](Channel ch) { return channelMute[static_cast<size_t>(ch)].load(); };
-  const auto isSoloed = [&](Channel ch) { return channelSolo[static_cast<size_t>(ch)].load(); };
-  return {
-    !isMuted(oomph) && (!anySolo || isSoloed(oomph)),
-    !isMuted(dry)   && (!anySolo || isSoloed(dry))
-  };
-}
-
 void BabySquatchAudioProcessor::handleMidiEvents(juce::MidiBuffer &midiMessages,
-                                                  int numSamples) {
+                                                 int numSamples) {
   if (fixedModeActive.load()) {
     // FIXEDモード移行時に発音中のOSCを停止
     if (oomphOsc.isActive())
@@ -141,27 +93,28 @@ void BabySquatchAudioProcessor::handleMidiEvents(juce::MidiBuffer &midiMessages,
 }
 
 void BabySquatchAudioProcessor::renderOomph(juce::AudioBuffer<float> &buffer,
-                                             int numSamples, bool oomphPass) {
+                                            int numSamples, bool oomphPass) {
   if (!oomphOsc.isActive()) {
     std::fill_n(oomphScratchBuffer.data(), numSamples, 0.0f);
     return;
   }
 
-  const float gain        = juce::Decibels::decibelsToGain(oomphGainDb.load());
-  const int   numChannels = buffer.getNumChannels();
-  const int   lutIdx      = envLutActiveIndex.load(std::memory_order_acquire);
-  const auto &lut         = (lutIdx == 0) ? envLut0 : envLut1;
-  const float durMs       = envDurationMs.load();
-  const auto  sr          = static_cast<float>(getSampleRate());
+  const float gain = juce::Decibels::decibelsToGain(oomphGainDb.load());
+  const int numChannels = buffer.getNumChannels();
+  const auto &lut = envLut_.getActiveLut();
+  const float durMs = envLut_.getDurationMs();
+  const auto sr = static_cast<float>(getSampleRate());
 
   for (int sample = 0; sample < numSamples; ++sample) {
     // LUT 参照でエンベロープゲインを取得
     const float noteTimeMs = noteTimeSamples * 1000.0f / sr;
-    const float lutPos = (durMs > 0.0f)
-        ? (noteTimeMs / durMs) * static_cast<float>(envLutSize - 1)
-        : 0.0f;
-    const auto  lutIndex = std::min(static_cast<int>(lutPos), envLutSize - 1);
-    const float envGain  = lut[static_cast<size_t>(lutIndex)];
+    const float lutPos =
+        (durMs > 0.0f) ? (noteTimeMs / durMs) *
+                             static_cast<float>(EnvelopeLutManager::lutSize - 1)
+                       : 0.0f;
+    const auto lutIndex =
+        std::min(static_cast<int>(lutPos), EnvelopeLutManager::lutSize - 1);
+    const float envGain = lut[static_cast<size_t>(lutIndex)];
 
     const float oscSample = oomphOsc.getNextSample() * gain * envGain;
     oomphScratchBuffer[static_cast<size_t>(sample)] = oscSample;
@@ -177,15 +130,33 @@ void BabySquatchAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
                                              juce::MidiBuffer &midiMessages) {
   juce::ScopedNoDenormals noDenormals;
 
-  const auto passes = computeChannelPasses();
+  const auto passes = channelState_.computePasses();
 
   // Dry ミュート: 入力信号ごと消去（Oomph はこの後加算するので影響なし）
   if (!passes.dry)
     buffer.clear();
 
   const int numSamples = buffer.getNumSamples();
+
+  // Dry レベル計測（レンダリング前の純粋入力信号）
+  using enum ChannelState::Channel;
+  if (passes.dry)
+    channelState_.detector(dry).process(buffer.getReadPointer(0), numSamples);
+  else
+    channelState_.detector(dry).process(nullptr, numSamples);
+
   handleMidiEvents(midiMessages, numSamples);
   renderOomph(buffer, numSamples, passes.oomph);
+
+  // Oomph レベル計測（renderOomph が書いた scratchBuffer から）
+  if (passes.oomph)
+    channelState_.detector(oomph).process(oomphScratchBuffer.data(),
+                                          numSamples);
+  else
+    channelState_.detector(oomph).process(nullptr, numSamples);
+
+  // Click: 未実装（無音）
+  channelState_.detector(click).process(nullptr, numSamples);
 }
 
 bool BabySquatchAudioProcessor::hasEditor() const { return true; }

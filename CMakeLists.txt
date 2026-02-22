@@ -41,7 +41,12 @@ target_sources(BabySquatch
         Source/GUI/WaveformDisplay.cpp
         Source/GUI/EnvelopeCurveEditor.h
         Source/GUI/EnvelopeCurveEditor.cpp
+        Source/GUI/LevelMeter.h
+        Source/GUI/LevelMeter.cpp
+        Source/DSP/ChannelState.h
         Source/DSP/EnvelopeData.h
+        Source/DSP/EnvelopeLutManager.h
+        Source/DSP/LevelDetector.h
         Source/DSP/OomphOscillator.h
         Source/DSP/OomphOscillator.cpp
 )

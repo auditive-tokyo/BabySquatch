@@ -7,6 +7,9 @@
 PanelComponent::PanelComponent(const juce::String &name, juce::Colour arcColour,
                                juce::Colour thumbColour)
     : laf(arcColour, thumbColour) {
+  // ── レベルメーター ──
+  addAndMakeVisible(levelMeter);
+
   // ── タイトルラベル ──
   titleLabel.setText(name, juce::dontSendNotification);
   titleLabel.setJustificationType(juce::Justification::centred);
@@ -122,6 +125,9 @@ void PanelComponent::resized() {
   muteButton.setBounds(bottomRow.removeFromLeft(btnW));
   soloButton.setBounds(bottomRow.removeFromLeft(btnW));
   expandButton.setBounds(bottomRow);
+
+  // ノブ左にレベルメーターを配置
+  levelMeter.setBounds(area.removeFromLeft(UIConstants::meterWidth));
 
   knob.setBounds(area);
 
@@ -241,4 +247,8 @@ void PanelComponent::setMuteState(bool muted) {
 
 void PanelComponent::setSoloState(bool soloed) {
   soloButton.setToggleState(soloed, juce::dontSendNotification);
+}
+
+void PanelComponent::setLevelProvider(std::function<float()> provider) {
+  levelMeter.setLevelProvider(std::move(provider));
 }

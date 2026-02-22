@@ -1,7 +1,8 @@
 #pragma once
 
+#include "DSP/ChannelState.h"
+#include "DSP/EnvelopeLutManager.h"
 #include "DSP/OomphOscillator.h"
-#include <array>
 #include <atomic>
 #include <vector>
 #include <juce_audio_processors/juce_audio_processors.h>
@@ -43,32 +44,16 @@ public:
 
     /// FIXEDモード時にMIDI発音を無効化するフラグ（Editor から書き込み）
     void setFixedModeActive(bool active) { fixedModeActive.store(active); }
-    bool isFixedModeActive() const { return fixedModeActive.load(); }
 
     /// Oomph出力ゲイン（dB）— UIノブから書き込み、processBlockで適用
     void setOomphGainDb(float db) { oomphGainDb.store(db); }
-    float getOomphGainDb() const { return oomphGainDb.load(); }
 
-    // ── Mute / Solo ──
-    enum class Channel { oomph = 0, click = 1, dry = 2 };
-    void setMute(Channel ch, bool muted);
-    void setSolo(Channel ch, bool soloed);
-
-    // ── エンベロープ LUT（ロックフリー・ダブルバッファ） ──
-
-    static constexpr int envLutSize = 512;
-
-    /// UIスレッドから呼び出し: 非アクティブ側バッファにコピー → アトミックフリップ
-    void bakeEnvelopeLut(const float* data, int size);
-
-    /// エンベロープ適用期間（ms）— UI側から設定
-    void setEnvDurationMs(float ms) { envDurationMs.store(ms); }
-    float getEnvDurationMs() const { return envDurationMs.load(); }
+    // ── 委譲先ヘルパーへのアクセサ ──
+    ChannelState&       channelState()       noexcept { return channelState_; }
+    const ChannelState& channelState() const noexcept { return channelState_; }
+    EnvelopeLutManager& envLut()             noexcept { return envLut_; }
 
 private:
-    // ── processBlock ヘルパー ──
-    struct ChannelPasses { bool oomph; bool dry; };
-    ChannelPasses computeChannelPasses() const;
     void handleMidiEvents(juce::MidiBuffer& midiMessages, int numSamples);
     void renderOomph(juce::AudioBuffer<float>& buffer, int numSamples, bool oomphPass);
 
@@ -76,16 +61,12 @@ private:
     OomphOscillator oomphOsc;
     std::atomic<bool> fixedModeActive{false};
     std::atomic<float> oomphGainDb{0.0f};
-    std::array<std::atomic<bool>, 3> channelMute{};
-    std::array<std::atomic<bool>, 3> channelSolo{};
-    std::vector<float> oomphScratchBuffer; // prepareToPlay でリサイズ
 
-    // ── エンベロープ LUT ダブルバッファ ──
-    std::array<float, envLutSize> envLut0{};
-    std::array<float, envLutSize> envLut1{};
-    std::atomic<int> envLutActiveIndex{0};   ///< オーディオスレッドが読む側
-    std::atomic<float> envDurationMs{300.0f};
-    float noteTimeSamples{0.0f};             ///< ノートオンからの経過サンプル数
+    ChannelState channelState_;
+    EnvelopeLutManager envLut_;
+
+    std::vector<float> oomphScratchBuffer;
+    float noteTimeSamples{0.0f};
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (BabySquatchAudioProcessor)
 };

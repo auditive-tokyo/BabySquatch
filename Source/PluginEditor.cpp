@@ -17,13 +17,25 @@ BabySquatchAudioProcessorEditor::BabySquatchAudioProcessorEditor(
   dryPanel.setOnExpandRequested([this] { requestExpand(ExpandChannel::dry); });
 
   // ── Mute / Solo 配線 ──
-  using enum BabySquatchAudioProcessor::Channel;
-  oomphPanel.setOnMuteChanged([&p](bool m) { p.setMute(oomph, m); });
-  oomphPanel.setOnSoloChanged([&p](bool s) { p.setSolo(oomph, s); });
-  clickPanel.setOnMuteChanged([&p](bool m) { p.setMute(click, m); });
-  clickPanel.setOnSoloChanged([&p](bool s) { p.setSolo(click, s); });
-  dryPanel.setOnMuteChanged([&p](bool m)   { p.setMute(dry,   m); });
-  dryPanel.setOnSoloChanged([&p](bool s)   { p.setSolo(dry,   s); });
+  using enum ChannelState::Channel;
+  oomphPanel.setOnMuteChanged(
+      [&p](bool m) { p.channelState().setMute(oomph, m); });
+  oomphPanel.setOnSoloChanged(
+      [&p](bool s) { p.channelState().setSolo(oomph, s); });
+  clickPanel.setOnMuteChanged(
+      [&p](bool m) { p.channelState().setMute(click, m); });
+  clickPanel.setOnSoloChanged(
+      [&p](bool s) { p.channelState().setSolo(click, s); });
+  dryPanel.setOnMuteChanged([&p](bool m) { p.channelState().setMute(dry, m); });
+  dryPanel.setOnSoloChanged([&p](bool s) { p.channelState().setSolo(dry, s); });
+
+  // ── レベルメーター配線 ──
+  oomphPanel.setLevelProvider(
+      [&p]() { return p.channelState().getChannelLevelDb(oomph); });
+  clickPanel.setLevelProvider(
+      [&p]() { return p.channelState().getChannelLevelDb(click); });
+  dryPanel.setLevelProvider(
+      [&p]() { return p.channelState().getChannelLevelDb(dry); });
 
   // ── 展開エリア（初期非表示） ──
   addChildComponent(expandableArea);
@@ -40,7 +52,7 @@ BabySquatchAudioProcessorEditor::BabySquatchAudioProcessorEditor(
 
   // ── LUT ベイクヘルパー ──
   auto bakeLut = [this] {
-    constexpr int lutSize = BabySquatchAudioProcessor::envLutSize;
+    constexpr int lutSize = EnvelopeLutManager::lutSize;
     std::array<float, lutSize> lut{};
     const float durationMs = envelopeCurveEditor.getDisplayDurationMs();
     for (int i = 0; i < lutSize; ++i) {
@@ -48,8 +60,8 @@ BabySquatchAudioProcessorEditor::BabySquatchAudioProcessorEditor(
           static_cast<float>(i) / static_cast<float>(lutSize - 1) * durationMs;
       lut[static_cast<size_t>(i)] = ampEnvData.evaluate(timeMs);
     }
-    processorRef.setEnvDurationMs(durationMs);
-    processorRef.bakeEnvelopeLut(lut.data(), lutSize);
+    processorRef.envLut().setDurationMs(durationMs);
+    processorRef.envLut().bake(lut.data(), lutSize);
   };
 
   // ── ポイント変更 → LUT 再ベイク ──

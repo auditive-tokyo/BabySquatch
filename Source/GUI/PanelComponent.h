@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CustomSliderLAF.h"
+#include "LevelMeter.h"
 #include <juce_gui_basics/juce_gui_basics.h>
 
 // ────────────────────────────────────────────────────
@@ -33,6 +34,9 @@ public:
   void setMuteState(bool muted);
   void setSoloState(bool soloed);
 
+  // レベルメーター: dB 値を返すコールバックを設定
+  void setLevelProvider(std::function<float()> provider);
+
 private:
   // ── 透明クリック領域（ノブ中央の値テキスト上に配置） ──
   class ValueClickArea : public juce::Component {
@@ -57,6 +61,7 @@ private:
   ColouredSliderLAF laf;
   juce::Slider knob;
   juce::Label titleLabel;
+  LevelMeter levelMeter;
   ValueClickArea clickArea;
   juce::TextEditor valueEditor;
   GlobalClickListener globalClickListener;

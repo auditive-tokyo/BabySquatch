@@ -39,6 +39,13 @@ BabySquatchは3つのモジュールで構成されています：
 ## 実装済み機能
 
 - 3パネルUI（OOMPH / CLICK / DRY）、各カラー付きロータリーノブ、Mute（グレー/赤）/ Solo（グレー/黄）トグルボタン、展開ボタン（▼）を下部に配置
+- 各チャンネルノブ左に縦型レベルメーター（`LevelMeter` + `LevelDetector`）
+  - DSP: `LevelDetector`（ヘッダオンリー）— `std::atomic<float>` ピーク計測、バリスティクス付き減衰
+  - GUI: `LevelMeter`— `paint()` ベース、`juce::Timer` 30fps ポーリング、緑→黄→赤 グラデーション、-48dB～+6dB スケール、dBスケール目盛（0/-12/-24/-36/-48）
+- **クラス分割リファクタリング**（SonarQube S1448対応）
+  - `ChannelState`（ヘッダオンリー）— Channel enum、Mute/Solo アトミック配列、LevelDetector配列、`computePasses()`
+  - `EnvelopeLutManager`（ヘッダオンリー）— LUTダブルバッファ、`bake()`、`getActiveLut()`、`setDurationMs()`
+  - `BabySquatchAudioProcessor` はこれらに委譲（メソッド数 36→28 に削減）
 - グラデーションアーク（指数的グロー）
 - ノブ中央にdB値表示、クリックでキーボード入力、ダブルクリックで0.0dBリセット
 - 展開パネル（per-channel ▼ボタン、共有展開エリア）
@@ -77,7 +84,10 @@ BabySquatchは3つのモジュールで構成されています：
 ```text
 .
 ├── DSP
+│   ├── ChannelState.h         // チャンネルMute/Solo/レベル管理（ヘッダオンリー、BabySquatchAudioProcessorから委譲）
 │   ├── EnvelopeData.h         // AMP Envelopeデータモデル（Catmull-Rom・ヘッダオンリー）
+│   ├── EnvelopeLutManager.h   // LUTダブルバッファ管理（ヘッダオンリー、ロックフリーbake/read）
+│   ├── LevelDetector.h        // ロックフリーピーク検出（ヘッダオンリー、オーディオスレッド writer / UI reader）
 │   ├── OomphOscillator.cpp    // Oomph用Wavetable OSC実装（波形生成・補間）
 │   └── OomphOscillator.h      // Oomph用Wavetable OSC宣言（公開API）
 ├── GUI
@@ -86,6 +96,8 @@ BabySquatchは3つのモジュールで構成されています：
 │   ├── EnvelopeCurveEditor.h  // エンベロープカーブエディタ宣言
 │   ├── KeyboardComponent.cpp  // 鍵盤UI実装（MIDI/FIXED切替・PCキー入力）
 │   ├── KeyboardComponent.h    // 鍵盤UI宣言（モード/固定ノート制御API）
+│   ├── LevelMeter.cpp         // レベルメーター実装（paint・30fps Timer）
+│   ├── LevelMeter.h           // レベルメーター宣言
 │   ├── PanelComponent.cpp     // OOMPH/CLICK/DRY共通パネル実装
 │   ├── PanelComponent.h       // 共通パネル宣言（ノブ・展開ボタン）
 │   ├── UIConstants.h          // UI定数集約（色・レイアウト寸法）
@@ -93,10 +105,10 @@ BabySquatchは3つのモジュールで構成されています：
 │   └── WaveformDisplay.h      // OpenGL波形描画宣言（将来用・現在未接続）
 ├── PluginEditor.cpp           // Editor実装（レイアウト/UIイベント/LUTベイク配線）
 ├── PluginEditor.h             // Editor宣言（UI構成とメンバー）
-├── PluginProcessor.cpp        // Processor実装（MIDI処理・DSP・LUTエンベロープ）
-└── PluginProcessor.h          // Processor宣言（LUTダブルバッファ・AudioProcessorIF）
+├── PluginProcessor.cpp        // Processor実装（MIDI処理・DSP・ChannelState/EnvelopeLutManagerへ委譲）
+└── PluginProcessor.h          // Processor宣言（AudioProcessorIF・channelState()/envLut()アクセサ）
 
-3 directories, 16 files
+3 directories, 20 files
 ```
 
 ## TODO
@@ -104,9 +116,9 @@ BabySquatchは3つのモジュールで構成されています：
 ### Phase 3以降（将来の拡張）
 
 - **Oomph パラメータ設計の見直し**
-  - 現状: Oomphロータリーノブが直接Amplitudeパラメータとして機能（`oomphGainDb` → `EnvelopeData::defaultValue`）
+  - 現状: Oomphロータリーノブが `oomphGainDb`（マスターアウト乗算）と `ampEnvData.setDefaultValue()`（AMPエンベロープのフラット値）を**同時に**書き込んでいる（二役混在）
   - 変更方針:
-    - **Oomphロータリーノブ** → Oomphチャンネル全体の出力ゲイン（マスターアウト）に変更
+    - **Oomphロータリーノブ** → `oomphGainDb` のみ制御（マスターアウト専用）に整理
     - **Amplitude専用ノブ** → 新設（`EnvelopeData::defaultValue` を制御）
     - 今後の拡張: Pitch、Blend、Amplitudeなど複数のパラメータが追加予定。AMPはその一つという位置付け
   - 実装:
@@ -114,20 +126,6 @@ BabySquatchは3つのモジュールで構成されています：
     2. Pitchエンベロープ用のパラメータ/ノブ追加（`EnvelopeData pitchEnvData` + `EnvelopeCurveEditor`）
     3. Blendエンベロープ用のパラメータ/ノブ追加（Sine/他波形のミックス比）
     4. Oomphロータリーノブは最終段で全体にかかるゲインとして処理
-
-- **出力レベルメーター追加**
-  - 各チャンネル（Oomph / Click / Dry）のロータリーノブ横に縦型レベルメーターを配置
-  - **実装方針**: CPU描画（`paint()` ベース）
-    - 理由: 単純な矩形グラデーション描画、3チャンネル×30-60fps程度の負荷は軽微
-    - 注: `WaveformDisplay` は OpenGL 使用だが**現状未使用**（将来用として実装済み・未接続）
-    - 現在のプロジェクトはCPU描画が主体（`EnvelopeCurveEditor`, `CustomSliderLAF` 等）
-  - 実装:
-    1. `PanelComponent` に `LevelMeter` コンポーネント追加（カスタム `Component` 継承）
-    2. `PluginProcessor` でチャンネルごとの出力レベルを計測（RMSまたはPeak）、`std::atomic<float>` で保持
-    3. UI側で定期的に値を読み取り（`Timer` 利用、30-60fps）、メーターを更新
-    4. メーター描画: 縦グラデーション（緑→黄→赤）、dBスケール表示
-    5. レイアウト: ロータリーノブの左または右に配置、高さはノブと同程度
-  - 参考: JUCE `LevelMeter` サンプル、dBスケール変換（`Decibels::gainToDecibels`）
 
 - **KeyboardComponent FIXEDモードのキーボード入力問題**
   - 現状: FIXEDモードでもmacのキーボード入力に反応してしまい、noteが選択されてしまう
