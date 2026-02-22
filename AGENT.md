@@ -54,10 +54,21 @@ BabySquatchは3つのモジュールで構成されています：
   - Z/Xでオクターブシフト（両モード共通）
   - MIDI / FIXED モード切り替えボタン
   - FIXEDモード：単音固定、同じ鍵盤クリックで解除
-- **AMP Envelope エディタ**（Kick Ninja スタイル）
-  - `EnvelopeData`：ヘッダオンリーモデル。制御点なし→`defaultValue`（フラット）、1点→定数、2点→線形補間、3点以上→Catmull-Rom スプライン補間。ファントムポイント端点処理・隣接クランプ `movePoint`
-  - `EnvelopeCurveEditor`：`paint()` ベース。`sin(t) × evaluate(t)` でオフライン波形プレビュー。スプラインカーブ＋コントロールポイント描画。左ダブルクリックでポイント追加／削除、ドラッグで移動。横軸 ms タイムライン表示（自動間隔目盛り + ラベル）
-  - ロックフリー LUT 統合：Editor が `evaluate()` を 512 点ベイク → `bakeEnvelopeLut()` でダブルバッファにコピー → `std::atomic` フリップ。オーディオスレッドはノートオンで `noteTimeSamples` リセット → サンプル毎に LUT 参照してエンベロープゲイン適用
+- **AMP / Pitch Envelope エディタ**（Kick Ninja スタイル）
+  - `EnvelopeData`：ヘッダオンリーモデル。制御点なし→`defaultValue`（フラット）、1点→定数、2点→線形補間、3点以上→Catmull-Rom スプライン補間。ファントムポイント端点処理。`movePoint` の値クランプは呼び出し側が担当（AMP/Pitch でレンジが異なるため）
+  - `EnvelopeCurveEditor`：`paint()` ベース。AMP + Pitch の両エンベロープを受け取り、**位相累積方式**（`phase += pitchHz × dt × 2π`）でオフライン波形プレビュー。スプラインカーブ＋コントロールポイント描画。左ダブルクリックでポイント追加／削除、ドラッグで移動。横軸 ms タイムライン表示（自動間隔目盛り + ラベル）
+  - 右上に **AMP / PITCH タブボタン**を内蔵。クリックで編集対象を切替（AMP=橙、PITCH=シアン）。`setOnEditTargetChanged()` コールバックで外部 UI（ノブラベル等）と同期
+  - **Pitch Y軸**: 対数スケール 20〜20000 Hz（`valueToY`/`yToValue` が `EditTarget` に応じてスケール切替）
+  - ロックフリー LUT 統合：`envLut_`（AMP gain × 512点）+ `pitchLut_`（Hz × 512点）の2系統ダブルバッファ。オーディオスレッドはノートオンで `noteTimeSamples` リセット → サンプル毎に pitchLut → `setFrequencyHz()` + ampLut → ゲイン乗算
+- **Pitch Envelope 実装**（完了）
+  - `OomphOscillator`: `setNote(int)` → `triggerNote()` / `stopNote()` / `setFrequencyHz(float hz)` に変更。MIDIノート番号は使わず、ピッチは Pitch Envelope LUT から毎サンプル取得
+  - `PluginProcessor`: `pitchLut_`（`EnvelopeLutManager`）追加、`pitchLut()` アクセサ公開。`handleMidiEvents` でノートオン→`triggerNote()`、ノートオフ→`stopNote()`
+  - `PluginEditor`: `pitchEnvData`（デフォルト 200 Hz）+ `bakeAmpLut` / `bakePitchLut` 分離。PITCH ノブ（tempKnobs[0]）: 20〜20000 Hz 対数スケール、エンベロープポイントがある間は無効化
+- **Oomph パラメータ整理**（完了）
+  - Oomphロータリーノブ → `oomphGainDb`（最終段ゲイン）のみ制御
+  - AMP ノブ（tempKnobs[1]）→ `ampEnvData.setDefaultValue()` を担当（0〜200%）。エンベロープポイントがある間は無効化・ツールチップ表示
+  - PITCH ノブ（tempKnobs[0]）→ `pitchEnvData.setDefaultValue()` を担当（20〜20000 Hz）。同様に無効化制御
+  - tempKnobs[2〜7] は引き続き未接続（"temp 3〜8" ラベル）
 
 ## Pitch / MIDI 設計方針（Kick Ninja準拠）
 
@@ -65,7 +76,7 @@ BabySquatchは3つのモジュールで構成されています：
 - **ピッチは Pitch Envelope が絶対値で決定**: 例: `F1(43.6Hz) → C1(32.7Hz)` スイープ
 - **波形プレビュー**: Pitch Envelope の値に基づいて描画（MIDIノートではなく）
 - **FIXEDモード**: この方式ではMIDIノートが音程に影響しないため、FIXED/MIDIモードの区別は不要になる可能性あり（要検討・将来削除候補）
-- **現状の `OomphOscillator::setNote(midiNoteNumber)`**: `triggerNote()` に変更予定。ピッチは Pitch Envelope LUT から取得
+- **`OomphOscillator`**: `setNote(int)` を廃止し `triggerNote()` / `stopNote()` / `setFrequencyHz(float hz)` に変更済み。ピッチは Pitch Envelope LUT から毎サンプル取得
 - **キーボードの役割**: DAWでのMIDIパターン打ち込み（タイミング制御）、Standaloneでの試聴トリガー
 
 ## 描画方針
@@ -115,23 +126,14 @@ BabySquatchは3つのモジュールで構成されています：
 
 ### Phase 3以降（将来の拡張）
 
-- **Oomph パラメータ設計の見直し**
-  - 現状: Oomphロータリーノブが `oomphGainDb`（マスターアウト乗算）と `ampEnvData.setDefaultValue()`（AMPエンベロープの`defaultValue`）を同時に書き込んでいる。`defaultValue` はエンベロープにコントロールポイントが**ない**場合のみ `evaluate()` で使われるため、ポイント未設定時はノブが実質的にAMPの振幅も兼ねて制御するが、ポイントが1つ以上設定されると`defaultValue`は無視される
-  - **実装済み（UI骨格）**: OOMPHの展開パネル上部に8個のロータリーノブ（"temp 1〜8"）を追加済み。`PluginEditor` の `tempKnobs[8]` / `tempKnobLabels[8]`（`std::array`）として宣言。現時点では外観のみで DSP 未接続
-  - 変更方針:
-    - **Oomphロータリーノブ**（メインパネル）→ `oomphGainDb` のみ制御（マスターアウト専用）に整理
-    - **temp 1〜8 ノブ群** → 将来的に AMP、Pitch、Blend など各エンベロープ/パラメータを割り当てる。例:
-      - temp 1 → Pitch
-      - temp 2 → Amplitude（`EnvelopeData::defaultValue`）
-      - temp 3 → Pitch End（Pitch Envelope の終端値）
-      - temp 4 → Blend（Sine/他波形のミックス比）
-      - temp 5〜8 → 拡張予定
-    - ラベル名は確定次第 "temp N" から正式名称に置換
-  - 残作業:
-    1. 各ノブに DSP パラメータを接続（`juce::AudioParameterFloat` / 直接参照）
-    2. Pitchエンベロープ用 `EnvelopeData pitchEnvData` + `EnvelopeCurveEditor` 追加
-    3. Blendエンベロープ用パラメータ追加
-    4. Oomphロータリーノブを最終段ゲインに整理
+- **Oomph パラメータ設計（残作業）**
+  - **実装済み**: OOMPHの展開パネル上部に8個のロータリーノブ。PITCH（tempKnobs[0]）・AMP（tempKnobs[1]）は DSP 接続済み。Oomphロータリーノブは `oomphGainDb` 専用に整理済み
+  - **残作業**（tempKnobs[2〜7]）:
+    - temp 3 → Blend（Sine/他波形のミックス比）
+    - temp 4 → Dist
+    - temp 5〜8 → Harmonics 1〜4
+    - 各ノブに DSP パラメータを接続（`juce::AudioParameterFloat` / 直接参照）
+    - Blendエンベロープ用パラメータ追加
 
 - **KeyboardComponent FIXEDモードのキーボード入力問題**
   - 現状: FIXEDモードでもmacのキーボード入力に反応してしまい、noteが選択されてしまう
@@ -172,14 +174,6 @@ BabySquatchは3つのモジュールで構成されています：
   - **注意**: 単純なローパスフィルター後付けはエイリアシング除去には無効（音色変化の演出用途のみ）
 
 - **Click モジュール実装**（より高度な処理: 短いトランジェント/ノイズバースト生成等）
-
-- **Pitch Envelope 実装**
-  - `EnvelopeData pitchEnvData` — ピッチ包絡（`EnvelopeCurveEditor` 再利用）
-  - Y軸: MIDIノート値（またはHz）、X軸: 時間（ms）
-  - Pitch Envelope が Osc の周波数を直接制御（MIDIノートは使わない）
-  - `OomphOscillator::setNote()` → `triggerNote()` に改名、ピッチは Pitch Envelope LUT から毎サンプル取得
-  - Pitch Envelope LUT も AMP と同じロックフリーダブルバッファ方式で実装
-  - 波形プレビュー (`EnvelopeCurveEditor`) は Pitch Envelope の値に基づいてサイクル数を可変描画
 
 - **FIXED / MIDI モードの見直し**
   - Kick Ninja準拠方式（トリガー専用）では、全鍵盤が同じ音を鳴らすため FIXED/MIDI の区別が不要

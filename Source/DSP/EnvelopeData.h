@@ -61,7 +61,7 @@ public:
             : std::numeric_limits<float>::max();
 
         points[static_cast<size_t>(index)].timeMs = std::clamp(newTimeMs, minT, maxT);
-        points[static_cast<size_t>(index)].value = std::clamp(newValue, 0.0f, 2.0f);
+        points[static_cast<size_t>(index)].value = newValue;  // clamp は呼び出し側で実施
         return index;
     }
 

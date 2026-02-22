@@ -41,7 +41,8 @@ private:
   BabySquatchAudioProcessor &processorRef;
   KeyboardComponent keyboard;
   EnvelopeData ampEnvData;
-  EnvelopeCurveEditor envelopeCurveEditor{ampEnvData};
+  EnvelopeData pitchEnvData;
+  EnvelopeCurveEditor envelopeCurveEditor{ampEnvData, pitchEnvData};
 
   // ── OOMPH展開パネル: temp ノブ行（8本） ──
   std::array<juce::Slider, 8> tempKnobs;

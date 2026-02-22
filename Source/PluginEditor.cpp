@@ -50,8 +50,8 @@ BabySquatchAudioProcessorEditor::BabySquatchAudioProcessorEditor(
   // ── エンベロープカーブエディタ（展開パネル） ──
   addChildComponent(envelopeCurveEditor);
 
-  // ── LUT ベイクヘルパー ──
-  auto bakeLut = [this] {
+  // ── LUT ベイクヘルパー（AMP） ──
+  auto bakeAmpLut = [this] {
     constexpr int lutSize = EnvelopeLutManager::lutSize;
     std::array<float, lutSize> lut{};
     const float durationMs = envelopeCurveEditor.getDisplayDurationMs();
@@ -64,12 +64,42 @@ BabySquatchAudioProcessorEditor::BabySquatchAudioProcessorEditor(
     processorRef.envLut().bake(lut.data(), lutSize);
   };
 
-  // ── ポイント変更 → LUT 再ベイク + AMP ノブ状態更新 ──
-  envelopeCurveEditor.setOnChange([this, bakeLut] {
-    bakeLut();
-    const bool controlled = ampEnvData.hasPoints();
-    tempKnobs[1].setEnabled(!controlled);
-    tempKnobs[1].setTooltip(controlled ? "Value is controlled by envelope" : "");
+  // ── LUT ベイクヘルパー（Pitch: Hz値を格納） ──
+  auto bakePitchLut = [this] {
+    constexpr int lutSize = EnvelopeLutManager::lutSize;
+    std::array<float, lutSize> lut{};
+    const float durationMs = envelopeCurveEditor.getDisplayDurationMs();
+    for (int i = 0; i < lutSize; ++i) {
+      const float timeMs =
+          static_cast<float>(i) / static_cast<float>(lutSize - 1) * durationMs;
+      lut[static_cast<size_t>(i)] = pitchEnvData.evaluate(timeMs);
+    }
+    processorRef.pitchLut().setDurationMs(durationMs);
+    processorRef.pitchLut().bake(lut.data(), lutSize);
+  };
+
+  // AMP + Pitch 両方をベイク
+  auto bakeAllLuts = [bakeAmpLut, bakePitchLut] {
+    bakeAmpLut();
+    bakePitchLut();
+  };
+
+  // ── pitchEnvData のデフォルト値 = 200 Hz ──
+  pitchEnvData.setDefaultValue(200.0f);
+
+  // ── ポイント変更 → LUT 再ベイク + ノブ状態更新 ──
+  envelopeCurveEditor.setOnChange([this, bakeAllLuts] {
+    bakeAllLuts();
+    // AMP ノブ: エンベロープポイントがあれば無効化
+    const bool ampControlled = ampEnvData.hasPoints();
+    tempKnobs[1].setEnabled(!ampControlled);
+    tempKnobs[1].setTooltip(ampControlled ? "Value is controlled by envelope"
+                                          : "");
+    // PITCH ノブ: エンベロープポイントがあれば無効化
+    const bool pitchControlled = pitchEnvData.hasPoints();
+    tempKnobs[0].setEnabled(!pitchControlled);
+    tempKnobs[0].setTooltip(pitchControlled ? "Value is controlled by envelope"
+                                            : "");
   });
 
   // ── OOMPHノブ → Processorゲイン配線のみ（振幅は AMP ノブで制御） ──
@@ -91,9 +121,12 @@ BabySquatchAudioProcessorEditor::BabySquatchAudioProcessorEditor(
 
     auto &label = tempKnobLabels[idx];
     juce::String labelText;
-    if (i == 0)      labelText = "PITCH";
-    else if (i == 1) labelText = "AMP";
-    else             labelText = "temp " + juce::String(i + 1);
+    if (i == 0)
+      labelText = "PITCH";
+    else if (i == 1)
+      labelText = "AMP";
+    else
+      labelText = "temp " + juce::String(i + 1);
     label.setText(labelText, juce::dontSendNotification);
     label.setFont(juce::Font(juce::FontOptions(10.0f)));
     label.setJustificationType(juce::Justification::centred);
@@ -101,24 +134,44 @@ BabySquatchAudioProcessorEditor::BabySquatchAudioProcessorEditor(
     addChildComponent(label);
   }
 
+  // ── PITCH/AMP ラベルクリックで編集対象切替 ──
+  // (タブは EnvelopeCurveEditor 内部で描画・クリック処理)
+  envelopeCurveEditor.setOnEditTargetChanged(
+      [this](EnvelopeCurveEditor::EditTarget target) {
+        using enum EnvelopeCurveEditor::EditTarget;
+        tempKnobLabels[0].setColour(juce::Label::textColourId,
+                                    target == pitch
+                                        ? juce::Colours::cyan
+                                        : UIConstants::Colours::labelText);
+        tempKnobLabels[1].setColour(juce::Label::textColourId,
+                                    target == amp
+                                        ? juce::Colours::white
+                                        : UIConstants::Colours::labelText);
+      });
+
   // ── PITCH ノブ（tempKnobs[0]）: range・初期値・コールバック設定 ──
   // 20〜20000 Hz、対数スケール、デフォルト 200 Hz
   tempKnobs[0].setRange(20.0, 20000.0);
   tempKnobs[0].setSkewFactorFromMidPoint(200.0);
   tempKnobs[0].setValue(200.0, juce::dontSendNotification);
   tempKnobs[0].setDoubleClickReturnValue(true, 200.0);
-  tempKnobs[0].onValueChange = [this] {
-    // 周波数からサイクル数を計算: cycles = Hz * durationMs / 1000
+  tempKnobs[0].onValueChange = [this, bakePitchLut] {
     const auto hz = static_cast<float>(tempKnobs[0].getValue());
-    const float cycles = hz * envelopeCurveEditor.getDisplayDurationMs() / 1000.0f;
+    // pitchEnvData のデフォルト値を更新
+    pitchEnvData.setDefaultValue(hz);
+    bakePitchLut();
+    // 波形プレビューのサイクル数を更新
+    const float cycles =
+        hz * envelopeCurveEditor.getDisplayDurationMs() / 1000.0f;
     envelopeCurveEditor.setDisplayCycles(cycles);
     envelopeCurveEditor.repaint();
   };
-  // 初期サイクル数を設定
+  // 初期サイクル数 + Pitch LUT 初期ベイク
   {
     const float initHz = 200.0f;
     envelopeCurveEditor.setDisplayCycles(
         initHz * envelopeCurveEditor.getDisplayDurationMs() / 1000.0f);
+    bakePitchLut();
   }
 
   // ── AMP ノブ（tempKnobs[1]）: range・初期値・コールバック設定 ──
@@ -127,17 +180,18 @@ BabySquatchAudioProcessorEditor::BabySquatchAudioProcessorEditor(
   tempKnobs[1].setValue(ampEnvData.getDefaultValue() * 100.0,
                         juce::dontSendNotification);
   tempKnobs[1].setDoubleClickReturnValue(true, 100.0);
-  tempKnobs[1].onValueChange = [this, bakeLut] {
+  tempKnobs[1].onValueChange = [this, bakeAmpLut] {
     const auto gain = static_cast<float>(tempKnobs[1].getValue()) / 100.0f;
     ampEnvData.setDefaultValue(gain);
-    bakeLut();
+    bakeAmpLut();
     envelopeCurveEditor.repaint();
   };
   // 初期状態: ポイントがあれば無効化
   {
     const bool controlled = ampEnvData.hasPoints();
     tempKnobs[1].setEnabled(!controlled);
-    tempKnobs[1].setTooltip(controlled ? "Value is controlled by envelope" : "");
+    tempKnobs[1].setTooltip(controlled ? "Value is controlled by envelope"
+                                       : "");
   }
 }
 

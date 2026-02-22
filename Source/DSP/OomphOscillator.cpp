@@ -17,22 +17,23 @@ void OomphOscillator::buildWavetable() {
   wavetable[static_cast<size_t>(tableSize)] = wavetable[0]; // wrap用
 }
 
-void OomphOscillator::setNote(int midiNoteNumber) {
-  if (midiNoteNumber < 0) {
-    currentNote = -1;
-    tableDelta = 0.0f;
-    currentIndex = 0.0f;
-    return;
-  }
+void OomphOscillator::triggerNote() {
+  active = true;
+  currentIndex = 0.0f;
+}
 
-  currentNote = midiNoteNumber;
-  // MIDI ノート → Hz: 440 * 2^((note - 69) / 12)
-  const double freq = 440.0 * std::pow(2.0, (midiNoteNumber - 69) / 12.0);
-  tableDelta = static_cast<float>(freq * tableSize / sampleRate);
+void OomphOscillator::stopNote() {
+  active = false;
+  tableDelta = 0.0f;
+  currentIndex = 0.0f;
+}
+
+void OomphOscillator::setFrequencyHz(float hz) {
+  tableDelta = static_cast<float>(hz * tableSize / sampleRate);
 }
 
 float OomphOscillator::getNextSample() {
-  if (currentNote < 0)
+  if (!active)
     return 0.0f;
 
   const auto index0 = static_cast<size_t>(currentIndex);

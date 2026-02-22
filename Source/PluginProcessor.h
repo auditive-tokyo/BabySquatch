@@ -52,6 +52,7 @@ public:
     ChannelState&       channelState()       noexcept { return channelState_; }
     const ChannelState& channelState() const noexcept { return channelState_; }
     EnvelopeLutManager& envLut()             noexcept { return envLut_; }
+    EnvelopeLutManager& pitchLut()            noexcept { return pitchLut_; }
 
 private:
     void handleMidiEvents(juce::MidiBuffer& midiMessages, int numSamples);
@@ -64,6 +65,7 @@ private:
 
     ChannelState channelState_;
     EnvelopeLutManager envLut_;
+    EnvelopeLutManager pitchLut_;
 
     std::vector<float> oomphScratchBuffer;
     float noteTimeSamples{0.0f};

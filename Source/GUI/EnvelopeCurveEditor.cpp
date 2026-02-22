@@ -3,9 +3,11 @@
 #include "UIConstants.h"
 
 #include <array>
+#include <cmath>
 
-EnvelopeCurveEditor::EnvelopeCurveEditor(EnvelopeData &data)
-    : envelopeData(data) {
+EnvelopeCurveEditor::EnvelopeCurveEditor(EnvelopeData &ampData,
+                                         EnvelopeData &pitchData)
+    : ampEnvData(ampData), pitchEnvData(pitchData), editEnvData(&ampData) {
   setOpaque(true);
 }
 
@@ -23,28 +25,42 @@ void EnvelopeCurveEditor::paint(juce::Graphics &g) {
   paintWaveform(g, w, h, centreY);
   paintEnvelopeOverlay(g, w);
   paintTimeline(g, w, h, bounds.getHeight());
+  paintTabs(g);
 }
 
 // ── paint() 分割ヘルパー ──
 
 void EnvelopeCurveEditor::paintWaveform(juce::Graphics &g, float w, float h,
-                                         float centreY) const {
+                                        float centreY) const {
   const auto numPixels = static_cast<int>(w);
-  const bool hasEnvPoints = envelopeData.hasPoints();
+  const bool hasAmpPoints = ampEnvData.hasPoints();
+  const bool hasPitchPoints = pitchEnvData.hasPoints();
 
   juce::Path fillPath;
   juce::Path waveLine;
   fillPath.startNewSubPath(0.0f, centreY);
 
+  // 位相累積方式: 各ピクセルで瞬時周波数→位相増分を積算
+  float phase = 0.0f;
+  const float dtMs = displayDurationMs / w; // 1ピクセルあたりの時間(ms)
+
   for (int i = 0; i <= numPixels; ++i) {
     const auto x = static_cast<float>(i);
-    const float t = x / w;
-    const float sinVal =
-        std::sin(t * displayCycles * juce::MathConstants<float>::twoPi);
+    const float timeMs = x * dtMs;
 
-    const float amplitude = hasEnvPoints
-                                ? envelopeData.evaluate(t * displayDurationMs)
-                                : envelopeData.getValue();
+    // Pitch: Hz
+    // を取得（エンベロープポイントがあればevaluate、なければdefaultValue）
+    const float hz = hasPitchPoints ? pitchEnvData.evaluate(timeMs)
+                                    : pitchEnvData.getValue();
+    // 位相増分 = Hz × (dtMs / 1000) × 2π
+    if (i > 0)
+      phase += hz * (dtMs / 1000.0f) * juce::MathConstants<float>::twoPi;
+
+    const float sinVal = std::sin(phase);
+
+    // AMP: 振幅
+    const float amplitude =
+        hasAmpPoints ? ampEnvData.evaluate(timeMs) : ampEnvData.getValue();
     const float scaledAmp = std::min(amplitude, 2.0f) * centreY;
     const float y = juce::jlimit(0.0f, h, centreY - sinVal * scaledAmp);
 
@@ -70,8 +86,8 @@ void EnvelopeCurveEditor::paintWaveform(juce::Graphics &g, float w, float h,
 }
 
 void EnvelopeCurveEditor::paintEnvelopeOverlay(juce::Graphics &g,
-                                                float w) const {
-  if (!envelopeData.hasPoints())
+                                               float w) const {
+  if (!editEnvData->hasPoints())
     return;
 
   const auto numPixels = static_cast<int>(w);
@@ -81,7 +97,7 @@ void EnvelopeCurveEditor::paintEnvelopeOverlay(juce::Graphics &g,
   for (int i = 0; i <= numPixels; ++i) {
     const auto x = static_cast<float>(i);
     const float timeMs = (x / w) * displayDurationMs;
-    const float ey = valueToY(envelopeData.evaluate(timeMs));
+    const float ey = valueToY(editEnvData->evaluate(timeMs));
 
     if (i == 0)
       envLine.startNewSubPath(x, ey);
@@ -89,11 +105,16 @@ void EnvelopeCurveEditor::paintEnvelopeOverlay(juce::Graphics &g,
       envLine.lineTo(x, ey);
   }
 
-  g.setColour(UIConstants::Colours::oomphArc.brighter(0.4f));
+  // Pitch=シアン、AMP=oomphArc で描画
+  using enum EditTarget;
+  const auto envColour = (editTarget == pitch)
+                             ? juce::Colours::cyan
+                             : UIConstants::Colours::oomphArc.brighter(0.4f);
+  g.setColour(envColour);
   g.strokePath(envLine, juce::PathStrokeType(1.5f));
 
   // コントロールポイント
-  const auto &pts = envelopeData.getPoints();
+  const auto &pts = editEnvData->getPoints();
   for (int i = 0; i < static_cast<int>(pts.size()); ++i) {
     const auto idx = static_cast<size_t>(i);
     const float px = timeMsToX(pts[idx].timeMs);
@@ -113,13 +134,13 @@ void EnvelopeCurveEditor::paintEnvelopeOverlay(juce::Graphics &g,
 }
 
 void EnvelopeCurveEditor::paintTimeline(juce::Graphics &g, float w, float h,
-                                         float totalH) const {
+                                        float totalH) const {
   g.setColour(juce::Colours::white.withAlpha(0.15f));
   g.drawHorizontalLine(static_cast<int>(h), 0.0f, w);
 
   // ms 間隔を displayDurationMs に応じて自動選択
-  constexpr std::array<float, 9> intervals = {
-      10, 20, 50, 100, 200, 500, 1000, 2000, 5000};
+  constexpr std::array<float, 9> intervals = {10,  20,   50,   100, 200,
+                                              500, 1000, 2000, 5000};
   float interval = intervals[0];
   for (const float iv : intervals) {
     if (displayDurationMs / iv <= 10.0f) {
@@ -141,13 +162,13 @@ void EnvelopeCurveEditor::paintTimeline(juce::Graphics &g, float w, float h,
 
     g.setColour(juce::Colour(0xFF999999));
     const juce::String label = (ms >= 1000.0f)
-        ? juce::String(ms * 0.001f, 1) + "s"
-        : juce::String(static_cast<int>(ms));
+                                   ? juce::String(ms * 0.001f, 1) + "s"
+                                   : juce::String(static_cast<int>(ms));
 
     constexpr float labelW = 36.0f;
     g.drawText(label,
-               juce::Rectangle<float>(x - labelW * 0.5f, h + 2.0f,
-                                      labelW, totalH - h - 2.0f),
+               juce::Rectangle<float>(x - labelW * 0.5f, h + 2.0f, labelW,
+                                      totalH - h - 2.0f),
                juce::Justification::centredTop, false);
   }
 }
@@ -177,9 +198,28 @@ float EnvelopeCurveEditor::plotHeight() const {
   return std::max(1.0f, static_cast<float>(getHeight()) - timelineHeight);
 }
 
+float EnvelopeCurveEditor::editMinValue() const {
+  using enum EditTarget;
+  return (editTarget == pitch) ? 20.0f : 0.0f;
+}
+
+float EnvelopeCurveEditor::editMaxValue() const {
+  using enum EditTarget;
+  return (editTarget == pitch) ? 20000.0f : 2.0f;
+}
+
 float EnvelopeCurveEditor::valueToY(float value) const {
-  // value 0.0 → 下端、value 2.0 → 上端、value 1.0 → 中央
+  using enum EditTarget;
   const float h = plotHeight();
+  if (editTarget == pitch) {
+    // 対数スケール: 20 Hz → 下端、20000 Hz → 上端
+    const float lo = std::log(20.0f);
+    const float hi = std::log(20000.0f);
+    const float logVal = std::log(std::max(value, 20.0f));
+    const float norm = (logVal - lo) / (hi - lo); // 0..1
+    return h - norm * h;
+  }
+  // AMP: value 0.0 → 下端、value 2.0 → 上端
   return h - (value / 2.0f) * h;
 }
 
@@ -189,12 +229,19 @@ float EnvelopeCurveEditor::xToTimeMs(float x) const {
 }
 
 float EnvelopeCurveEditor::yToValue(float y) const {
+  using enum EditTarget;
   const float h = plotHeight();
+  if (editTarget == pitch) {
+    const float lo = std::log(20.0f);
+    const float hi = std::log(20000.0f);
+    const float norm = (h > 0.0f) ? (1.0f - y / h) : 0.5f;
+    return std::exp(std::lerp(lo, hi, norm));
+  }
   return (h > 0.0f) ? (1.0f - y / h) * 2.0f : 1.0f;
 }
 
 int EnvelopeCurveEditor::findPointAtPixel(float px, float py) const {
-  const auto &pts = envelopeData.getPoints();
+  const auto &pts = editEnvData->getPoints();
   const float r2 = pointHitRadius * pointHitRadius;
 
   for (int i = 0; i < static_cast<int>(pts.size()); ++i) {
@@ -212,11 +259,12 @@ void EnvelopeCurveEditor::mouseDoubleClick(const juce::MouseEvent &e) {
   const auto px = static_cast<float>(e.x);
   const auto py = static_cast<float>(e.y);
   if (const int hit = findPointAtPixel(px, py); hit >= 0) {
-    envelopeData.removePoint(hit);
+    editEnvData->removePoint(hit);
   } else {
     const float timeMs = std::clamp(xToTimeMs(px), 0.0f, displayDurationMs);
-    const float value = std::clamp(yToValue(py), 0.0f, 2.0f);
-    envelopeData.addPoint(timeMs, value);
+    const float value =
+        std::clamp(yToValue(py), editMinValue(), editMaxValue());
+    editEnvData->addPoint(timeMs, value);
   }
 
   if (onChange)
@@ -225,6 +273,23 @@ void EnvelopeCurveEditor::mouseDoubleClick(const juce::MouseEvent &e) {
 }
 
 void EnvelopeCurveEditor::mouseDown(const juce::MouseEvent &e) {
+  using enum EditTarget;
+  const auto pt = e.position;
+
+  // タブクリック判定
+  if (ampTabRect().contains(pt)) {
+    setEditTarget(amp);
+    if (onEditTargetChanged)
+      onEditTargetChanged(amp);
+    return;
+  }
+  if (pitchTabRect().contains(pt)) {
+    setEditTarget(pitch);
+    if (onEditTargetChanged)
+      onEditTargetChanged(pitch);
+    return;
+  }
+
   dragPointIndex =
       findPointAtPixel(static_cast<float>(e.x), static_cast<float>(e.y));
 }
@@ -235,8 +300,9 @@ void EnvelopeCurveEditor::mouseDrag(const juce::MouseEvent &e) {
 
   const float timeMs =
       std::clamp(xToTimeMs(static_cast<float>(e.x)), 0.0f, displayDurationMs);
-  const float value = std::clamp(yToValue(static_cast<float>(e.y)), 0.0f, 2.0f);
-  dragPointIndex = envelopeData.movePoint(dragPointIndex, timeMs, value);
+  const float value = std::clamp(yToValue(static_cast<float>(e.y)),
+                                 editMinValue(), editMaxValue());
+  dragPointIndex = editEnvData->movePoint(dragPointIndex, timeMs, value);
 
   if (onChange)
     onChange();
@@ -245,4 +311,55 @@ void EnvelopeCurveEditor::mouseDrag(const juce::MouseEvent &e) {
 
 void EnvelopeCurveEditor::mouseUp(const juce::MouseEvent & /*e*/) {
   dragPointIndex = -1;
+}
+
+void EnvelopeCurveEditor::setEditTarget(EditTarget target) {
+  using enum EditTarget;
+  editTarget = target;
+  editEnvData = (target == amp) ? &ampEnvData : &pitchEnvData;
+  dragPointIndex = -1;
+  repaint();
+}
+
+void EnvelopeCurveEditor::setOnEditTargetChanged(
+    std::function<void(EditTarget)> cb) {
+  onEditTargetChanged = std::move(cb);
+}
+
+// ── タブ描画・ヒット領域 ──
+
+juce::Rectangle<float> EnvelopeCurveEditor::ampTabRect() const {
+  const float x = static_cast<float>(getWidth()) - tabPad - tabW * 2.0f - 2.0f;
+  return {x, tabPad, tabW, tabH};
+}
+
+juce::Rectangle<float> EnvelopeCurveEditor::pitchTabRect() const {
+  const float x = static_cast<float>(getWidth()) - tabPad - tabW;
+  return {x, tabPad, tabW, tabH};
+}
+
+void EnvelopeCurveEditor::paintTabs(juce::Graphics &g) const {
+  const auto ampRect = ampTabRect();
+  const auto pitchRect = pitchTabRect();
+
+  using enum EditTarget;
+  const bool isAmp = (editTarget == amp);
+
+  // AMP タブ
+  g.setColour(isAmp ? UIConstants::Colours::oomphArc.withAlpha(0.8f)
+                    : juce::Colours::white.withAlpha(0.12f));
+  g.fillRoundedRectangle(ampRect, 3.0f);
+  g.setColour(isAmp ? juce::Colours::white
+                    : juce::Colours::white.withAlpha(0.5f));
+  g.setFont(juce::Font(juce::FontOptions(10.0f, juce::Font::bold)));
+  g.drawText("AMP", ampRect, juce::Justification::centred, false);
+
+  // PITCH タブ
+  g.setColour(!isAmp ? juce::Colours::cyan.withAlpha(0.8f)
+                     : juce::Colours::white.withAlpha(0.12f));
+  g.fillRoundedRectangle(pitchRect, 3.0f);
+  g.setColour(!isAmp ? juce::Colours::white
+                     : juce::Colours::white.withAlpha(0.5f));
+  g.setFont(juce::Font(juce::FontOptions(10.0f, juce::Font::bold)));
+  g.drawText("PITCH", pitchRect, juce::Justification::centred, false);
 }

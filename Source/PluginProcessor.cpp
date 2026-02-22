@@ -72,7 +72,7 @@ void BabySquatchAudioProcessor::handleMidiEvents(juce::MidiBuffer &midiMessages,
   if (fixedModeActive.load()) {
     // FIXEDモード移行時に発音中のOSCを停止
     if (oomphOsc.isActive())
-      oomphOsc.setNote(-1);
+      oomphOsc.stopNote();
     return;
   }
 
@@ -83,11 +83,10 @@ void BabySquatchAudioProcessor::handleMidiEvents(juce::MidiBuffer &midiMessages,
   for (const auto metadata : midiMessages) {
     const auto msg = metadata.getMessage();
     if (msg.isNoteOn()) {
-      oomphOsc.setNote(msg.getNoteNumber());
+      oomphOsc.triggerNote();
       noteTimeSamples = 0.0f; // エンベロープリセット
-    } else if (msg.isNoteOff() &&
-               msg.getNoteNumber() == oomphOsc.getCurrentNote()) {
-      oomphOsc.setNote(-1);
+    } else if (msg.isNoteOff()) {
+      oomphOsc.stopNote();
     }
   }
 }
@@ -101,20 +100,35 @@ void BabySquatchAudioProcessor::renderOomph(juce::AudioBuffer<float> &buffer,
 
   const float gain = juce::Decibels::decibelsToGain(oomphGainDb.load());
   const int numChannels = buffer.getNumChannels();
-  const auto &lut = envLut_.getActiveLut();
-  const float durMs = envLut_.getDurationMs();
+  const auto &ampLut = envLut_.getActiveLut();
+  const float ampDurMs = envLut_.getDurationMs();
+  const auto &pLut = pitchLut_.getActiveLut();
+  const float pitchDurMs = pitchLut_.getDurationMs();
   const auto sr = static_cast<float>(getSampleRate());
 
   for (int sample = 0; sample < numSamples; ++sample) {
-    // LUT 参照でエンベロープゲインを取得
     const float noteTimeMs = noteTimeSamples * 1000.0f / sr;
+
+    // Pitch LUT → Hz
+    const float pitchLutPos =
+        (pitchDurMs > 0.0f)
+            ? (noteTimeMs / pitchDurMs) *
+                  static_cast<float>(EnvelopeLutManager::lutSize - 1)
+            : 0.0f;
+    const auto pitchLutIdx =
+        std::min(static_cast<int>(pitchLutPos), EnvelopeLutManager::lutSize - 1);
+    const float pitchHz = pLut[static_cast<size_t>(pitchLutIdx)];
+    oomphOsc.setFrequencyHz(pitchHz);
+
+    // AMP LUT → エンベロープゲイン
     const float lutPos =
-        (durMs > 0.0f) ? (noteTimeMs / durMs) *
-                             static_cast<float>(EnvelopeLutManager::lutSize - 1)
-                       : 0.0f;
+        (ampDurMs > 0.0f)
+            ? (noteTimeMs / ampDurMs) *
+                  static_cast<float>(EnvelopeLutManager::lutSize - 1)
+            : 0.0f;
     const auto lutIndex =
         std::min(static_cast<int>(lutPos), EnvelopeLutManager::lutSize - 1);
-    const float envGain = lut[static_cast<size_t>(lutIndex)];
+    const float envGain = ampLut[static_cast<size_t>(lutIndex)];
 
     const float oscSample = oomphOsc.getNextSample() * gain * envGain;
     oomphScratchBuffer[static_cast<size_t>(sample)] = oscSample;
