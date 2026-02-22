@@ -2,6 +2,8 @@
 #include "../DSP/EnvelopeData.h"
 #include "UIConstants.h"
 
+#include <array>
+
 EnvelopeCurveEditor::EnvelopeCurveEditor(EnvelopeData &data)
     : envelopeData(data) {
   setOpaque(true);
@@ -10,21 +12,26 @@ EnvelopeCurveEditor::EnvelopeCurveEditor(EnvelopeData &data)
 void EnvelopeCurveEditor::paint(juce::Graphics &g) {
   const auto bounds = getLocalBounds().toFloat();
   const float w = bounds.getWidth();
-  const float h = bounds.getHeight();
+  const float h = plotHeight();
   const float centreY = h * 0.5f;
 
-  // ── Layer 1: 背景 ──
   g.fillAll(UIConstants::Colours::waveformBg);
 
   if (w < 1.0f || h < 1.0f)
     return;
 
+  paintWaveform(g, w, h, centreY);
+  paintEnvelopeOverlay(g, w);
+  paintTimeline(g, w, h, bounds.getHeight());
+}
+
+// ── paint() 分割ヘルパー ──
+
+void EnvelopeCurveEditor::paintWaveform(juce::Graphics &g, float w, float h,
+                                         float centreY) const {
   const auto numPixels = static_cast<int>(w);
   const bool hasEnvPoints = envelopeData.hasPoints();
 
-  // ── Layer 2 & 3: 波形（塗りつぶし + アウトライン）──
-  // ポイントあり → sin(t) × evaluate(timeMs)
-  // ポイントなし → sin(t) × defaultValue（フラット）
   juce::Path fillPath;
   juce::Path waveLine;
   fillPath.startNewSubPath(0.0f, centreY);
@@ -52,55 +59,96 @@ void EnvelopeCurveEditor::paint(juce::Graphics &g) {
   fillPath.lineTo(w, centreY);
   fillPath.closeSubPath();
 
-  // oomphArc グラデーション塗りつぶし（半透明）
   g.setColour(UIConstants::Colours::oomphArc.withAlpha(0.3f));
   g.fillPath(fillPath);
 
   g.setColour(UIConstants::Colours::oomphArc);
   g.strokePath(waveLine, juce::PathStrokeType(1.5f));
 
-  // ── センターライン（ゼロクロッシング基準） ──
   g.setColour(juce::Colours::white.withAlpha(0.08f));
   g.drawHorizontalLine(static_cast<int>(centreY), 0.0f, w);
+}
 
-  // ── Layer 4 & 5: エンベロープカーブ + コントロールポイント ──
-  if (hasEnvPoints) {
-    // エンベロープカーブライン
-    juce::Path envLine;
-    for (int i = 0; i <= numPixels; ++i) {
-      const auto x = static_cast<float>(i);
-      const float timeMs = (x / w) * displayDurationMs;
-      const float ey = valueToY(envelopeData.evaluate(timeMs));
+void EnvelopeCurveEditor::paintEnvelopeOverlay(juce::Graphics &g,
+                                                float w) const {
+  if (!envelopeData.hasPoints())
+    return;
 
-      if (i == 0)
-        envLine.startNewSubPath(x, ey);
-      else
-        envLine.lineTo(x, ey);
+  const auto numPixels = static_cast<int>(w);
+
+  // エンベロープカーブライン
+  juce::Path envLine;
+  for (int i = 0; i <= numPixels; ++i) {
+    const auto x = static_cast<float>(i);
+    const float timeMs = (x / w) * displayDurationMs;
+    const float ey = valueToY(envelopeData.evaluate(timeMs));
+
+    if (i == 0)
+      envLine.startNewSubPath(x, ey);
+    else
+      envLine.lineTo(x, ey);
+  }
+
+  g.setColour(UIConstants::Colours::oomphArc.brighter(0.4f));
+  g.strokePath(envLine, juce::PathStrokeType(1.5f));
+
+  // コントロールポイント
+  const auto &pts = envelopeData.getPoints();
+  for (int i = 0; i < static_cast<int>(pts.size()); ++i) {
+    const auto idx = static_cast<size_t>(i);
+    const float px = timeMsToX(pts[idx].timeMs);
+    const float py = valueToY(pts[idx].value);
+    constexpr float r = pointHitRadius * 0.6f;
+
+    if (i == dragPointIndex) {
+      g.setColour(juce::Colours::white);
+      g.fillEllipse(px - r, py - r, r * 2.0f, r * 2.0f);
+    } else {
+      g.setColour(juce::Colours::white.withAlpha(0.7f));
+      g.fillEllipse(px - r, py - r, r * 2.0f, r * 2.0f);
+      g.setColour(juce::Colours::white);
+      g.drawEllipse(px - r, py - r, r * 2.0f, r * 2.0f, 1.0f);
     }
+  }
+}
 
-    g.setColour(UIConstants::Colours::oomphArc.brighter(0.4f));
-    g.strokePath(envLine, juce::PathStrokeType(1.5f));
+void EnvelopeCurveEditor::paintTimeline(juce::Graphics &g, float w, float h,
+                                         float totalH) const {
+  g.setColour(juce::Colours::white.withAlpha(0.15f));
+  g.drawHorizontalLine(static_cast<int>(h), 0.0f, w);
 
-    // コントロールポイント
-    const auto &pts = envelopeData.getPoints();
-    for (int i = 0; i < static_cast<int>(pts.size()); ++i) {
-      const auto idx = static_cast<size_t>(i);
-      const float px = timeMsToX(pts[idx].timeMs);
-      const float py = valueToY(pts[idx].value);
-      constexpr float r = pointHitRadius * 0.6f;
-
-      if (i == dragPointIndex) {
-        // ドラッグ中: フル白ハイライト
-        g.setColour(juce::Colours::white);
-        g.fillEllipse(px - r, py - r, r * 2.0f, r * 2.0f);
-      } else {
-        // 通常: 半透明塗り + 白枠
-        g.setColour(juce::Colours::white.withAlpha(0.7f));
-        g.fillEllipse(px - r, py - r, r * 2.0f, r * 2.0f);
-        g.setColour(juce::Colours::white);
-        g.drawEllipse(px - r, py - r, r * 2.0f, r * 2.0f, 1.0f);
-      }
+  // ms 間隔を displayDurationMs に応じて自動選択
+  constexpr std::array<float, 9> intervals = {
+      10, 20, 50, 100, 200, 500, 1000, 2000, 5000};
+  float interval = intervals[0];
+  for (const float iv : intervals) {
+    if (displayDurationMs / iv <= 10.0f) {
+      interval = iv;
+      break;
     }
+  }
+
+  const float fontSize = 9.0f;
+  g.setFont(juce::Font(juce::FontOptions(fontSize)));
+
+  const auto numMarks = static_cast<int>(displayDurationMs / interval) + 1;
+  for (int i = 0; i < numMarks; ++i) {
+    const float ms = static_cast<float>(i) * interval;
+    const float x = timeMsToX(ms);
+
+    g.setColour(juce::Colours::white.withAlpha(0.20f));
+    g.drawVerticalLine(static_cast<int>(x), h, h + 4.0f);
+
+    g.setColour(juce::Colour(0xFF999999));
+    const juce::String label = (ms >= 1000.0f)
+        ? juce::String(ms * 0.001f, 1) + "s"
+        : juce::String(static_cast<int>(ms));
+
+    constexpr float labelW = 36.0f;
+    g.drawText(label,
+               juce::Rectangle<float>(x - labelW * 0.5f, h + 2.0f,
+                                      labelW, totalH - h - 2.0f),
+               juce::Justification::centredTop, false);
   }
 }
 
@@ -125,9 +173,13 @@ float EnvelopeCurveEditor::timeMsToX(float timeMs) const {
   return (displayDurationMs > 0.0f) ? (timeMs / displayDurationMs) * w : 0.0f;
 }
 
+float EnvelopeCurveEditor::plotHeight() const {
+  return std::max(1.0f, static_cast<float>(getHeight()) - timelineHeight);
+}
+
 float EnvelopeCurveEditor::valueToY(float value) const {
   // value 0.0 → 下端、value 2.0 → 上端、value 1.0 → 中央
-  const auto h = static_cast<float>(getHeight());
+  const float h = plotHeight();
   return h - (value / 2.0f) * h;
 }
 
@@ -137,7 +189,7 @@ float EnvelopeCurveEditor::xToTimeMs(float x) const {
 }
 
 float EnvelopeCurveEditor::yToValue(float y) const {
-  const auto h = static_cast<float>(getHeight());
+  const float h = plotHeight();
   return (h > 0.0f) ? (1.0f - y / h) * 2.0f : 1.0f;
 }
 

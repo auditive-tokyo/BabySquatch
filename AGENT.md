@@ -56,7 +56,7 @@ BabySquatchは3つのモジュールで構成されています：
   - FIXEDモード：単音固定、同じ鍵盤クリックで解除
 - **AMP Envelope エディタ**（Kick Ninja スタイル）
   - `EnvelopeData`：ヘッダオンリーモデル。制御点なし→`defaultValue`（フラット）、1点→定数、2点→線形補間、3点以上→Catmull-Rom スプライン補間。ファントムポイント端点処理・隣接クランプ `movePoint`
-  - `EnvelopeCurveEditor`：`paint()` ベース。`sin(t) × evaluate(t)` でオフライン波形プレビュー。スプラインカーブ＋コントロールポイント描画。左ダブルクリックでポイント追加／削除、ドラッグで移動
+  - `EnvelopeCurveEditor`：`paint()` ベース。`sin(t) × evaluate(t)` でオフライン波形プレビュー。スプラインカーブ＋コントロールポイント描画。左ダブルクリックでポイント追加／削除、ドラッグで移動。横軸 ms タイムライン表示（自動間隔目盛り + ラベル）
   - ロックフリー LUT 統合：Editor が `evaluate()` を 512 点ベイク → `bakeEnvelopeLut()` でダブルバッファにコピー → `std::atomic` フリップ。オーディオスレッドはノートオンで `noteTimeSamples` リセット → サンプル毎に LUT 参照してエンベロープゲイン適用
 
 ## Pitch / MIDI 設計方針（Kick Ninja準拠）
@@ -145,8 +145,8 @@ BabySquatchは3つのモジュールで構成されています：
     3. または `KeyboardComponent` 側で `juce::ComponentPeer` レベルのフォーカス監視を行い、自律的に再取得する
   - 関連ファイル: `Source/GUI/KeyboardComponent.cpp`, `Source/PluginEditor.cpp`
 
-- **エンベロープ横軸タイムライン表示**
-  - 現状: タイムライン表示なし（軸ラベル・目盛りなし）
+- **エンベロープ横軸セクション境界表示**
+  - 現状: ms タイムラインは実装済み。セクション境界は未実装
   - 追加: **Attack / Body / Decay / Tail** の4セクション境界線 + ラベル表示（Kick Ninja スタイル）
   - 各セクション境界は `EnvelopeCurveEditor` 内で定義可能なメンバ変数（例: `attackEndMs`, `bodyEndMs`, `decayEndMs`）または `EnvelopeData` 側で保持
   - `paint()` 内で縦線 + テキストラベル描画
