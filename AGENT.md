@@ -63,12 +63,12 @@ BabySquatchは3つのモジュールで構成されています：
 - **Pitch Envelope 実装**（完了）
   - `OomphOscillator`: `setNote(int)` → `triggerNote()` / `stopNote()` / `setFrequencyHz(float hz)` に変更。MIDIノート番号は使わず、ピッチは Pitch Envelope LUT から毎サンプル取得
   - `PluginProcessor`: `pitchLut_`（`EnvelopeLutManager`）追加、`pitchLut()` アクセサ公開。`handleMidiEvents` でノートオン→`triggerNote()`、ノートオフ→`stopNote()`
-  - `PluginEditor`: `pitchEnvData`（デフォルト 200 Hz）+ `bakeAmpLut` / `bakePitchLut` 分離。PITCH ノブ（tempKnobs[0]）: 20〜20000 Hz 対数スケール、エンベロープポイントがある間は無効化
+  - `PluginEditor`: `pitchEnvData`（デフォルト 200 Hz）+ `bakeAmpLut` / `bakePitchLut` 分離。PITCH ノブ（oomphKnobs[0]）: 20〜20000 Hz 対数スケール、エンベロープポイントがある間は無効化
 - **Oomph パラメータ整理**（完了）
   - Oomphロータリーノブ → `oomphGainDb`（最終段ゲイン）のみ制御
-  - AMP ノブ（tempKnobs[1]）→ `ampEnvData.setDefaultValue()` を担当（0〜200%）。エンベロープポイントがある間は無効化・ツールチップ表示
-  - PITCH ノブ（tempKnobs[0]）→ `pitchEnvData.setDefaultValue()` を担当（20〜20000 Hz）。同様に無効化制御
-  - tempKnobs[2〜7] は引き続き未接続（"temp 3〜8" ラベル）
+  - AMP ノブ（oomphKnobs[1]）→ `ampEnvData.setDefaultValue()` を担当（0〜200%）。エンベロープポイントがある間は無効化・ツールチップ表示
+  - PITCH ノブ（oomphKnobs[0]）→ `pitchEnvData.setDefaultValue()` を担当（20〜20000 Hz）。同様に無効化制御
+  - oomphKnobs[2〜7] は引き続き未接続（"temp 3〜8" ラベル）
 
 ## Pitch / MIDI 設計方針（Kick Ninja準拠）
 
@@ -127,13 +127,56 @@ BabySquatchは3つのモジュールで構成されています：
 ### Phase 3以降（将来の拡張）
 
 - **Oomph パラメータ設計（残作業）**
-  - **実装済み**: OOMPHの展開パネル上部に8個のロータリーノブ。PITCH（tempKnobs[0]）・AMP（tempKnobs[1]）は DSP 接続済み。Oomphロータリーノブは `oomphGainDb` 専用に整理済み
-  - **残作業**（tempKnobs[2〜7]）:
-    - temp 3 → Blend（Sine/他波形のミックス比）
-    - temp 4 → Dist
-    - temp 5〜8 → Harmonics 1〜4
-    - 各ノブに DSP パラメータを接続（`juce::AudioParameterFloat` / 直接参照）
-    - Blendエンベロープ用パラメータ追加
+  - **実装済み**: OOMPHの展開パネル上部に8個のロータリーノブ（`oomphKnobs[8]` / `oomphKnobLabels[8]`）。PITCH（oomphKnobs[0]）・AMP（oomphKnobs[1]）は DSP 接続済み。Oomphロータリーノブは `oomphGainDb` 専用に整理済み
+  - **ノブ割り当て（確定）**:
+    - oomphKnobs[0] → **PITCH**（実装済み）: 20〜20000 Hz
+    - oomphKnobs[1] → **AMP**（実装済み）: 0〜200%
+    - oomphKnobs[2] → **BLEND**: -100〜+100、デフォルト 0
+    - oomphKnobs[3] → **Dist**（TBD）
+    - oomphKnobs[4] → **H1**: 第1倍音（基底音 × 1 = ルート音）
+    - oomphKnobs[5] → **H2**: 第2倍音（基底音 × 2 = 1オクターブ上）
+    - oomphKnobs[6] → **H3**: 第3倍音（基底音 × 3 = 1オクターブ + 完全5度上）
+    - oomphKnobs[7] → **H4**: 第4倍音（基底音 × 4 = 2オクターブ上）
+  - **BLEND ノブの仕様**（Kick Ninja準拠）:
+    - **0（中央・デフォルト）**: ブレンドなし（純粋なサイン波）
+    - **-100（左）**: 選択した波形（Tri / Square / Saw）との純粋なブレンド。-100 で選択波形のみ
+    - **+100（右）**: H1〜H4 加算合成ハーモニクスとのブレンド。+100 でハーモニクスのみ
+    - 波形選択（Tri / Square / Saw）は別途 UI 要素が必要（TBD）
+  - **H1〜H4 の仕組み**（加算合成 / Additive Synthesis）:
+    - サイン波OSCとは独立したパラレルの倍音サイン波を加算する構造
+    - 各スライダーで「その次数の倍音の音量」を制御
+    - 波形選択（Tri/Square/Saw）が本来持つ倍音構成とは独立して機能する
+    - 例: Tri（奇数倍音のみ）を選択中でも H2・H4（偶数倍音）を追加可能 → ハイブリッド音色
+  - **各基本波形の倍音構成**（DSP設計の参考）:
+    - **Triangle**: 奇数倍音のみ（3×, 5×, 7×...）、高域は急減衰。滑らかなボディ音
+    - **Square**: 奇数倍音のみ（3×, 5×, 7×...）、Triより高域倍音が強い。中高域強調
+    - **Saw**: 偶数・奇数両方（2×, 3×, 4×...）。最も密度が濃く鋭い音
+  - **残作業**:
+    - **Band-limited Wavetable + Additive Synthesis 実装（Oomph モジュール拡張）**
+      - **信号フロー（設計確定）**:
+
+        ```
+        [Sine OSC] ─┬─(BLEND 左側: -1〜0 で Wavetable とクロスフェード)─ Wavetable(Tri/Sqr/Saw)
+                    │
+                    └─(BLEND 右側: 0〜+1 で Additive とクロスフェード)── H1〜H4 加算合成
+        ```
+
+        - 中央(0): 純サイン波
+        - 左端(-1): 選択波形（Tri/Square/Saw）のみ
+        - 右端(+1): H1〜H4 加算ハーモニクスのみ
+
+      - **Wavetable 方針**: Band-limited Wavetable 方式（BLEPではなく）
+        - 理由: エイリアシング除去を波形生成前に完結できる。後段フィルターでは不可
+        - 周波数帯域ごとに事前計算したテーブル（例: 10オクターブ分）を保持
+        - 再生周波数に応じてテーブルを選択 + クロスフェード
+      - **Additive Synthesis 方針**: H1〜H4 それぞれ独立したサイン波 OSC をパラレル加算
+        - 基底周波数（Pitch Envelope が制御）× 1, 2, 3, 4 倍を各 OSC に設定
+        - 波形選択に依存しない（Tri を選んでいても H2 で偶数倍音を追加可能）
+      - 参考: The Him DSP `Kick Ninja` の加算合成セクション、Serum 風 Wavetable 設計
+      - **注意**: 単純なローパスフィルター後付けはエイリアシング除去には無効（音色変化の演出用途のみ）
+
+    - 波形選択 UI（Tri / Square / Saw セレクター）の設計・実装
+    - 各ノブに `juce::AudioParameterFloat` 接続
 
 - **KeyboardComponent FIXEDモードのキーボード入力問題**
   - 現状: FIXEDモードでもmacのキーボード入力に反応してしまい、noteが選択されてしまう
@@ -160,19 +203,6 @@ BabySquatchは3つのモジュールで構成されています：
   - `paint()` 内で縦線 + テキストラベル描画
   - UI的に境界を調整可能にするか（ドラッグで移動）は要検討
 
-- **Band-limited Wavetable 実装（Oomph モジュール拡張: Sine + Square / Triangle / Saw ミックス）**
-  - **方針**: Band-limited Wavetable 方式を採用（BLEPではなく）
-    - 理由: 複数波形のモーフィング（Sine ↔ Square ↔ Triangle ↔ Saw のミックス）に適している
-    - CPU効率が高く、メモリ消費も許容範囲
-    - 後段フィルターではエイリアシング除去不可（折り返しノイズは生成前に防ぐ必要あり）
-  - 実装:
-    1. 周波数帯域ごとに事前計算した複数のテーブル（例: 10オクターブ分）を `std::array<std::vector<float>, N>` で保持
-    2. 再生周波数に応じてテーブルを選択 + クロスフェード
-    3. Square / Triangle / Saw 各波形で独立したテーブルセット、現在のSine波形とのミックスパラメータ追加
-    4. `OomphOscillator` を拡張し、波形ミックス比率 `setWaveformBlend(float sine, float square, float tri, float saw)` を実装
-  - 参考: Serum風のWavetable設計、JUCE `dsp::Oscillator` + カスタムテーブル
-  - **注意**: 単純なローパスフィルター後付けはエイリアシング除去には無効（音色変化の演出用途のみ）
-
 - **Click モジュール実装**（より高度な処理: 短いトランジェント/ノイズバースト生成等）
 
 - **FIXED / MIDI モードの見直し**
@@ -180,6 +210,5 @@ BabySquatchは3つのモジュールで構成されています：
   - キーボードUIの簡素化を検討（モード切替ボタン削除、単一トリガーモード化）
   - または将来的にキーボード自体をオプション表示に変更
 
-- `EnvelopeData blendEnvData` — Sine/他ウェーブシェイプのミックス比
 - Click/Dry パネルの展開エリアに同様のエディタを配置
 - エンベロープの保存／復元（`getStateInformation` / `setStateInformation`）
