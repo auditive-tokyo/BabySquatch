@@ -278,12 +278,6 @@ BabySquatchAudioProcessorEditor::BabySquatchAudioProcessorEditor(
       [this] { requestExpand(ExpandChannel::click); });
   dryPanel.setOnExpandRequested([this] { requestExpand(ExpandChannel::dry); });
 
-  // 鍵盤モード変更コールバック
-  keyboard.setOnModeChanged([this, &p](KeyboardComponent::Mode mode) {
-    p.setFixedModeActive(mode == KeyboardComponent::Mode::fixed);
-    updateEnvelopeEditorVisibility();
-  });
-
   pitchEnvData.setDefaultValue(200.0f);
 
   setupPanelRouting(p);
@@ -319,9 +313,9 @@ void BabySquatchAudioProcessorEditor::resized() {
   if (activeChannel != none) {
     auto expandArea = area.removeFromBottom(UIConstants::expandedAreaHeight);
 
-    // 1. 鍵盤を展開エリア下部に配置（モードボタン + 鍵盤本体）
+    // 1. 鍵盤を展開エリア下部に配置
     keyboard.setBounds(expandArea.removeFromBottom(
-        UIConstants::keyboardHeight + UIConstants::modeButtonHeight));
+        UIConstants::keyboardHeight));
 
     // 2. 全チャンネル共通: パラメータノブ行のスペースを上部から確保
     //    （OOMPH以外ではノブは非表示だが、波形エリアの高さを揃えるため常に確保）

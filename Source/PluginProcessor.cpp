@@ -69,13 +69,6 @@ bool BabySquatchAudioProcessor::isBusesLayoutSupported(
 
 void BabySquatchAudioProcessor::handleMidiEvents(juce::MidiBuffer &midiMessages,
                                                  int numSamples) {
-  if (fixedModeActive.load()) {
-    // FIXEDモード移行時に発音中のOSCを停止
-    if (oomphOsc.isActive())
-      oomphOsc.stopNote();
-    return;
-  }
-
   // GUI鍵盤のMIDIイベントをバッファにマージ
   keyboardState.processNextMidiBuffer(midiMessages, 0, numSamples, true);
 

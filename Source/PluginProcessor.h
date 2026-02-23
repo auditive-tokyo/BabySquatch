@@ -42,9 +42,6 @@ public:
     /// GUI鍵盤との共有 MidiKeyboardState
     juce::MidiKeyboardState& getKeyboardState() { return keyboardState; }
 
-    /// FIXEDモード時にMIDI発音を無効化するフラグ（Editor から書き込み）
-    void setFixedModeActive(bool active) { fixedModeActive.store(active); }
-
     /// Oomph出力ゲイン（dB）— UIノブから書き込み、processBlockで適用
     void setOomphGainDb(float db) { oomphGainDb.store(db); }
 
@@ -61,7 +58,6 @@ private:
 
     juce::MidiKeyboardState keyboardState;
     OomphOscillator oomphOsc;
-    std::atomic<bool> fixedModeActive{false};
     std::atomic<float> oomphGainDb{0.0f};
 
     ChannelState channelState_;

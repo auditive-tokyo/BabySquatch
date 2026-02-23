@@ -31,7 +31,6 @@ constexpr int meterWidth = 28;
 
 // ── 鍵盤 ──
 constexpr int keyboardHeight = 70;
-constexpr int modeButtonHeight = 24;
 
 // ── カラーパレット ──
 namespace Colours {

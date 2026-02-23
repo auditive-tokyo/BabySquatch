@@ -47,9 +47,8 @@ BabySquatchは3つのモジュールで構成されています：
 - 展開パネル（per-channel ▼ボタン、共有展開エリア）
 - MIDI鍵盤（KeyboardComponent）
   - C0〜C7表示、PCキー演奏対応（A=C2ベース）
-  - Z/Xでオクターブシフト（両モード共通）
-  - MIDI / FIXED モード切り替えボタン
-  - FIXEDモード：単音固定、同じ鍵盤クリックで解除
+  - Z/Xでオクターブシフト
+  - トリガー専用（FIXED/MIDI モード削除済み）
 - **AMP / Pitch Envelope エディタ**（Kick Ninja スタイル）
   - `EnvelopeData`：ヘッダオンリーモデル。制御点なし→`defaultValue`（フラット）、1点→定数、2点→線形補間、3点以上→Catmull-Rom スプライン補間。ファントムポイント端点処理。`movePoint` の値クランプは呼び出し側が担当（AMP/Pitch でレンジが異なるため）
   - `EnvelopeCurveEditor`：`paint()` ベース。AMP + Pitch の両エンベロープを受け取り、**位相累積方式**（`phase += pitchHz × dt × 2π`）でオフライン波形プレビュー。スプラインカーブ＋コントロールポイント描画。左ダブルクリックでポイント追加／削除、ドラッグで移動。横軸 ms タイムライン表示（自動間隔目盛り + ラベル）
@@ -69,7 +68,8 @@ BabySquatchは3つのモジュールで構成されています：
 - **H1〜H4 加算合成**（Phase 2 完了）: `HarmonicOsc` × 4 + `harmonicGains[4]`（atomic）を `OomphOscillator` に内蔵。`setHarmonicGain(int n, float gain)` API、`oomphOscillator()` アクセサ、oomphKnobs[4〜7] 配線済み
 - **BLEND クロスフェード**（Phase 3 完了）: `setBlend(float)` API（-1.0〜+1.0）追加、`getNextSample()` 内で `std::lerp` によるクロスフェード実装。b≤0: Sine↔Wavetable、b>0: Sine↔Additive。oomphKnobs[2]（BLEND）-100〜+100 配線済み
 - **波形選択 UI**（Phase 4 完了）: Tri / SQR / SAW の `TextButton` 3本を展開パネル内のノブ行下に配置。リラジオグループ方式（手動排他）0または1ボタンが選拡可能。OFF時は Sineに戻る。選択色はお〈oomphArc（青系）。不選択=Sine、Triボタン=Tri、SQRボタン=Square、SAWボタン=Saw
-- **波形プレビュー BLEND 連携**（完了）: `EnvelopeCurveEditor` に `setWaveShape()` / `setPreviewBlend()` API 追加。BLEND=0→Sine、BLEND=-100→選択波形、中間→lerp モーフィング描画。ボタン onClick・BLEND ノブ変更時に `repaint()`
+- **波形プレビュー BLEND 連携**（完了）: `EnvelopeCurveEditor` に `setWaveShape()` / `setPreviewBlend()` / `setPreviewHarmonicGain()` API 追加。BLEND 負側=Sine↔WaveShape、正側=Sine↔Additive(H1〜H4) のモーフィング描画。ボタン onClick・BLEND/H1〜H4 ノブ変更時に `repaint()`
+- **Oomph パラメータ設計**（完了）: 展開パネル 8 ノブ（PITCH/AMP/BLEND/Dist/H1〜H4）配置・ラベル設定済み。PITCH・AMP・BLEND・H1〜H4 は DSP 接続済み。Dist（oomphKnobs[3]）は未接続（TBD）。H1〜H4 は加算合成（波形選択と独立したパラレル倍音サイン波）
 
 ## 描画方針
 
@@ -116,37 +116,13 @@ BabySquatchは3つのモジュールで構成されています：
 
 ## TODO
 
-### Phase 3以降（将来の拡張）
+- **Dist ノブ実装（oomphKnobs[3]）**
+  - 現状: ノブ配置・ラベル設定済みだが DSP 未接続
+  - 調査: Kick Ninja は Dist=0 でも H1〜H4 複数重ね時に BabySquatch より太い音になる。出力段にソフトサチュレーション（`tanh` 等）が常時かかっている可能性
+    - 根拠: H1〜H4 を1つずつ MAX にした場合は BabySquatch と同じ音。複数重ねて初めて差が出る（H1 のみ: -0.23dB peak / H1〜H4 全開: 9.96dB peak ≒ 線形加算と一致）
+  - 実装方針（検討中）: `getNextSample()` の加算合成後に `std::tanh()` 等のソフトクリップを適用。Dist ノブで drive 量を制御
 
-- **Oomph パラメータ設計（残作業）**
-  - **実装済み**: OOMPHの展開パネル上部に8個のロータリーノブ（`oomphKnobs[8]` / `oomphKnobLabels[8]`）。PITCH（oomphKnobs[0]）・AMP（oomphKnobs[1]）は DSP 接続済み。Oomphロータリーノブは `oomphGainDb` 専用に整理済み
-  - **ノブ割り当て（確定）**:
-    - oomphKnobs[0] → **PITCH**（実装済み）: 20〜20000 Hz
-    - oomphKnobs[1] → **AMP**（実装済み）: 0〜200%
-    - oomphKnobs[2] → **BLEND**: -100〜+100、デフォルト 0
-    - oomphKnobs[3] → **Dist**（TBD）
-    - oomphKnobs[4] → **H1**: 第1倍音（基底音 × 1 = ルート音）
-    - oomphKnobs[5] → **H2**: 第2倍音（基底音 × 2 = 1オクターブ上）
-    - oomphKnobs[6] → **H3**: 第3倍音（基底音 × 3 = 1オクターブ + 完全5度上）
-    - oomphKnobs[7] → **H4**: 第4倍音（基底音 × 4 = 2オクターブ上）
-  - **H1〜H4 の仕組み**（加算合成 / Additive Synthesis）:
-    - サイン波OSCとは独立したパラレルの倍音サイン波を加算する構造
-    - 各スライダーで「その次数の倍音の音量」を制御
-    - 波形選択（Tri/Square/Saw）が本来持つ倍音構成とは独立して機能する
-    - 例: Tri（奇数倍音のみ）を選択中でも H2・H4（偶数倍音）を追加可能 → ハイブリッド音色
-  - **各基本波形の倍音構成**（DSP設計の参考）:
-    - **Triangle**: 奇数倍音のみ（3×, 5×, 7×...）、高域は急減衰。滑らかなボディ音
-    - **Square**: 奇数倍音のみ（3×, 5×, 7×...）、Triより高域倍音が強い。中高域強調
-    - **Saw**: 偶数・奇数両方（2×, 3×, 4×...）。最も密度が濃く鋭い音
-
-- **KeyboardComponent FIXEDモードのキーボード入力問題**
-  - 現状: FIXEDモードでもmacのキーボード入力に反応してしまい、noteが選択されてしまう
-  - 期待動作: FIXEDモードではマウス操作のみ有効、キーボード入力は無効化
-  - 実装:
-    1. `KeyboardComponent` の `keyPressed` / `keyStateChanged` ハンドラーで `isMidiMode` チェック追加
-    2. FIXEDモードの場合はキーボードイベントを無視（`return false` でイベントを親に伝播）
-    3. または `setWantsKeyboardFocus(isMidiMode)` でフォーカス制御
-  - 関連ファイル: `Source/GUI/KeyboardComponent.cpp`
+- **KeyboardComponent FIXEDモードのキーボード入力問題** → **解決済み**（FIXEDモードごと削除）
 
 - **CapsLock 中はキーボードフォーカスを常に鍵盤に固定**
   - 現状: 展開パネルを開くか鍵盤をクリックした場合のみ `KeyboardComponent` がフォーカスを持つ。ロータリーノブ操作後などはフォーカスが外れ、PCキーからのMIDI入力が効かなくなる
@@ -175,11 +151,6 @@ BabySquatchは3つのモジュールで構成されています：
   - LAF はスライダーのライフタイムより長く生きている必要あり（メンバー保持で解決）
 
 - **Click モジュール実装**（より高度な処理: 短いトランジェント/ノイズバースト生成等）
-
-- **FIXED / MIDI モードの見直し**
-  - Kick Ninja準拠方式（トリガー専用）では、全鍵盤が同じ音を鳴らすため FIXED/MIDI の区別が不要
-  - キーボードUIの簡素化を検討（モード切替ボタン削除、単一トリガーモード化）
-  - または将来的にキーボード自体をオプション表示に変更
 
 - Click/Dry パネルの展開エリアに同様のエディタを配置
 - エンベロープの保存／復元（`getStateInformation` / `setStateInformation`）
