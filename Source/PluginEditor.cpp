@@ -1,22 +1,40 @@
 #include "PluginEditor.h"
 #include "PluginProcessor.h"
 
-BabySquatchAudioProcessorEditor::BabySquatchAudioProcessorEditor(
-    BabySquatchAudioProcessor &p)
-    : AudioProcessorEditor(&p), processorRef(p),
-      keyboard(p.getKeyboardState()) {
-  addAndMakeVisible(oomphPanel);
-  addAndMakeVisible(clickPanel);
-  addAndMakeVisible(dryPanel);
+// ────────────────────────────────────────────────────
+// LUT ベイクメンバー関数
+// ────────────────────────────────────────────────────
+void BabySquatchAudioProcessorEditor::bakeAmpLut() {
+  constexpr int lutSize = EnvelopeLutManager::lutSize;
+  std::array<float, lutSize> lut{};
+  const float durationMs = envelopeCurveEditor.getDisplayDurationMs();
+  for (int i = 0; i < lutSize; ++i) {
+    const float t =
+        static_cast<float>(i) / static_cast<float>(lutSize - 1) * durationMs;
+    lut[static_cast<size_t>(i)] = ampEnvData.evaluate(t);
+  }
+  processorRef.envLut().setDurationMs(durationMs);
+  processorRef.envLut().bake(lut.data(), lutSize);
+}
 
-  // 各パネルの展開ボタン → 親に通知
-  oomphPanel.setOnExpandRequested(
-      [this] { requestExpand(ExpandChannel::oomph); });
-  clickPanel.setOnExpandRequested(
-      [this] { requestExpand(ExpandChannel::click); });
-  dryPanel.setOnExpandRequested([this] { requestExpand(ExpandChannel::dry); });
+void BabySquatchAudioProcessorEditor::bakePitchLut() {
+  constexpr int lutSize = EnvelopeLutManager::lutSize;
+  std::array<float, lutSize> lut{};
+  const float durationMs = envelopeCurveEditor.getDisplayDurationMs();
+  for (int i = 0; i < lutSize; ++i) {
+    const float t =
+        static_cast<float>(i) / static_cast<float>(lutSize - 1) * durationMs;
+    lut[static_cast<size_t>(i)] = pitchEnvData.evaluate(t);
+  }
+  processorRef.pitchLut().setDurationMs(durationMs);
+  processorRef.pitchLut().bake(lut.data(), lutSize);
+}
 
-  // ── Mute / Solo 配線 ──
+// ────────────────────────────────────────────────────
+// パネルルーティング（Mute/Solo/レベルメーター）
+// ────────────────────────────────────────────────────
+void BabySquatchAudioProcessorEditor::setupPanelRouting(
+    BabySquatchAudioProcessor &p) {
   using enum ChannelState::Channel;
   oomphPanel.setOnMuteChanged(
       [&p](bool m) { p.channelState().setMute(oomph, m); });
@@ -26,10 +44,11 @@ BabySquatchAudioProcessorEditor::BabySquatchAudioProcessorEditor(
       [&p](bool m) { p.channelState().setMute(click, m); });
   clickPanel.setOnSoloChanged(
       [&p](bool s) { p.channelState().setSolo(click, s); });
-  dryPanel.setOnMuteChanged([&p](bool m) { p.channelState().setMute(dry, m); });
-  dryPanel.setOnSoloChanged([&p](bool s) { p.channelState().setSolo(dry, s); });
+  dryPanel.setOnMuteChanged(
+      [&p](bool m) { p.channelState().setMute(dry, m); });
+  dryPanel.setOnSoloChanged(
+      [&p](bool s) { p.channelState().setSolo(dry, s); });
 
-  // ── レベルメーター配線 ──
   oomphPanel.setLevelProvider(
       [&p]() { return p.channelState().getChannelLevelDb(oomph); });
   clickPanel.setLevelProvider(
@@ -37,176 +56,153 @@ BabySquatchAudioProcessorEditor::BabySquatchAudioProcessorEditor(
   dryPanel.setLevelProvider(
       [&p]() { return p.channelState().getChannelLevelDb(dry); });
 
-  // ── 展開エリア（初期非表示） ──
-  addChildComponent(expandableArea);
-
-  // ── MIDI 鍵盤（展開パネル下部） ──
-  keyboard.setOnModeChanged([this, &p](KeyboardComponent::Mode mode) {
-    p.setFixedModeActive(mode == KeyboardComponent::Mode::fixed);
-    updateEnvelopeEditorVisibility();
-  });
-  addChildComponent(keyboard);
-
-  // ── エンベロープカーブエディタ（展開パネル） ──
-  addChildComponent(envelopeCurveEditor);
-
-  // ── LUT ベイクヘルパー（AMP） ──
-  auto bakeAmpLut = [this] {
-    constexpr int lutSize = EnvelopeLutManager::lutSize;
-    std::array<float, lutSize> lut{};
-    const float durationMs = envelopeCurveEditor.getDisplayDurationMs();
-    for (int i = 0; i < lutSize; ++i) {
-      const float timeMs =
-          static_cast<float>(i) / static_cast<float>(lutSize - 1) * durationMs;
-      lut[static_cast<size_t>(i)] = ampEnvData.evaluate(timeMs);
-    }
-    processorRef.envLut().setDurationMs(durationMs);
-    processorRef.envLut().bake(lut.data(), lutSize);
+  oomphPanel.getKnob().onValueChange = [this] {
+    processorRef.setOomphGainDb(
+        static_cast<float>(oomphPanel.getKnob().getValue()));
   };
+}
 
-  // ── LUT ベイクヘルパー（Pitch: Hz値を格納） ──
-  auto bakePitchLut = [this] {
-    constexpr int lutSize = EnvelopeLutManager::lutSize;
-    std::array<float, lutSize> lut{};
-    const float durationMs = envelopeCurveEditor.getDisplayDurationMs();
-    for (int i = 0; i < lutSize; ++i) {
-      const float timeMs =
-          static_cast<float>(i) / static_cast<float>(lutSize - 1) * durationMs;
-      lut[static_cast<size_t>(i)] = pitchEnvData.evaluate(timeMs);
-    }
-    processorRef.pitchLut().setDurationMs(durationMs);
-    processorRef.pitchLut().bake(lut.data(), lutSize);
-  };
-
-  // AMP + Pitch 両方をベイク
-  auto bakeAllLuts = [bakeAmpLut, bakePitchLut] {
+// ────────────────────────────────────────────────────
+// エンベロープカーブエディタ内部配線
+// ────────────────────────────────────────────────────
+void BabySquatchAudioProcessorEditor::setupEnvelopeCurveEditor() {
+  envelopeCurveEditor.setOnChange([this] {
     bakeAmpLut();
     bakePitchLut();
-  };
-
-  // ── pitchEnvData のデフォルト値 = 200 Hz ──
-  pitchEnvData.setDefaultValue(200.0f);
-
-  // ── ポイント変更 → LUT 再ベイク + ノブ状態更新 ──
-  envelopeCurveEditor.setOnChange([this, bakeAllLuts] {
-    bakeAllLuts();
-    // AMP ノブ: エンベロープポイントがあれば無効化
-    const bool ampControlled = ampEnvData.hasPoints();
-    oomphKnobs[1].setEnabled(!ampControlled);
-    oomphKnobs[1].setTooltip(ampControlled ? "Value is controlled by envelope"
-                                           : "");
-    // PITCH ノブ: エンベロープポイントがあれば無効化
-    const bool pitchControlled = pitchEnvData.hasPoints();
-    oomphKnobs[0].setEnabled(!pitchControlled);
-    oomphKnobs[0].setTooltip(pitchControlled ? "Value is controlled by envelope"
-                                             : "");
+    oomphKnobs[1].setEnabled(!ampEnvData.hasPoints());
+    oomphKnobs[1].setTooltip(ampEnvData.hasPoints()
+                                 ? "Value is controlled by envelope"
+                                 : "");
+    oomphKnobs[0].setEnabled(!pitchEnvData.hasPoints());
+    oomphKnobs[0].setTooltip(pitchEnvData.hasPoints()
+                                 ? "Value is controlled by envelope"
+                                 : "");
   });
 
-  // ── OOMPHノブ → Processorゲイン配線のみ（振幅は AMP ノブで制御） ──
-  oomphPanel.getKnob().onValueChange = [this] {
-    const auto dB = static_cast<float>(oomphPanel.getKnob().getValue());
-    processorRef.setOomphGainDb(dB);
-  };
+  envelopeCurveEditor.setOnEditTargetChanged(
+      [this](EnvelopeCurveEditor::EditTarget target) {
+        using enum EnvelopeCurveEditor::EditTarget;
+        oomphKnobLabels[0].setColour(
+            juce::Label::textColourId,
+            target == pitch ? juce::Colours::cyan
+                            : UIConstants::Colours::labelText);
+        oomphKnobLabels[1].setColour(
+            juce::Label::textColourId,
+            target == amp ? juce::Colours::white
+                          : UIConstants::Colours::labelText);
+      });
+}
 
-  setSize(UIConstants::windowWidth, UIConstants::windowHeight);
-
-  // ── OOMPH Osc ノブ行（8本）初期化 ──
-  for (int i = 0; i < 8; ++i) {
-    const auto idx = static_cast<size_t>(i);
-    auto &knob = oomphKnobs[idx];
+// ────────────────────────────────────────────────────
+// OOMPH Osc ノブ行（8本）初期化
+// ────────────────────────────────────────────────────
+void BabySquatchAudioProcessorEditor::setupOomphKnobsRow() {
+  static constexpr std::array<const char *, 8> kLabels = {
+      "PITCH", "AMP", "BLEND", "DIST", "H1", "H2", "H3", "H4"};
+  for (size_t i = 0; i < 8; ++i) {
+    auto &knob = oomphKnobs[i];
     knob.setSliderStyle(juce::Slider::RotaryVerticalDrag);
     knob.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
     knob.setRange(0.0, 1.0);
     addChildComponent(knob);
 
-    auto &label = oomphKnobLabels[idx];
-    juce::String labelText;
-    if (i == 0)
-      labelText = "PITCH";
-    else if (i == 1)
-      labelText = "AMP";
-    else if (i == 2)
-      labelText = "BLEND";
-    else if (i == 3)
-      labelText = "DIST";
-    else if (i == 4)
-      labelText = "H1";
-    else if (i == 5)
-      labelText = "H2";
-    else if (i == 6)
-      labelText = "H3";
-    else if (i == 7)
-      labelText = "H4";
-    else
-      labelText = "temp " + juce::String(i + 1);
-    label.setText(labelText, juce::dontSendNotification);
+    auto &label = oomphKnobLabels[i];
+    label.setText(kLabels[i], juce::dontSendNotification);
     label.setFont(juce::Font(juce::FontOptions(10.0f)));
     label.setJustificationType(juce::Justification::centred);
     label.setColour(juce::Label::textColourId, UIConstants::Colours::labelText);
     addChildComponent(label);
   }
+}
 
-  // ── PITCH/AMP ラベルクリックで編集対象切替 ──
-  // (タブは EnvelopeCurveEditor 内部で描画・クリック処理)
-  envelopeCurveEditor.setOnEditTargetChanged(
-      [this](EnvelopeCurveEditor::EditTarget target) {
-        using enum EnvelopeCurveEditor::EditTarget;
-        oomphKnobLabels[0].setColour(juce::Label::textColourId,
-                                     target == pitch
-                                         ? juce::Colours::cyan
-                                         : UIConstants::Colours::labelText);
-        oomphKnobLabels[1].setColour(juce::Label::textColourId,
-                                     target == amp
-                                         ? juce::Colours::white
-                                         : UIConstants::Colours::labelText);
-      });
+// ────────────────────────────────────────────────────
+// 波形選択ボタン（Tri / SQR / SAW）初期化
+// ────────────────────────────────────────────────────
+void BabySquatchAudioProcessorEditor::deselectOtherWaveShapeButtons(
+    size_t selectedIdx) {
+  for (size_t j = 0; j < 3; ++j) {
+    if (j == selectedIdx)
+      continue;
+    waveShapeButtons[j].setToggleState(false, juce::dontSendNotification);
+  }
+}
 
-  // ── PITCH ノブ（oomphKnobs[0]）: range・初期値・コールバック設定 ──
-  // 20〜20000 Hz、対数スケール、デフォルト 200 Hz
+void BabySquatchAudioProcessorEditor::setupWaveShapeButtons() {
+  static constexpr std::array<const char *, 3> kWaveLabels = {"Tri", "SQR",
+                                                               "SAW"};
+  static constexpr std::array<WaveShape, 3> kShapes = {
+      WaveShape::Tri, WaveShape::Square, WaveShape::Saw};
+  for (size_t i = 0; i < 3; ++i) {
+    auto &btn = waveShapeButtons[i];
+    btn.setButtonText(kWaveLabels[i]);
+    btn.setClickingTogglesState(true);
+    btn.setColour(juce::TextButton::buttonColourId,
+                  UIConstants::Colours::knobBg);
+    btn.setColour(juce::TextButton::buttonOnColourId,
+                  UIConstants::Colours::oomphArc);
+    btn.setColour(juce::TextButton::textColourOffId,
+                  UIConstants::Colours::text);
+    btn.setColour(juce::TextButton::textColourOnId, juce::Colours::black);
+    const WaveShape shape = kShapes[i];
+    btn.onClick = [this, i, shape] {
+      if (waveShapeButtons[i].getToggleState()) {
+        deselectOtherWaveShapeButtons(i);
+        processorRef.oomphOscillator().setWaveShape(shape);
+      } else {
+        processorRef.oomphOscillator().setWaveShape(WaveShape::Sine);
+      }
+    };
+    addChildComponent(btn);
+  }
+}
+
+// ────────────────────────────────────────────────────
+// PITCHノブ（oomphKnobs[0]）
+// ────────────────────────────────────────────────────
+void BabySquatchAudioProcessorEditor::setupPitchKnob() {
   oomphKnobs[0].setRange(20.0, 20000.0);
   oomphKnobs[0].setSkewFactorFromMidPoint(200.0);
   oomphKnobs[0].setValue(200.0, juce::dontSendNotification);
   oomphKnobs[0].setDoubleClickReturnValue(true, 200.0);
-  oomphKnobs[0].onValueChange = [this, bakePitchLut] {
+  oomphKnobs[0].onValueChange = [this] {
     const auto hz = static_cast<float>(oomphKnobs[0].getValue());
-    // pitchEnvData のデフォルト値を更新
     pitchEnvData.setDefaultValue(hz);
     bakePitchLut();
-    // 波形プレビューのサイクル数を更新
     const float cycles =
         hz * envelopeCurveEditor.getDisplayDurationMs() / 1000.0f;
     envelopeCurveEditor.setDisplayCycles(cycles);
     envelopeCurveEditor.repaint();
   };
   // 初期サイクル数 + Pitch LUT 初期ベイク
-  {
-    const float initHz = 200.0f;
-    envelopeCurveEditor.setDisplayCycles(
-        initHz * envelopeCurveEditor.getDisplayDurationMs() / 1000.0f);
-    bakePitchLut();
-  }
+  constexpr float initHz = 200.0f;
+  envelopeCurveEditor.setDisplayCycles(
+      initHz * envelopeCurveEditor.getDisplayDurationMs() / 1000.0f);
+  bakePitchLut();
+}
 
-  // ── AMP ノブ（oomphKnobs[1]）: range・初期値・コールバック設定 ──
-  // 表示値は 0〜200％、内部変換: gain = value / 100.0f
+// ────────────────────────────────────────────────────
+// AMPノブ（oomphKnobs[1]）
+// ────────────────────────────────────────────────────
+void BabySquatchAudioProcessorEditor::setupAmpKnob() {
   oomphKnobs[1].setRange(0.0, 200.0);
   oomphKnobs[1].setValue(ampEnvData.getDefaultValue() * 100.0,
                          juce::dontSendNotification);
   oomphKnobs[1].setDoubleClickReturnValue(true, 100.0);
-  oomphKnobs[1].onValueChange = [this, bakeAmpLut] {
-    const auto gain = static_cast<float>(oomphKnobs[1].getValue()) / 100.0f;
-    ampEnvData.setDefaultValue(gain);
+  oomphKnobs[1].onValueChange = [this] {
+    ampEnvData.setDefaultValue(
+        static_cast<float>(oomphKnobs[1].getValue()) / 100.0f);
     bakeAmpLut();
     envelopeCurveEditor.repaint();
   };
-  // 初期状態: ポイントがあれば無効化
-  {
-    const bool controlled = ampEnvData.hasPoints();
-    oomphKnobs[1].setEnabled(!controlled);
-    oomphKnobs[1].setTooltip(controlled ? "Value is controlled by envelope"
-                                        : "");
-  }
+  const bool controlled = ampEnvData.hasPoints();
+  oomphKnobs[1].setEnabled(!controlled);
+  oomphKnobs[1].setTooltip(controlled ? "Value is controlled by envelope" : "");
+}
 
-  // ── BLEND ノブ（oomphKnobs[2]）: range・コールバック設定 ──
+// ────────────────────────────────────────────────────
+// BLENDノブ（oomphKnobs[2]）
+// ────────────────────────────────────────────────────
+void BabySquatchAudioProcessorEditor::setupBlendKnob() {
   oomphKnobs[2].setRange(-100.0, 100.0, 1.0);
   oomphKnobs[2].setValue(0.0, juce::dontSendNotification);
   oomphKnobs[2].setDoubleClickReturnValue(true, 0.0);
@@ -214,19 +210,92 @@ BabySquatchAudioProcessorEditor::BabySquatchAudioProcessorEditor(
     processorRef.oomphOscillator().setBlend(
         static_cast<float>(oomphKnobs[2].getValue()) / 100.0f);
   };
+}
 
-  // ── H1〜H4 ノブ（oomphKnobs[4〜7]）: range・コールバック設定 ──
+// ────────────────────────────────────────────────────
+// H1〜H4ノブ（oomphKnobs[4〜7]）
+// ────────────────────────────────────────────────────
+void BabySquatchAudioProcessorEditor::setupHarmonicKnobs() {
   for (int i = 0; i < 4; ++i) {
-    const auto idx = static_cast<size_t>(i + 4); // knobs[4]〜[7]
+    const auto idx = static_cast<size_t>(i + 4);
     oomphKnobs[idx].setRange(0.0, 1.0, 0.01);
     oomphKnobs[idx].setValue(0.0, juce::dontSendNotification);
     oomphKnobs[idx].setDoubleClickReturnValue(true, 0.0);
-    const int harmonicNum = i + 1; // H1〜H4
+    const int harmonicNum = i + 1;
     oomphKnobs[idx].onValueChange = [this, idx, harmonicNum] {
       processorRef.oomphOscillator().setHarmonicGain(
           harmonicNum, static_cast<float>(oomphKnobs[idx].getValue()));
     };
   }
+}
+
+// ────────────────────────────────────────────────────
+// resized() レイアウトヘルパー
+// ────────────────────────────────────────────────────
+void BabySquatchAudioProcessorEditor::layoutOomphKnobsRow(
+    juce::Rectangle<int> knobRow) {
+  const int slotW = knobRow.getWidth() / 8;
+  for (int i = 0; i < 8; ++i) {
+    const auto idx = static_cast<size_t>(i);
+    auto slot = knobRow.removeFromLeft(slotW);
+    oomphKnobLabels[idx].setBounds(slot.removeFromBottom(18));
+    oomphKnobs[idx].setBounds(slot);
+  }
+}
+
+void BabySquatchAudioProcessorEditor::layoutWaveShapeButtonRow(
+    juce::Rectangle<int> btnRow) {
+  constexpr int btnW = 64;
+  constexpr int gap = 6;
+  constexpr int totalW = btnW * 3 + gap * 2;
+  auto row = btnRow.withSizeKeepingCentre(totalW, 22);
+  for (size_t i = 0; i < 3; ++i) {
+    waveShapeButtons[i].setBounds(row.removeFromLeft(btnW));
+    if (i < 2)
+      row.removeFromLeft(gap);
+  }
+}
+
+// ────────────────────────────────────────────────────
+// コンストラクター
+// ────────────────────────────────────────────────────
+BabySquatchAudioProcessorEditor::BabySquatchAudioProcessorEditor(
+    BabySquatchAudioProcessor &p)
+    : AudioProcessorEditor(&p), processorRef(p),
+      keyboard(p.getKeyboardState()) {
+  addAndMakeVisible(oomphPanel);
+  addAndMakeVisible(clickPanel);
+  addAndMakeVisible(dryPanel);
+  addChildComponent(expandableArea);
+  addChildComponent(keyboard);
+  addChildComponent(envelopeCurveEditor);
+
+  // 展開ボタン → 親に通知
+  oomphPanel.setOnExpandRequested(
+      [this] { requestExpand(ExpandChannel::oomph); });
+  clickPanel.setOnExpandRequested(
+      [this] { requestExpand(ExpandChannel::click); });
+  dryPanel.setOnExpandRequested(
+      [this] { requestExpand(ExpandChannel::dry); });
+
+  // 鍵盤モード変更コールバック
+  keyboard.setOnModeChanged([this, &p](KeyboardComponent::Mode mode) {
+    p.setFixedModeActive(mode == KeyboardComponent::Mode::fixed);
+    updateEnvelopeEditorVisibility();
+  });
+
+  pitchEnvData.setDefaultValue(200.0f);
+
+  setupPanelRouting(p);
+  setupEnvelopeCurveEditor();
+  setupOomphKnobsRow();
+  setupWaveShapeButtons();
+  setupPitchKnob();
+  setupAmpKnob();
+  setupBlendKnob();
+  setupHarmonicKnobs();
+
+  setSize(UIConstants::windowWidth, UIConstants::windowHeight);
 }
 
 BabySquatchAudioProcessorEditor::~BabySquatchAudioProcessorEditor() = default;
@@ -258,18 +327,19 @@ void BabySquatchAudioProcessorEditor::resized() {
     //    （OOMPH以外ではノブは非表示だが、波形エリアの高さを揃えるため常に確保）
     {
       auto knobRow = expandArea.removeFromTop(UIConstants::oomphKnobRowHeight);
-      if (activeChannel == oomph) {
-        const int slotW = knobRow.getWidth() / 8;
-        for (int i = 0; i < 8; ++i) {
-          const auto idx = static_cast<size_t>(i);
-          auto slot = knobRow.removeFromLeft(slotW);
-          oomphKnobLabels[idx].setBounds(slot.removeFromBottom(18));
-          oomphKnobs[idx].setBounds(slot);
-        }
-      }
+      if (activeChannel == oomph)
+        layoutOomphKnobsRow(knobRow);
     }
 
-    // 3. エンベロープカーブエディタ → 残り全域
+    // 3. 波形選択ボタン行（OOMPH のみ表示）
+    {
+      auto btnRow =
+          expandArea.removeFromTop(UIConstants::waveShapeButtonRowHeight);
+      if (activeChannel == oomph)
+        layoutWaveShapeButtonRow(btnRow);
+    }
+
+    // 4. エンベロープカーブエディタ → 残り全域
     envelopeCurveEditor.setBounds(expandArea);
     area.removeFromBottom(UIConstants::panelGap);
   }
@@ -331,4 +401,6 @@ void BabySquatchAudioProcessorEditor::updateEnvelopeEditorVisibility() {
     oomphKnobs[i].setVisible(oomphOpen);
     oomphKnobLabels[i].setVisible(oomphOpen);
   }
+  for (size_t i = 0; i < 3; ++i)
+    waveShapeButtons[i].setVisible(oomphOpen);
 }

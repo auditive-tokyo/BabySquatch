@@ -21,9 +21,10 @@ constexpr int valueHeight = 20;
 
 // ── 展開パネル ──
 constexpr int expandButtonHeight = 20;
-constexpr int expandedAreaHeight = 448;  // 360 + oomphKnobRowHeight(88)
-constexpr int waveformDisplayHeight = 80;
 constexpr int oomphKnobRowHeight = 88;
+constexpr int waveShapeButtonRowHeight = 28;
+constexpr int expandedAreaHeight = 476;  // 360 + oomphKnobRowHeight(88) + waveShapeButtonRowHeight(28)
+constexpr int waveformDisplayHeight = 80;
 
 // ── レベルメーター ──
 constexpr int meterWidth = 28;
