@@ -156,6 +156,13 @@ void OomphOscillator::setBlend(float blend) {
 }
 
 // ────────────────────────────────────────────────────
+// setDist — Distortion drive 量設定（0.0〜1.0）
+// ────────────────────────────────────────────────────
+void OomphOscillator::setDist(float drive01) {
+  dist_.store(std::clamp(drive01, 0.0f, 1.0f));
+}
+
+// ────────────────────────────────────────────────────
 // setHarmonicGain — H1〜H4 倍音ゲイン設定
 // ────────────────────────────────────────────────────
 void OomphOscillator::setHarmonicGain(int n, float gain) {
@@ -217,6 +224,11 @@ float OomphOscillator::getNextSample() {
     // 右側: Sine ← → Additive（H1〜H4）
     sample = std::lerp(sineSample, additiveSample, b);
   }
+
+  // Distortion（tanh soft-clip — 常時適用、DIST=0 でも軽いサチュレーション）
+  const float d = dist_.load();
+  const float drive = 1.0f + d * 9.0f;  // 1.0〜10.0
+  sample = std::tanh(drive * sample) / std::tanh(drive);
 
   currentIndex += tableDelta;
   if (currentIndex >= static_cast<float>(tableSize))

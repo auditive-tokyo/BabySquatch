@@ -49,6 +49,10 @@ public:
   /// @param gain 0.0〜1.0
   void setHarmonicGain(int n, float gain);
 
+  /// Distortion drive 量を設定（UIスレッドから呼び出し可）
+  /// @param drive01 0.0〜1.0（0=クリーン、1=フルドライブ）
+  void setDist(float drive01);
+
   // ── 定数（外部から参照可能にするため public）──
   static constexpr int tableSize  = 2048;
   static constexpr int numBands   = 10;   // 20Hz〜20480Hz を 10 オクターブ分割
@@ -75,6 +79,9 @@ private:
 
   // ── BLEND ──
   std::atomic<float> blend_{0.0f};  // -1.0〜+1.0
+
+  // ── DIST ──
+  std::atomic<float> dist_{0.0f};  // 0.0〜1.0（UI値そのまま）
 
   // ── H1〜H4 加算合成 ──
   static constexpr int numHarmonics = 4;

@@ -215,6 +215,20 @@ void BabySquatchAudioProcessorEditor::setupBlendKnob() {
 // ────────────────────────────────────────────────────
 // H1〜H4ノブ（oomphKnobs[4〜7]）
 // ────────────────────────────────────────────────────
+void BabySquatchAudioProcessorEditor::setupDistKnob() {
+  oomphKnobs[3].setRange(0.0, 100.0, 1.0);
+  oomphKnobs[3].setValue(0.0, juce::dontSendNotification);
+  oomphKnobs[3].setDoubleClickReturnValue(true, 0.0);
+  oomphKnobs[3].onValueChange = [this] {
+    const float drive01 =
+        static_cast<float>(oomphKnobs[3].getValue()) / 100.0f;
+    processorRef.oomphOscillator().setDist(drive01);
+  };
+}
+
+// ────────────────────────────────────────────────────
+// H1〜H4ノブ（oomphKnobs[4〜7]）
+// ────────────────────────────────────────────────────
 void BabySquatchAudioProcessorEditor::setupHarmonicKnobs() {
   for (int i = 0; i < 4; ++i) {
     const auto idx = static_cast<size_t>(i + 4);
@@ -287,6 +301,7 @@ BabySquatchAudioProcessorEditor::BabySquatchAudioProcessorEditor(
   setupPitchKnob();
   setupAmpKnob();
   setupBlendKnob();
+  setupDistKnob();
   setupHarmonicKnobs();
 
   setSize(UIConstants::windowWidth, UIConstants::windowHeight);

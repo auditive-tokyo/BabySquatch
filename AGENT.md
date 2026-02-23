@@ -69,7 +69,13 @@ BabySquatchは3つのモジュールで構成されています：
 - **BLEND クロスフェード**（Phase 3 完了）: `setBlend(float)` API（-1.0〜+1.0）追加、`getNextSample()` 内で `std::lerp` によるクロスフェード実装。b≤0: Sine↔Wavetable、b>0: Sine↔Additive。oomphKnobs[2]（BLEND）-100〜+100 配線済み
 - **波形選択 UI**（Phase 4 完了）: Tri / SQR / SAW の `TextButton` 3本を展開パネル内のノブ行下に配置。リラジオグループ方式（手動排他）0または1ボタンが選拡可能。OFF時は Sineに戻る。選択色はお〈oomphArc（青系）。不選択=Sine、Triボタン=Tri、SQRボタン=Square、SAWボタン=Saw
 - **波形プレビュー BLEND 連携**（完了）: `EnvelopeCurveEditor` に `setWaveShape()` / `setPreviewBlend()` / `setPreviewHarmonicGain()` API 追加。BLEND 負側=Sine↔WaveShape、正側=Sine↔Additive(H1〜H4) のモーフィング描画。ボタン onClick・BLEND/H1〜H4 ノブ変更時に `repaint()`
-- **Oomph パラメータ設計**（完了）: 展開パネル 8 ノブ（PITCH/AMP/BLEND/Dist/H1〜H4）配置・ラベル設定済み。PITCH・AMP・BLEND・H1〜H4 は DSP 接続済み。Dist（oomphKnobs[3]）は未接続（TBD）。H1〜H4 は加算合成（波形選択と独立したパラレル倍音サイン波）
+- **Oomph パラメータ設計**（完了）: 展開パネル 8 ノブ（PITCH/AMP/BLEND/Dist/H1〜H4）配置・ラベル設定済み。全ノブ DSP 接続完了
+  - PITCH（oomphKnobs[0]）: 20〜20000 Hz 対数スケール、Pitch Envelope 制御時は無効化
+  - AMP（oomphKnobs[1]）: 0〜200%、AMP Envelope 制御時は無効化
+  - BLEND（oomphKnobs[2]）: -100 ～ +100（-1.0〜+1.0）
+  - DIST（oomphKnobs[3]）: 0〜100%（drive 1.0〜10.0）、常時ソフトクリップ適用
+  - H1〜H4（oomphKnobs[4-7]）: 0〜1.0、加算合成倍音ゲイン
+  - 波形選択ボタン（Tri/SQR/SAW）は独立した TextButton パネル
 
 ## 描画方針
 
@@ -116,11 +122,11 @@ BabySquatchは3つのモジュールで構成されています：
 
 ## TODO
 
-- **Dist ノブ実装（oomphKnobs[3]）**
-  - 現状: ノブ配置・ラベル設定済みだが DSP 未接続
-  - 調査: Kick Ninja は Dist=0 でも H1〜H4 複数重ね時に BabySquatch より太い音になる。出力段にソフトサチュレーション（`tanh` 等）が常時かかっている可能性
-    - 根拠: H1〜H4 を1つずつ MAX にした場合は BabySquatch と同じ音。複数重ねて初めて差が出る（H1 のみ: -0.23dB peak / H1〜H4 全開: 9.96dB peak ≒ 線形加算と一致）
-  - 実装方針（検討中）: `getNextSample()` の加算合成後に `std::tanh()` 等のソフトクリップを適用。Dist ノブで drive 量を制御
+- **Dist ノブ実装**（完了）
+  - `OomphOscillator::setDist(float drive01)` API 追加。ノブレンジ 0〜100%（内部 drive: 1.0〜10.0）
+  - `getNextSample()` 内で BLEND クロスフェード後に常時 `std::tanh()` を適用。DIST=0 でも軽いソフトクリップ（`drive=1.0`）がかかり、Kick Ninja DIST=0 相当の挙動を実現
+  - `oomphKnobs[3].onValueChange` で `processorRef.oomphOscillator().setDist(drive01)` を配線
+  - **今後の拡張**: Dist Envelope（DIST ノブが Decay エンベロープで変調する仕様）を実装する際は、AMP/PITCH Envelope 同様に `distEnvData` を追加して LUT ベイク＆毎サンプル読み出しする
 
 - **CapsLock 中はキーボードフォーカスを常に鍵盤に固定**
   - 現状: 展開パネルを開くか鍵盤をクリックした場合のみ `KeyboardComponent` がフォーカスを持つ。ロータリーノブ操作後などはフォーカスが外れ、PCキーからのMIDI入力が効かなくなる

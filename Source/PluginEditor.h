@@ -34,6 +34,7 @@ private:
   void setupPitchKnob();
   void setupAmpKnob();
   void setupBlendKnob();
+  void setupDistKnob();
   void setupHarmonicKnobs();
   void deselectOtherWaveShapeButtons(size_t selectedIdx);
   void layoutOomphKnobsRow(juce::Rectangle<int> knobRow);
