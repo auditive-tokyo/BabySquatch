@@ -3,6 +3,8 @@
 #include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include "../DSP/OomphOscillator.h" // WaveShape enum
+
 class EnvelopeData;
 
 /// AMP / Pitch Envelope カーブエディタ
@@ -19,6 +21,12 @@ public:
   enum class EditTarget { amp, pitch };
   void setEditTarget(EditTarget target);
   EditTarget getEditTarget() const { return editTarget; }
+
+  /// 波形プレビュー用: 選択波形を設定（Sine/Tri/Square/Saw）
+  void setWaveShape(WaveShape shape);
+
+  /// 波形プレビュー用: BLEND 値を設定（-1.0〜+1.0, 負側のみモーフィング描画）
+  void setPreviewBlend(float blend);
 
   /// 表示するサイン波のサイクル数を設定
   void setDisplayCycles(float cycles);
@@ -72,12 +80,17 @@ private:
   /// プロット領域の高さ（タイムライン分を差し引いた値）
   float plotHeight() const;
 
+  /// 位相から波形サンプル値を返す（プレビュー用算術式）
+  static float shapeOscValue(WaveShape shape, float phase);
+
   EnvelopeData &ampEnvData;
   EnvelopeData &pitchEnvData;
   EnvelopeData *editEnvData; // 編集中のエンベロープ（amp or pitch）
   EditTarget editTarget = EditTarget::amp;
   float displayDurationMs = 300.0f;
   float displayCycles = 4.0f;
+  WaveShape previewShape = WaveShape::Sine;
+  float previewBlend = 0.0f; // -1.0〜+1.0
   int dragPointIndex{-1};
   std::function<void()> onChange;
   std::function<void(EditTarget)> onEditTargetChanged;

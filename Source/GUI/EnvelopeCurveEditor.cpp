@@ -56,13 +56,22 @@ void EnvelopeCurveEditor::paintWaveform(juce::Graphics &g, float w, float h,
     if (i > 0)
       phase += hz * (dtMs / 1000.0f) * juce::MathConstants<float>::twoPi;
 
+    // 波形モーフィング: BLEND 負側で Sine → 選択波形にクロスフェード
     const float sinVal = std::sin(phase);
+    const float b = previewBlend;
+    float waveVal;
+    if (b >= 0.0f || previewShape == WaveShape::Sine) {
+      waveVal = sinVal;
+    } else {
+      const float shapeVal = shapeOscValue(previewShape, phase);
+      waveVal = std::lerp(sinVal, shapeVal, -b); // b=-1 → shapeVal 100%
+    }
 
     // AMP: 振幅
     const float amplitude =
         hasAmpPoints ? ampEnvData.evaluate(timeMs) : ampEnvData.getValue();
     const float scaledAmp = std::min(amplitude, 2.0f) * centreY;
-    const float y = juce::jlimit(0.0f, h, centreY - sinVal * scaledAmp);
+    const float y = juce::jlimit(0.0f, h, centreY - waveVal * scaledAmp);
 
     fillPath.lineTo(x, y);
 
@@ -83,6 +92,43 @@ void EnvelopeCurveEditor::paintWaveform(juce::Graphics &g, float w, float h,
 
   g.setColour(juce::Colours::white.withAlpha(0.08f));
   g.drawHorizontalLine(static_cast<int>(centreY), 0.0f, w);
+}
+
+void EnvelopeCurveEditor::setWaveShape(WaveShape shape) {
+  if (previewShape != shape) {
+    previewShape = shape;
+    repaint();
+  }
+}
+
+void EnvelopeCurveEditor::setPreviewBlend(float blend) {
+  const float clamped = juce::jlimit(-1.0f, 1.0f, blend);
+  if (std::abs(previewBlend - clamped) > 1e-6f) {
+    previewBlend = clamped;
+    repaint();
+  }
+}
+
+float EnvelopeCurveEditor::shapeOscValue(WaveShape shape, float phase) {
+  // phase を 0〜2π に正規化
+  const float twoPi = juce::MathConstants<float>::twoPi;
+  float p = std::fmod(phase, twoPi);
+  if (p < 0.0f)
+    p += twoPi;
+
+  switch (shape) {
+    using enum WaveShape;
+  case Tri:
+    // Triangle: asin(sin(phase)) * 2/π
+    return std::asin(std::sin(phase)) * (2.0f / juce::MathConstants<float>::pi);
+  case Square:
+    return p < juce::MathConstants<float>::pi ? 1.0f : -1.0f;
+  case Saw:
+    return (p / juce::MathConstants<float>::pi) - 1.0f;
+  case Sine:
+  default:
+    return std::sin(phase);
+  }
 }
 
 void EnvelopeCurveEditor::paintEnvelopeOverlay(juce::Graphics &g,

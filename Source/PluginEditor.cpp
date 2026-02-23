@@ -148,8 +148,10 @@ void BabySquatchAudioProcessorEditor::setupWaveShapeButtons() {
       if (waveShapeButtons[i].getToggleState()) {
         deselectOtherWaveShapeButtons(i);
         processorRef.oomphOscillator().setWaveShape(shape);
+        envelopeCurveEditor.setWaveShape(shape);
       } else {
         processorRef.oomphOscillator().setWaveShape(WaveShape::Sine);
+        envelopeCurveEditor.setWaveShape(WaveShape::Sine);
       }
     };
     addChildComponent(btn);
@@ -207,8 +209,10 @@ void BabySquatchAudioProcessorEditor::setupBlendKnob() {
   oomphKnobs[2].setValue(0.0, juce::dontSendNotification);
   oomphKnobs[2].setDoubleClickReturnValue(true, 0.0);
   oomphKnobs[2].onValueChange = [this] {
-    processorRef.oomphOscillator().setBlend(
-        static_cast<float>(oomphKnobs[2].getValue()) / 100.0f);
+    const float blendNorm =
+        static_cast<float>(oomphKnobs[2].getValue()) / 100.0f;
+    processorRef.oomphOscillator().setBlend(blendNorm);
+    envelopeCurveEditor.setPreviewBlend(blendNorm);
   };
 }
 
