@@ -151,14 +151,11 @@ BabySquatchは3つのモジュールで構成されています：
   - UI的に境界を調整可能にするか（ドラッグで移動）は要検討
 
 - **全ノブに `ColouredSliderLAF` を適用してUI統一**
-  - `Source/GUI/CustomSliderLAF.h` に `ColouredSliderLAF` クラスが既存（`arcColour` / `thumbColour` をコンストラクタ引数で差し替えるだけで色変更可）
-  - 現状: Oomph チャンネルノブ（`PanelComponent`）には適用済みだが、展開パネル内の `oomphKnobs[8]` には未適用
-  - 対応方針:
-    - Oomph 展開ノブ → `UIConstants::Colours::oomphArc`（橙）ベースの `ColouredSliderLAF` インスタンスを適用
-    - Click 展開ノブ（将来）→ Click カラー（緑系）
-    - Dry 展開ノブ（将来）→ Dry カラー（紫系）
-  - `PluginEditor.h` に `ColouredSliderLAF oomphKnobLAF` メンバーを追加し、全 `oomphKnobs[i]` に `setLookAndFeel(&oomphKnobLAF)` を呼ぶだけで実装可能
-  - LAF はスライダーのライフタイムより長く生きている必要あり（メンバー保持で解決）
+  - ✅ Oomph チャンネルノブ（`PanelComponent`）: 適用済み
+  - ✅ Oomph 展開ノブ（`oomphKnobs[0〜7]`）: `oomphKnobLAF`（oomphArc/oomphThumb）を適用済み。`setTextValueSuffix` で dB サフィックスも各ノブで個別制御
+  - ⬜ Click 展開ノブ（Click モジュール実装時）→ `clickKnobLAF`（`clickArc` / `clickThumb`）を同様に追加
+  - ⬜ Dry 展開ノブ（Dry モジュール実装時）→ `dryKnobLAF`（`dryArc` / `dryThumb`）を同様に追加
+  - 実装パターン: `PluginEditor.h` に LAF メンバー追加 → `setupXxxKnobsRow()` で `setLookAndFeel(&xxxKnobLAF)` を呼ぶだけ（LAF はスライダーより先に宣言してライフタイムを確保）
 
 - **Oomph/Click 共通トリガー（トランジェント検出）**
   - 目的: 入力信号の単純な音量ではなく、立ち上がりの過渡成分を検出して Oomph/Click を瞬時に発音する（VST/AU の Kick トラック挿入を想定）

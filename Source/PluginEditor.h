@@ -1,6 +1,7 @@
 #pragma once
 
 #include "DSP/EnvelopeData.h"
+#include "GUI/CustomSliderLAF.h"
 #include "GUI/EnvelopeCurveEditor.h"
 #include "GUI/KeyboardComponent.h"
 #include "GUI/PanelComponent.h"
@@ -60,6 +61,9 @@ private:
   EnvelopeData pitchEnvData;
   EnvelopeCurveEditor envelopeCurveEditor{ampEnvData, pitchEnvData};
 
+  // ── OOMPH展開パネル: LAF（oomphKnobs より先に宣言し、後に破棄されるようにする） ──
+  ColouredSliderLAF oomphKnobLAF{UIConstants::Colours::oomphArc,
+                                  UIConstants::Colours::oomphThumb};
   // ── OOMPH展開パネル: Oscノブ行（8本） ──
   std::array<juce::Slider, 8> oomphKnobs;
   std::array<juce::Label, 8> oomphKnobLabels;

@@ -100,6 +100,7 @@ void BabySquatchAudioProcessorEditor::setupOomphKnobsRow() {
     knob.setSliderStyle(juce::Slider::RotaryVerticalDrag);
     knob.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
     knob.setRange(0.0, 1.0);
+    knob.setLookAndFeel(&oomphKnobLAF);
     addChildComponent(knob);
 
     auto &label = oomphKnobLabels[i];

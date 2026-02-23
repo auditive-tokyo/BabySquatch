@@ -21,6 +21,7 @@ PanelComponent::PanelComponent(const juce::String &name, juce::Colour arcColour,
   knob.setTextBoxStyle(juce::Slider::NoTextBox, true, 0, 0);
   knob.setRange(-24.0, 24.0, 0.1);
   knob.setValue(0.0);
+  knob.setTextValueSuffix(" dB");
 
   // ダブルクリックで 0.0 dB にリセット（JUCE の組み込み機能）
   knob.setDoubleClickReturnValue(true, 0.0);
