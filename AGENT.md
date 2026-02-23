@@ -49,12 +49,13 @@ BabySquatchは3つのモジュールで構成されています：
   - C0〜C7表示、PCキー演奏対応（A=C2ベース）
   - Z/Xでオクターブシフト
   - トリガー専用（FIXED/MIDI モード削除済み）
-- **AMP / Pitch Envelope エディタ**（Kick Ninja スタイル）
-  - `EnvelopeData`：ヘッダオンリーモデル。制御点なし→`defaultValue`（フラット）、1点→定数、2点→線形補間、3点以上→Catmull-Rom スプライン補間。ファントムポイント端点処理。`movePoint` の値クランプは呼び出し側が担当（AMP/Pitch でレンジが異なるため）
-  - `EnvelopeCurveEditor`：`paint()` ベース。AMP + Pitch の両エンベロープを受け取り、**位相累積方式**（`phase += pitchHz × dt × 2π`）でオフライン波形プレビュー。スプラインカーブ＋コントロールポイント描画。左ダブルクリックでポイント追加／削除、ドラッグで移動。横軸 ms タイムライン表示（自動間隔目盛り + ラベル）
-  - 右上に **AMP / PITCH タブボタン**を内蔵。クリックで編集対象を切替（AMP=橙、PITCH=シアン）。`setOnEditTargetChanged()` コールバックで外部 UI（ノブラベル等）と同期
-  - **Pitch Y軸**: 対数スケール 20〜20000 Hz（`valueToY`/`yToValue` が `EditTarget` に応じてスケール切替）
-  - ロックフリー LUT 統合：`envLut_`（AMP gain × 512点）+ `pitchLut_`（Hz × 512点）の2系統ダブルバッファ。オーディオスレッドはノートオンで `noteTimeSamples` リセット → サンプル毎に pitchLut → `setFrequencyHz()` + ampLut → ゲイン乗算
+- **AMP / Pitch / DIST / BLEND Envelope エディタ**（Kick Ninja スタイル）
+  - `EnvelopeData`：ヘッダオンリモデル。制御点なし→`defaultValue`（フラット）、1点→定数、2点→線形補間、3点以上→Catmull-Rom スプライン補間。ファントムポイント端点処理。`movePoint` の値クランプは呼び出し側が担当（AMP/Pitch でレンジが異なるため）
+  - `EnvelopeCurveEditor`：`paint()` ベース。AMP / Pitch / DIST / BLEND の 4 エンベロープを受け取り、**位相累積方式**（`phase += pitchHz × dt × 2π`）でオフライン波形プレビュー。スプラインカーブ＋コントロールポイント描画。左ダブルクリックでポイント追加／削除、ドラッグで移動。横軸 ms タイムライン表示（自動間隔目盛り + ラベル）
+  - 右上に **AMP / PITCH / DIST / BLEND タブボタン**を内蔵。AMP=青（oomphArc）　1 PITCH=シアン、DIST=オレンジ、BLEND=グリーン。`setOnEditTargetChanged()` コールバックで外部 UI（ノブラベル等）と同期
+  - **Pitch Y軸**: 対数スケール 20～20000 Hz。**DIST Y軸**: 線形 0.0～1.0。**BLEND Y軸**: 線形 -1.0～+1.0（Y中央=0）
+  - ロックフリー LUT 統合：`envLut_`（AMP gain）/ `pitchLut_`（Hz）/ `distLut_`（drive01）/ `blendLut_`（-1～+1）の 4 系統ダブルバッファ。オーディオスレッドはノートオンで `noteTimeSamples` リセット → サンプル毎に pitchLut→`setFrequencyHz()` + distLut→`setDist()` + blendLut→`setBlend()` + ampLut→ゲイン乗算
+  - 各ノブは `xxxEnvData.setDefaultValue()` 経由で間接的に LUT を更新。エンベロープポイントがある間、対応ノブを無効化（ツールチップ表示）
 - **Pitch Envelope 実装**（完了）
   - `OomphOscillator`: `setNote(int)` → `triggerNote()` / `stopNote()` / `setFrequencyHz(float hz)` に変更。MIDIノート番号は使わず、ピッチは Pitch Envelope LUT から毎サンプル取得
   - `PluginProcessor`: `pitchLut_`（`EnvelopeLutManager`）追加、`pitchLut()` アクセサ公開。`handleMidiEvents` でノートオン→`triggerNote()`、ノートオフ→`stopNote()`
@@ -72,8 +73,8 @@ BabySquatchは3つのモジュールで構成されています：
 - **Oomph パラメータ設計**（完了）: 展開パネル 8 ノブ（PITCH/AMP/BLEND/Dist/H1〜H4）配置・ラベル設定済み。全ノブ DSP 接続完了
   - PITCH（oomphKnobs[0]）: 20〜20000 Hz 対数スケール、Pitch Envelope 制御時は無効化
   - AMP（oomphKnobs[1]）: 0〜200%、AMP Envelope 制御時は無効化
-  - BLEND（oomphKnobs[2]）: -100 ～ +100（-1.0〜+1.0）
-  - DIST（oomphKnobs[3]）: 0〜100%（drive 1.0〜10.0）、常時ソフトクリップ適用
+  - BLEND（oomphKnobs[2]）: -100 ～ +100（-1.0〜+1.0）。BLEND Envelope LUT から毎サンプル制御
+  - DIST（oomphKnobs[3]）: 0〜100%（drive 1.0〜10.0）。`tanh` 常時ソフトクリップ。DIST Envelope LUT から毎サンプル制御
   - H1〜H4（oomphKnobs[4-7]）: 0〜1.0、加算合成倍音ゲイン
   - 波形選択ボタン（Tri/SQR/SAW）は独立した TextButton パネル
 
@@ -122,19 +123,6 @@ BabySquatchは3つのモジュールで構成されています：
 
 ## TODO
 
-- **DIST / BLEND Envelope 実装**（完了）
-  - `EnvelopeData distEnvData` / `blendEnvData` を PluginEditor に追加
-  - `EnvelopeLutManager distLut_` / `blendLut_` を PluginProcessor に追加、`distLut()` / `blendLut()` アクセサ公開
-  - `EnvelopeCurveEditor` に DIST（オレンジ）/ BLEND（グリーン）タブを追加（4タブ構成）
-  - `renderOomph()` で distLut / blendLut を每サンプル読み出し、`setDist()` / `setBlend()` を呼び出し（LUT単一ツリー方式）
-  - DIST/BLEND ノブは `distEnvData.setDefaultValue()` + `bakeDistLut()` 経由で間接的にオシレータを制御
-  - DIST Y軸: 0.0（下）～1.0（上）線形、BLEND Y軸: -1.0（下）～0（中央）～+1.0（上）線形
-  - エンベロープポイントがある間、対応ノブを無効化（ツールチップ表示）
-
-- **Dist ノブ実装**（完了）
-  - `OomphOscillator::setDist(float drive01)` API 追加。ノブレンジ 0〜100%（内部 drive: 1.0〜10.0）
-  - `getNextSample()` 内で BLEND クロスフェード後に常時 `std::tanh()` を適用。DIST=0 でも軽いソフトクリップ（`drive=1.0`）がかかり、Kick Ninja DIST=0 相当の挙動を実現
-  - renderOomph() で distLut / blendLut を每サンプル読み出し、`setDist()` / `setBlend()` を呼び出し（LUT単一ツリー方式）
 
 - **CapsLock 中はキーボードフォーカスを常に鍵盤に固定**
   - 現状: 展開パネルを開くか鍵盤をクリックした場合のみ `KeyboardComponent` がフォーカスを持つ。ロータリーノブ操作後などはフォーカスが外れ、PCキーからのMIDI入力が効かなくなる
