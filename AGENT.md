@@ -122,12 +122,16 @@ BabySquatchは3つのモジュールで構成されています：
     - 根拠: H1〜H4 を1つずつ MAX にした場合は BabySquatch と同じ音。複数重ねて初めて差が出る（H1 のみ: -0.23dB peak / H1〜H4 全開: 9.96dB peak ≒ 線形加算と一致）
   - 実装方針（検討中）: `getNextSample()` の加算合成後に `std::tanh()` 等のソフトクリップを適用。Dist ノブで drive 量を制御
 
-- **KeyboardComponent FIXEDモードのキーボード入力問題** → **解決済み**（FIXEDモードごと削除）
-
 - **CapsLock 中はキーボードフォーカスを常に鍵盤に固定**
   - 現状: 展開パネルを開くか鍵盤をクリックした場合のみ `KeyboardComponent` がフォーカスを持つ。ロータリーノブ操作後などはフォーカスが外れ、PCキーからのMIDI入力が効かなくなる
   - 期待動作: CapsLockがONの間は、他のUI操作（ノブ・ボタン等）をしても常に `KeyboardComponent` がフォーカスを保持する
-  - 実装案:
+  - **実装前に確認すべきこと（検証項目）:**
+    1. **VST/AU でビルドして DAW（Logic/Ableton 等）に差し込み、ノブ操作後も PCキー演奏が継続できるか確認する**
+       - Standalone 固有の問題（OS レベルのウィンドウフォーカスリセット）であれば、VST/AU では `wantsKeyboardFocus = false`（Slider 等のデフォルト）が正しく機能し、MidiKeyboardComponent がフォーカスを保ち続けるはず
+       - Kick Ninja が CapsLock なしで動作しているのは VST/AU であることが主な理由と考えられる
+    2. 上記検証で VST/AU では問題なければ、**Standalone 専用の修正**として優先度を下げて検討する
+    3. VST/AU でも問題が再現する場合に限り、以下の実装案を採用する
+  - 実装案（Standalone 問題が確認された場合のみ）:
     1. `PluginEditor` の `focusOfChildComponentChanged()` または各コンポーネントの `mouseDown()` をオーバーライドし、CapsLock状態を `juce::ModifierKeys::getCapsLockState()` で確認
     2. CapsLockがONなら即座に `keyboard.grabKeyboardFocus()` を呼び直す
     3. または `KeyboardComponent` 側で `juce::ComponentPeer` レベルのフォーカス監視を行い、自律的に再取得する
