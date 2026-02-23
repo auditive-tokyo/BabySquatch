@@ -150,7 +150,28 @@ BabySquatchは3つのモジュールで構成されています：
   - `PluginEditor.h` に `ColouredSliderLAF oomphKnobLAF` メンバーを追加し、全 `oomphKnobs[i]` に `setLookAndFeel(&oomphKnobLAF)` を呼ぶだけで実装可能
   - LAF はスライダーのライフタイムより長く生きている必要あり（メンバー保持で解決）
 
-- **Click モジュール実装**（より高度な処理: 短いトランジェント/ノイズバースト生成等）
+- **Click モジュール実装**
+  Sasquatch v1の画面分析から、Clickセクションは Square と Saw をミックスした波形合成であることが判明。以下3方向性で実装を検討する。
+
+  **方向性1: Square + Saw Wavetable モーフィング（最優先・低コスト）**
+  - Sasquatch v1 相当のアプローチ。Square↔Saw の BLEND ノブ + 短い Decay エンベロープ（EnvelopeData 流用）で「カチッ」とした芯のある硬いアタックを生成
+  - 既存の `OomphOscillator` の band-limited wavetable（Square/Saw 実装済み）をそのまま流用可能
+  - 注意: 極短トランジェントでは band-limit のメリットはほぼないが、コード再利用で実装コスト最小
+  - 向いているサウンド: EDM/ハードスタイル/メタル、明確に「前に出る」タイトなクリック
+
+  **方向性2: White Noise + Resonance Filter（本命・中コスト）**
+  - Sasquatch v2 相当のアプローチ。ホワイトノイズを `juce::dsp::StateVariableTPTFilter`（SVF）でフィルタリングし、高 Q（レゾナンス）でビーター音を整形
+  - ノイズ生成は `juce::Random` で十分。JUCEの `dsp::` モジュールで主要部品が揃っているため実装コスト中程度
+  - パラメータ候補: Freq（フィルター中心周波数）、Focus（Q値/レゾナンス）、Decay
+  - 向いているサウンド: 生ドラム補強、ポップス/ロック、自然に馴染む空気感のあるアタック
+
+  **方向性3: サンプルロード機能（差別化・高コスト）**
+  - 任意の WAV ファイルをロードしてクリック音として使用
+  - 実装要素: `juce::AudioFormatManager` + `juce::AudioFormatReader` + ファイルピッカー UI + `getStateInformation`/`setStateInformation` へのパス保存
+  - ポータビリティ注意: サンプルパスの管理（絶対パス vs 埋め込みバイナリ）が課題
+  - 向いているサウンド: 制限なし。ユーザーが自分でビーター音を持ち込める
+
+  **推奨実装順序**: 方向性1（既存流用で即戦力）→ 方向性2（メイン機能）→ 方向性3（v2以降の差別化）
 
 - Click/Dry パネルの展開エリアに同様のエディタを配置
 - エンベロープの保存／復元（`getStateInformation` / `setStateInformation`）
