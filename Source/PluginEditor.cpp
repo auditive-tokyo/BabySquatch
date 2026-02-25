@@ -312,6 +312,7 @@ void BabySquatchAudioProcessorEditor::setupDistKnob() {
     const float drive01 = static_cast<float>(oomphKnobs[3].getValue()) / 100.0f;
     distEnvData.setDefaultValue(drive01);
     bakeDistLut();
+    envelopeCurveEditor.repaint();
   };
   // 初期 LUT ベイク（デフォルト値 0.0）
   distEnvData.setDefaultValue(0.0f);

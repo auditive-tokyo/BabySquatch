@@ -36,8 +36,10 @@ void EnvelopeCurveEditor::paint(juce::Graphics &g) {
 void EnvelopeCurveEditor::paintWaveform(juce::Graphics &g, float w, float h,
                                         float centreY) const {
   const auto numPixels = static_cast<int>(w);
-  const bool hasAmpPoints = ampEnvData.hasPoints();
+  const bool hasAmpPoints   = ampEnvData.hasPoints();
   const bool hasPitchPoints = pitchEnvData.hasPoints();
+  const bool hasBlendPoints = blendEnvData.hasPoints();
+  const bool hasDistPoints  = distEnvData.hasPoints();
 
   juce::Path fillPath;
   juce::Path waveLine;
@@ -55,17 +57,25 @@ void EnvelopeCurveEditor::paintWaveform(juce::Graphics &g, float w, float h,
     const auto x = static_cast<float>(i);
     const float timeMs = x * dtMs;
 
-    // Pitch: Hz
-    // を取得（エンベロープポイントがあればevaluate、なければdefaultValue）
+    // Pitch
     const float hz = hasPitchPoints ? pitchEnvData.evaluate(timeMs)
                                     : pitchEnvData.getValue();
-    // 位相増分 = Hz × (dtMs / 1000) × 2π
     if (i > 0)
       phase += hz * (dtMs / 1000.0f) * juce::MathConstants<float>::twoPi;
 
-    // 波形モーフィング: BLEND クロスフェード
-    const float sinVal = std::sin(phase);
-    const float waveVal = computePreviewWaveValue(sinVal, previewBlend, phase);
+    // BLEND: エンベロープポイントがあれば時間軸で評価、なければノブ値
+    const float blend = hasBlendPoints ? blendEnvData.evaluate(timeMs)
+                                       : previewBlend;
+
+    // 波形モーフィング
+    const float sinVal  = std::sin(phase);
+    float waveVal       = computePreviewWaveValue(sinVal, blend, phase);
+
+    // DIST: tanh ソフトクリップ（drive01=0〜1 → driveAmount=1〜10）
+    if (const float drive01 = hasDistPoints ? distEnvData.evaluate(timeMs)
+                                            : distEnvData.getValue();
+        drive01 > 0.001f)
+      waveVal = std::tanh(waveVal * (1.0f + drive01 * 9.0f));
 
     // AMP: 振幅
     const float amplitude =
