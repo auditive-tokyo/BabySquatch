@@ -37,10 +37,10 @@ void EnvelopeCurveEditor::paintWaveform(juce::Graphics &g, float w, float h,
                                         float centreY) const {
   const auto numPixels = static_cast<int>(w);
   // 2点以上のみエンベロープ制御とみなす。1点はノブ制御（フラット）。
-  const bool hasAmpPoints   = ampEnvData.isEnvelopeControlled();
+  const bool hasAmpPoints = ampEnvData.isEnvelopeControlled();
   const bool hasPitchPoints = pitchEnvData.isEnvelopeControlled();
   const bool hasBlendPoints = blendEnvData.isEnvelopeControlled();
-  const bool hasDistPoints  = distEnvData.isEnvelopeControlled();
+  const bool hasDistPoints = distEnvData.isEnvelopeControlled();
 
   juce::Path fillPath;
   juce::Path waveLine;
@@ -65,12 +65,12 @@ void EnvelopeCurveEditor::paintWaveform(juce::Graphics &g, float w, float h,
       phase += hz * (dtMs / 1000.0f) * juce::MathConstants<float>::twoPi;
 
     // Mix: エンベロープポイントがあれば時間軸で評価、なければノブ値
-    const float blend = hasBlendPoints ? blendEnvData.evaluate(timeMs)
-                                       : previewBlend;
+    const float blend =
+        hasBlendPoints ? blendEnvData.evaluate(timeMs) : previewBlend;
 
     // 波形モーフィング
-    const float sinVal  = std::sin(phase);
-    float waveVal       = computePreviewWaveValue(sinVal, blend, phase);
+    const float sinVal = std::sin(phase);
+    float waveVal = computePreviewWaveValue(sinVal, blend, phase);
 
     // Saturate: tanh ソフトクリップ（drive01=0〜1 → driveAmount=1〜10）
     if (const float drive01 = hasDistPoints ? distEnvData.evaluate(timeMs)
@@ -214,16 +214,16 @@ void EnvelopeCurveEditor::paintEnvelopeOverlay(juce::Graphics &g,
   using enum EditTarget;
   juce::Colour envColour;
   switch (editTarget) {
-  case amp:
+  case gain:
     envColour = UIConstants::Colours::subArc.brighter(0.4f);
     break;
-  case pitch:
+  case freq:
     envColour = juce::Colours::cyan;
     break;
-  case dist:
+  case saturate:
     envColour = juce::Colour(0xFFFF9500);
     break; // オレンジ
-  case blend:
+  case mix:
     envColour = juce::Colour(0xFF4CAF50);
     break; // グリーン
   }
@@ -364,28 +364,28 @@ float EnvelopeCurveEditor::plotHeight() const {
 
 float EnvelopeCurveEditor::editMinValue() const {
   using enum EditTarget;
-  if (editTarget == pitch)
+  if (editTarget == freq)
     return 20.0f;
-  if (editTarget == blend)
+  if (editTarget == mix)
     return -1.0f;
-  return 0.0f; // amp: 0〜2, dist: 0〜1
+  return 0.0f; // gain: 0〜2, saturate: 0〜1
 }
 
 float EnvelopeCurveEditor::editMaxValue() const {
   using enum EditTarget;
-  if (editTarget == pitch)
+  if (editTarget == freq)
     return 20000.0f;
-  if (editTarget == dist)
+  if (editTarget == saturate)
     return 1.0f;
-  if (editTarget == blend)
+  if (editTarget == mix)
     return 1.0f;
-  return 2.0f; // amp
+  return 2.0f; // gain
 }
 
 float EnvelopeCurveEditor::valueToY(float value) const {
   using enum EditTarget;
   const float h = plotHeight();
-  if (editTarget == pitch) {
+  if (editTarget == freq) {
     // 対数スケール: 20 Hz → 下端、20000 Hz → 上端
     const float lo = std::log(20.0f);
     const float hi = std::log(20000.0f);
@@ -393,11 +393,11 @@ float EnvelopeCurveEditor::valueToY(float value) const {
     const float norm = (logVal - lo) / (hi - lo);
     return h - norm * h;
   }
-  if (editTarget == dist) {
+  if (editTarget == saturate) {
     // Saturate: 0.0 → 下端、1.0 → 上端
     return h - value * h;
   }
-  if (editTarget == blend) {
+  if (editTarget == mix) {
     // Mix: -1.0 → 下端、0.0 → 中央、+1.0 → 上端
     return h - ((value + 1.0f) * 0.5f) * h;
   }
@@ -413,16 +413,16 @@ float EnvelopeCurveEditor::xToTimeMs(float x) const {
 float EnvelopeCurveEditor::yToValue(float y) const {
   using enum EditTarget;
   const float h = plotHeight();
-  if (editTarget == pitch) {
+  if (editTarget == freq) {
     const float lo = std::log(20.0f);
     const float hi = std::log(20000.0f);
     const float norm = (h > 0.0f) ? (1.0f - y / h) : 0.5f;
     return std::exp(std::lerp(lo, hi, norm));
   }
-  if (editTarget == dist) {
+  if (editTarget == saturate) {
     return (h > 0.0f) ? (1.0f - y / h) : 0.0f;
   }
-  if (editTarget == blend) {
+  if (editTarget == mix) {
     // norm 0..1 → value -1..+1
     return (h > 0.0f) ? (1.0f - y / h) * 2.0f - 1.0f : 0.0f;
   }
@@ -468,7 +468,7 @@ void EnvelopeCurveEditor::mouseDown(const juce::MouseEvent &e) {
   const auto pt = e.position;
 
   // タブクリック判定
-  for (const auto t : {amp, pitch, dist, blend}) {
+  for (const auto t : {gain, freq, saturate, mix}) {
     if (tabRect(t).contains(pt)) {
       setEditTarget(t);
       if (onEditTargetChanged)
@@ -504,16 +504,16 @@ void EnvelopeCurveEditor::setEditTarget(EditTarget target) {
   using enum EditTarget;
   editTarget = target;
   switch (target) {
-  case amp:
+  case gain:
     editEnvData = &ampEnvData;
     break;
-  case pitch:
+  case freq:
     editEnvData = &pitchEnvData;
     break;
-  case dist:
+  case saturate:
     editEnvData = &distEnvData;
     break;
-  case blend:
+  case mix:
     editEnvData = &blendEnvData;
     break;
   }
@@ -528,21 +528,21 @@ void EnvelopeCurveEditor::setOnEditTargetChanged(
 
 // ── タブ描画・ヒット領域 ──
 
-// 右から左に: Mix=0, Saturate=1, Freq=2, Gain=3
+// 右から左に: mix=0, saturate=1, freq=2, gain=3
 juce::Rectangle<float> EnvelopeCurveEditor::tabRect(EditTarget target) const {
   using enum EditTarget;
   int slot = 0;
   switch (target) {
-  case blend:
+  case mix:
     slot = 0;
     break;
-  case dist:
+  case saturate:
     slot = 1;
     break;
-  case pitch:
+  case freq:
     slot = 2;
     break;
-  case amp:
+  case gain:
     slot = 3;
     break;
   }
@@ -554,52 +554,53 @@ juce::Rectangle<float> EnvelopeCurveEditor::tabRect(EditTarget target) const {
 
 void EnvelopeCurveEditor::paintTabs(juce::Graphics &g) const {
   using enum EditTarget;
-  const auto ampR = tabRect(amp);
-  const auto pitchR = tabRect(pitch);
-  const auto distR = tabRect(dist);
-  const auto blendR = tabRect(blend);
+  const auto gainR = tabRect(gain);
+  const auto freqR = tabRect(freq);
+  const auto saturateR = tabRect(saturate);
+  const auto mixR = tabRect(mix);
 
   using enum EditTarget;
-  g.setFont(juce::Font(juce::FontOptions(UIConstants::fontSizeSmall, juce::Font::bold)));
+  g.setFont(juce::Font(
+      juce::FontOptions(UIConstants::fontSizeSmall, juce::Font::bold)));
 
   // Gain タブ
   {
-    const bool active = (editTarget == amp);
+    const bool active = (editTarget == gain);
     g.setColour(active ? UIConstants::Colours::subArc.withAlpha(0.8f)
                        : juce::Colours::white.withAlpha(0.12f));
-    g.fillRoundedRectangle(ampR, 3.0f);
+    g.fillRoundedRectangle(gainR, 3.0f);
     g.setColour(active ? juce::Colours::white
                        : juce::Colours::white.withAlpha(0.5f));
-    g.drawText("Gain", ampR, juce::Justification::centred, false);
+    g.drawText("Gain", gainR, juce::Justification::centred, false);
   }
   // Freq タブ
   {
-    const bool active = (editTarget == pitch);
+    const bool active = (editTarget == freq);
     g.setColour(active ? juce::Colours::cyan.withAlpha(0.8f)
                        : juce::Colours::white.withAlpha(0.12f));
-    g.fillRoundedRectangle(pitchR, 3.0f);
+    g.fillRoundedRectangle(freqR, 3.0f);
     g.setColour(active ? juce::Colours::white
                        : juce::Colours::white.withAlpha(0.5f));
-    g.drawText("Freq", pitchR, juce::Justification::centred, false);
+    g.drawText("Freq", freqR, juce::Justification::centred, false);
   }
   // Saturate タブ
   {
-    const bool active = (editTarget == dist);
+    const bool active = (editTarget == saturate);
     g.setColour(active ? juce::Colour(0xFFFF9500).withAlpha(0.8f)
                        : juce::Colours::white.withAlpha(0.12f));
-    g.fillRoundedRectangle(distR, 3.0f);
+    g.fillRoundedRectangle(saturateR, 3.0f);
     g.setColour(active ? juce::Colours::white
                        : juce::Colours::white.withAlpha(0.5f));
-    g.drawText("Saturate", distR, juce::Justification::centred, false);
+    g.drawText("Saturate", saturateR, juce::Justification::centred, false);
   }
   // Mix タブ
   {
-    const bool active = (editTarget == blend);
+    const bool active = (editTarget == mix);
     g.setColour(active ? juce::Colour(0xFF4CAF50).withAlpha(0.8f)
                        : juce::Colours::white.withAlpha(0.12f));
-    g.fillRoundedRectangle(blendR, 3.0f);
+    g.fillRoundedRectangle(mixR, 3.0f);
     g.setColour(active ? juce::Colours::white
                        : juce::Colours::white.withAlpha(0.5f));
-    g.drawText("Mix", blendR, juce::Justification::centred, false);
+    g.drawText("Mix", mixR, juce::Justification::centred, false);
   }
 }

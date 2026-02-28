@@ -153,17 +153,17 @@ void BabySquatchAudioProcessorEditor::setupEnvelopeCurveEditor() {
         using enum EnvelopeCurveEditor::EditTarget;
         const auto kLabel = UIConstants::Colours::labelText;
         subKnobLabels[0].setColour(juce::Label::textColourId,
-                                   target == pitch ? juce::Colours::cyan
-                                                   : kLabel);
-        subKnobLabels[1].setColour(juce::Label::textColourId,
-                                   target == amp ? UIConstants::Colours::subArc
-                                                 : kLabel);
-        subKnobLabels[3].setColour(juce::Label::textColourId,
-                                   target == dist ? juce::Colour(0xFFFF9500)
+                                   target == gain ? UIConstants::Colours::subArc
                                                   : kLabel);
+        subKnobLabels[1].setColour(juce::Label::textColourId,
+                                   target == freq ? juce::Colours::cyan
+                                                  : kLabel);
+        subKnobLabels[3].setColour(juce::Label::textColourId,
+                                   target == saturate ? juce::Colour(0xFFFF9500)
+                                                      : kLabel);
         subKnobLabels[2].setColour(juce::Label::textColourId,
-                                   target == blend ? juce::Colour(0xFF4CAF50)
-                                                   : kLabel);
+                                   target == mix ? juce::Colour(0xFF4CAF50)
+                                                 : kLabel);
       });
 }
 

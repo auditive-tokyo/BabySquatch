@@ -8,10 +8,10 @@
 
 class EnvelopeData;
 
-/// AMP / Pitch Envelope カーブエディタ
+/// Gain / Freq Envelope カーブエディタ
 ///
-/// 波形プレビュー: sin(位相累積(pitchHz)) × ampEnv(t) を描画
-/// オーバーレイ: 編集中のエンベロープ（AMP or Pitch）のカーブ＋制御点
+/// 波形プレビュー: sin(位相累積(freqHz)) × gainEnv(t) を描画
+/// オーバーレイ: 編集中のエンベロープ（Gain / Freq / Saturate / Mix）のカーブ＋制御点
 class EnvelopeCurveEditor : public juce::Component {
 public:
   EnvelopeCurveEditor(EnvelopeData &ampData, EnvelopeData &pitchData,
@@ -19,18 +19,18 @@ public:
 
   void paint(juce::Graphics &g) override;
 
-  /// 編集対象のエンベロープを切り替え（AMP / PITCH / DIST / BLEND）
-  enum class EditTarget { amp, pitch, dist, blend };
+  /// 編集対象のエンベロープを切り替え（Gain / Freq / Saturate / Mix）
+  enum class EditTarget { gain, freq, saturate, mix };
   void setEditTarget(EditTarget target);
   EditTarget getEditTarget() const { return editTarget; }
 
   /// 波形プレビュー用: 選択波形を設定（Sine/Tri/Square/Saw）
   void setWaveShape(WaveShape shape);
 
-  /// 波形プレビュー用: BLEND 値を設定（-1.0〜+1.0）
+  /// 波形プレビュー用: Mix 値を設定（-1.0〜+1.0）
   void setPreviewBlend(float blend);
 
-  /// 波形プレビュー用: H1〜H4 倍音ゲインを設定（harmonicNum: 1〜4）
+  /// 波形プレビュー用: Tone1〜Tone4 倍音ゲインを設定（harmonicNum: 1〜4）
   void setPreviewHarmonicGain(int harmonicNum, float gain);
 
   /// 表示するサイン波のサイクル数を設定
@@ -74,7 +74,7 @@ private:
   void paintTimeline(juce::Graphics &g, float w, float h, float totalH) const;
   void paintTabs(juce::Graphics &g) const;
 
-  /// タブ矩形（右上の AMP / PITCH / DIST / BLEND ボタン）
+  /// タブ矩形（右上の Gain / Freq / Saturate / Mix ボタン）
   juce::Rectangle<float> tabRect(EditTarget target) const;
   static constexpr float tabW = 38.0f;
   static constexpr float tabH = 18.0f;
@@ -89,19 +89,19 @@ private:
   /// 位相から波形サンプル値を返す（プレビュー用算術式）
   static float shapeOscValue(WaveShape shape, float phase);
 
-  /// BLEND + 波形選択に応じた1サンプルを返す（paintWaveform から委譲）
+  /// Mix + 波形選択に応じた1サンプルを返す（paintWaveform から委譲）
   float computePreviewWaveValue(float sinVal, float blend, float phase) const;
 
   EnvelopeData &ampEnvData;
   EnvelopeData &pitchEnvData;
   EnvelopeData &distEnvData;
   EnvelopeData &blendEnvData;
-  EnvelopeData *editEnvData; // 編集中のエンベロープ（amp / pitch / dist / blend）
-  EditTarget editTarget = EditTarget::amp;
+  EnvelopeData *editEnvData; // 編集中のエンベロープ（Gain / Freq / Saturate / Mix）
+  EditTarget editTarget = EditTarget::gain;
   float displayDurationMs = 300.0f;
   float displayCycles = 4.0f;
   WaveShape previewShape = WaveShape::Sine;
-  float previewBlend = 0.0f; // -1.0〜+1.0
+  float previewBlend = 0.0f; // Mix 値 -1.0〜+1.0
   std::array<float, 4> previewHarmonicGains = {0.0f, 0.0f, 0.0f, 0.0f};
   int dragPointIndex{-1};
   std::function<void()> onChange;
