@@ -194,15 +194,7 @@ void BabySquatchAudioProcessorEditor::resized() {
     keyboard.setBounds(
         expandArea.removeFromBottom(UIConstants::keyboardHeight));
 
-    // 2. 全チャンネル共通: パラメータノブ行のスペースを上部から確保
-    //    （SUB以外ではノブは非表示だが、波形エリアの高さを揃えるため常に確保）
-    {
-      auto knobRow = expandArea.removeFromTop(UIConstants::subKnobRowHeight);
-      if (activeChannel == sub)
-        layoutSubKnobsRow(knobRow);
-    }
-
-    // 3. 波形選択ボタン行（SUB のみ表示）
+    // 2. 波形選択ボタン行（SUB のみ表示）
     {
       auto btnRow =
           expandArea.removeFromTop(UIConstants::waveShapeButtonRowHeight);
@@ -210,7 +202,7 @@ void BabySquatchAudioProcessorEditor::resized() {
         layoutWaveShapeButtonRow(btnRow);
     }
 
-    // 4. エンベロープカーブエディタ → 残り全域
+    // 3. エンベロープカーブエディタ → 残り全域
     envelopeCurveEditor.setBounds(expandArea);
     area.removeFromBottom(UIConstants::panelGap);
   }
@@ -225,6 +217,21 @@ void BabySquatchAudioProcessorEditor::resized() {
   area.removeFromLeft(UIConstants::panelGap);
 
   directPanel.setBounds(area);
+
+  // SUB ノブをパネル内コンテンツエリアに常時配置
+  {
+    const auto b = subPanel.getBounds();
+    constexpr int faderHandleWidth = 12;
+    constexpr int contentLeft = UIConstants::panelPadding + UIConstants::meterWidth + faderHandleWidth;
+    constexpr int contentTop  = UIConstants::panelPadding + UIConstants::labelHeight;
+    constexpr int contentBot  = UIConstants::panelPadding + UIConstants::expandButtonHeight;
+    const juce::Rectangle contentArea{
+        b.getX() + contentLeft,
+        b.getY() + contentTop,
+        b.getWidth() - contentLeft - UIConstants::panelPadding,
+        b.getHeight() - contentTop - contentBot};
+    layoutSubKnobsRow(contentArea);
+  }
 }
 
 void BabySquatchAudioProcessorEditor::requestExpand(ExpandChannel ch) {
@@ -268,10 +275,6 @@ void BabySquatchAudioProcessorEditor::updateEnvelopeEditorVisibility() {
   envelopeCurveEditor.setVisible(isOpen);
 
   const bool subOpen = (activeChannel == sub);
-  for (size_t i = 0; i < 8; ++i) {
-    subKnobs[i].setVisible(subOpen);
-    subKnobLabels[i].setVisible(subOpen);
-  }
   for (size_t i = 0; i < 3; ++i)
     waveShapeButtons[i].setVisible(subOpen);
 }

@@ -1,6 +1,7 @@
 // SubParamKnobs.cpp
-// BabySquatchAudioProcessorEditor の SUB チャンネル専用ノブ・ボタン設定メソッド群。
-// Click / Direct の実装時は同様に ClickParamKnobs.cpp / DirectParamKnobs.cpp を作成する。
+// BabySquatchAudioProcessorEditor の SUB
+// チャンネル専用ノブ・ボタン設定メソッド群。 Click / Direct の実装時は同様に
+// ClickParamKnobs.cpp / DirectParamKnobs.cpp を作成する。
 
 #include "PluginEditor.h"
 #include "PluginProcessor.h"
@@ -63,14 +64,14 @@ void BabySquatchAudioProcessorEditor::setupSubKnobsRow() {
     knob.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
     knob.setRange(0.0, 1.0);
     knob.setLookAndFeel(&subKnobLAF);
-    addChildComponent(knob);
+    addAndMakeVisible(knob);
 
     auto &label = subKnobLabels[i];
     label.setText(kLabels[i], juce::dontSendNotification);
     label.setFont(juce::Font(juce::FontOptions(10.0f)));
     label.setJustificationType(juce::Justification::centred);
     label.setColour(juce::Label::textColourId, UIConstants::Colours::labelText);
-    addChildComponent(label);
+    addAndMakeVisible(label);
   }
 }
 
@@ -88,7 +89,7 @@ void BabySquatchAudioProcessorEditor::deselectOtherWaveShapeButtons(
 
 void BabySquatchAudioProcessorEditor::setupWaveShapeButtons() {
   static constexpr std::array<const char *, 3> kWaveLabels = {"Tri", "SQR",
-                                                               "SAW"};
+                                                              "SAW"};
   static constexpr std::array<WaveShape, 3> kShapes = {
       WaveShape::Tri, WaveShape::Square, WaveShape::Saw};
   for (size_t i = 0; i < 3; ++i) {
@@ -168,8 +169,7 @@ void BabySquatchAudioProcessorEditor::setupBlendKnob() {
   subKnobs[2].setValue(0.0, juce::dontSendNotification);
   subKnobs[2].setDoubleClickReturnValue(true, 0.0);
   subKnobs[2].onValueChange = [this] {
-    const float blendNorm =
-        static_cast<float>(subKnobs[2].getValue()) / 100.0f;
+    const float blendNorm = static_cast<float>(subKnobs[2].getValue()) / 100.0f;
     blendEnvData.setDefaultValue(blendNorm);
     bakeBlendLut();
     envelopeCurveEditor.setPreviewBlend(blendNorm);
@@ -217,30 +217,36 @@ void BabySquatchAudioProcessorEditor::setupHarmonicKnobs() {
 // レイアウトヘルパー
 // ────────────────────────────────────────────────────
 void BabySquatchAudioProcessorEditor::layoutSubKnobsRow(
-    juce::Rectangle<int> knobRow) {
-  const int slotW = knobRow.getWidth() / 8;
-  for (int i = 0; i < 8; ++i) {
-    const auto idx = static_cast<size_t>(i);
-    auto slot = knobRow.removeFromLeft(slotW);
-    subKnobLabels[idx].setBounds(slot.removeFromBottom(18));
-    subKnobs[idx].setBounds(slot);
+    juce::Rectangle<int> area) {
+  // 上段ノブ: PITCH, AMP, BLEND, DIST
+  // 下段ノブ: H1,   H2,  H3,   H4
+  const int slotW = area.getWidth() / 4;
+  const int rowH = area.getHeight() / 2;
+  for (int row = 0; row < 2; ++row) {
+    for (int col = 0; col < 4; ++col) {
+      const auto idx = static_cast<size_t>(row * 4 + col);
+      juce::Rectangle slot(area.getX() + col * slotW, area.getY() + row * rowH,
+                           slotW, rowH);
+      subKnobLabels[idx].setBounds(slot.removeFromBottom(16));
+      subKnobs[idx].setBounds(slot);
+    }
   }
 }
 
 void BabySquatchAudioProcessorEditor::layoutWaveShapeButtonRow(
     juce::Rectangle<int> btnRow) {
-  constexpr int btnW     = 64;
-  constexpr int btnGap   = 6;
-  constexpr int rowH     = 22;
-  constexpr int prefixW  = 44;
-  constexpr int editorW  = 34;
-  constexpr int suffixW  = 18;
+  constexpr int btnW = 64;
+  constexpr int btnGap = 6;
+  constexpr int rowH = 22;
+  constexpr int prefixW = 44;
+  constexpr int editorW = 34;
+  constexpr int suffixW = 18;
   constexpr int innerGap = 2;
   constexpr int lengthTotalW = prefixW + editorW + suffixW + innerGap * 2;
 
   // Length ボックスを左端に配置
-  auto lengthArea =
-      btnRow.removeFromLeft(lengthTotalW).withSizeKeepingCentre(lengthTotalW, rowH);
+  auto lengthArea = btnRow.removeFromLeft(lengthTotalW)
+                        .withSizeKeepingCentre(lengthTotalW, rowH);
   int lx = lengthArea.getX();
   const int ly = lengthArea.getY();
   lengthPrefixLabel.setBounds(lx, ly, prefixW, rowH);

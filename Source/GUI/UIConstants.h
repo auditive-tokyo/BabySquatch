@@ -21,10 +21,10 @@ constexpr int valueHeight = 20;
 
 // ── 展開パネル ──
 constexpr int expandButtonHeight = 20;
-constexpr int subKnobRowHeight = 88;
+constexpr int subKnobRowHeight = 88; // パネル内配置に変更済み（expand area では未使用）
 constexpr int waveShapeButtonRowHeight = 28;
 constexpr int expandedAreaHeight =
-    476; // 360 + subKnobRowHeight(88) + waveShapeButtonRowHeight(28)
+    388; // 360 + waveShapeButtonRowHeight(28)（ノブ行はパネル内に移動）
 constexpr int waveformDisplayHeight = 80;
 
 // ── レベルメーター ──
