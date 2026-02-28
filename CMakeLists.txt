@@ -34,8 +34,6 @@ target_sources(BabySquatch
         Source/PluginEditor.cpp
         Source/GUI/SubParams.cpp
         Source/GUI/ClickParams.cpp
-        Source/GUI/ClickXYPad.h
-        Source/GUI/ClickXYPad.cpp
         Source/GUI/UIConstants.h
         Source/GUI/CustomSliderLAF.h
         Source/GUI/PanelComponent.h

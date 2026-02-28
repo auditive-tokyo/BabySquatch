@@ -3,20 +3,20 @@
 #include "../PluginEditor.h"
 
 namespace {
-void styleFilterBox(juce::TextEditor &box, const juce::String &defaultVal,
-                    const juce::Font &font) {
-  box.setFont(font);
-  box.setText(defaultVal, juce::dontSendNotification);
-  box.setJustification(juce::Justification::centred);
-  box.setInputRestrictions(10, "0123456789.");
-  box.setColour(juce::TextEditor::backgroundColourId,
-                UIConstants::Colours::waveformBg);
-  box.setColour(juce::TextEditor::textColourId,
-                juce::Colours::white.withAlpha(0.90f));
-  box.setColour(juce::TextEditor::outlineColourId,
-                UIConstants::Colours::clickArc.withAlpha(0.30f));
-  box.setColour(juce::TextEditor::focusedOutlineColourId,
-                UIConstants::Colours::clickArc.withAlpha(0.80f));
+void styleFilterSlider(juce::Slider &s) {
+  s.setSliderStyle(juce::Slider::LinearHorizontal);
+  s.setTextBoxStyle(juce::Slider::TextBoxRight, false, 54, 16);
+  s.setColour(juce::Slider::backgroundColourId,
+              UIConstants::Colours::waveformBg);
+  s.setColour(juce::Slider::trackColourId,
+              UIConstants::Colours::clickArc.withAlpha(0.45f));
+  s.setColour(juce::Slider::thumbColourId, UIConstants::Colours::clickArc);
+  s.setColour(juce::Slider::textBoxTextColourId,
+              juce::Colours::white.withAlpha(0.90f));
+  s.setColour(juce::Slider::textBoxBackgroundColourId,
+              UIConstants::Colours::waveformBg);
+  s.setColour(juce::Slider::textBoxOutlineColourId,
+              juce::Colours::transparentBlack);
 }
 
 void styleFilterLabel(juce::Label &label, const juce::String &text,
@@ -40,53 +40,150 @@ void BabySquatchAudioProcessorEditor::setupClickParams() {
   addAndMakeVisible(clickUI.modeLabel);
 
   // ── Mode combo ──
-  clickUI.modeCombo.addItem("Tone",   static_cast<int>(ClickUI::Mode::Tone));
-  clickUI.modeCombo.addItem("Noise",  static_cast<int>(ClickUI::Mode::Noise));
+  clickUI.modeCombo.addItem("Tone", static_cast<int>(ClickUI::Mode::Tone));
+  clickUI.modeCombo.addItem("Noise", static_cast<int>(ClickUI::Mode::Noise));
   clickUI.modeCombo.addItem("Sample", static_cast<int>(ClickUI::Mode::Sample));
   clickUI.modeCombo.setSelectedId(static_cast<int>(ClickUI::Mode::Tone),
                                   juce::dontSendNotification);
   clickUI.modeCombo.setLookAndFeel(&darkComboLAF);
   clickUI.modeCombo.onChange = [this] {
-    const bool isTone = (clickUI.modeCombo.getSelectedId() ==
-                         static_cast<int>(ClickUI::Mode::Tone));
-    clickUI.xyPad.setVisible(isTone);
+    processorRef.clickEngine().setMode(clickUI.modeCombo.getSelectedId());
   };
+  processorRef.clickEngine().setMode(static_cast<int>(ClickUI::Mode::Tone));
   addAndMakeVisible(clickUI.modeCombo);
 
-  // ── XY Pad ──
-  // blend: 0=SQR, 1=SAW → clickToneOsc の波形選択
-  // decay: 0=LONG, 1=SHORT → 指数減衰の時定数 (200ms〜5ms)
-  clickUI.xyPad.setOnChanged([this](float blend, float decay) {
-    processorRef.clickEngine().setBlend(blend);
-    const float decayMs = juce::jmap(decay, 0.0f, 1.0f, 200.0f, 5.0f);
-    processorRef.clickEngine().setDecayMs(decayMs);
-  });
-  addAndMakeVisible(clickUI.xyPad);
-
-  // 起動時の初期値を DSP へ反映（コールバックは dragg 時のみ呼ばれるため）
-  processorRef.clickEngine().setBlend(clickUI.xyPad.getBlend());
-  processorRef.clickEngine().setDecayMs(
-      juce::jmap(clickUI.xyPad.getDecay(), 0.0f, 1.0f, 200.0f, 5.0f));
-
-  // ── Filter params (FREQ1 / FOCUS / FREQ2 / FOCUS) ──
-  const auto tinyFont = juce::Font(juce::FontOptions(UIConstants::fontSizeSmall));
-  styleFilterLabel(clickUI.freq1Label,  "FREQ1:", tinyFont);
-  styleFilterLabel(clickUI.focus1Label, "FOCUS:", tinyFont);
-  styleFilterLabel(clickUI.freq2Label,  "FREQ2:", tinyFont);
-  styleFilterLabel(clickUI.focus2Label, "FOCUS:", tinyFont);
+  // ── Filter param labels ──
+  const auto tinyFont =
+      juce::Font(juce::FontOptions(UIConstants::fontSizeSmall));
+  styleFilterLabel(clickUI.decayLabel, "Decay:", tinyFont);
+  styleFilterLabel(clickUI.freq1Label, "Freq:", tinyFont);
+  styleFilterLabel(clickUI.focus1Label, "Focus:", tinyFont);
+  styleFilterLabel(clickUI.freq2Label, "Air:", tinyFont);
+  styleFilterLabel(clickUI.focus2Label, "Focus:", tinyFont);
+  styleFilterLabel(clickUI.hpfLabel, "HPF:", tinyFont);
+  styleFilterLabel(clickUI.hpfQLabel, "Reso:", tinyFont);
+  styleFilterLabel(clickUI.lpfLabel, "LPF:", tinyFont);
+  styleFilterLabel(clickUI.lpfQLabel, "Reso:", tinyFont);
+  addAndMakeVisible(clickUI.decayLabel);
   addAndMakeVisible(clickUI.freq1Label);
   addAndMakeVisible(clickUI.focus1Label);
   addAndMakeVisible(clickUI.freq2Label);
   addAndMakeVisible(clickUI.focus2Label);
+  addAndMakeVisible(clickUI.hpfLabel);
+  addAndMakeVisible(clickUI.hpfQLabel);
+  addAndMakeVisible(clickUI.lpfLabel);
+  addAndMakeVisible(clickUI.lpfQLabel);
 
-  styleFilterBox(clickUI.freq1Box,  "5000",  tinyFont);
-  styleFilterBox(clickUI.focus1Box, "0.71",  tinyFont);
-  styleFilterBox(clickUI.freq2Box,  "10000", tinyFont);
-  styleFilterBox(clickUI.focus2Box, "0",     tinyFont);
-  addAndMakeVisible(clickUI.freq1Box);
-  addAndMakeVisible(clickUI.focus1Box);
-  addAndMakeVisible(clickUI.freq2Box);
-  addAndMakeVisible(clickUI.focus2Box);
+  // ── Sliders ──
+  // Decay  1–2000 ms
+  styleFilterSlider(clickUI.decaySlider);
+  clickUI.decaySlider.setRange(1.0, 2000.0, 1.0);
+  clickUI.decaySlider.setTextValueSuffix(" ms");
+  clickUI.decaySlider.setValue(50.0, juce::dontSendNotification);
+  clickUI.decaySlider.onValueChange = [this] {
+    processorRef.clickEngine().setDecayMs(
+        static_cast<float>(clickUI.decaySlider.getValue()));
+  };
+  addAndMakeVisible(clickUI.decaySlider);
+
+  // Note (BPF1 freq)  20–20000 Hz  log
+  styleFilterSlider(clickUI.freq1Slider);
+  clickUI.freq1Slider.setRange(20.0, 20000.0, 1.0);
+  clickUI.freq1Slider.setSkewFactorFromMidPoint(1000.0);
+  clickUI.freq1Slider.setTextValueSuffix(" Hz");
+  clickUI.freq1Slider.setValue(5000.0, juce::dontSendNotification);
+  clickUI.freq1Slider.onValueChange = [this] {
+    processorRef.clickEngine().setFreq1(
+        static_cast<float>(clickUI.freq1Slider.getValue()));
+  };
+  addAndMakeVisible(clickUI.freq1Slider);
+
+  // Focus (BPF1 Q)  0–12
+  styleFilterSlider(clickUI.focus1Slider);
+  clickUI.focus1Slider.setRange(0.0, 12.0, 0.01);
+  clickUI.focus1Slider.setValue(0.71, juce::dontSendNotification);
+  clickUI.focus1Slider.onValueChange = [this] {
+    processorRef.clickEngine().setFocus1(
+        static_cast<float>(clickUI.focus1Slider.getValue()));
+  };
+  addAndMakeVisible(clickUI.focus1Slider);
+
+  // Air (BPF2 freq)  20–20000 Hz  log
+  styleFilterSlider(clickUI.freq2Slider);
+  clickUI.freq2Slider.setRange(20.0, 20000.0, 1.0);
+  clickUI.freq2Slider.setSkewFactorFromMidPoint(1000.0);
+  clickUI.freq2Slider.setTextValueSuffix(" Hz");
+  clickUI.freq2Slider.setValue(10000.0, juce::dontSendNotification);
+  clickUI.freq2Slider.onValueChange = [this] {
+    processorRef.clickEngine().setFreq2(
+        static_cast<float>(clickUI.freq2Slider.getValue()));
+  };
+  addAndMakeVisible(clickUI.freq2Slider);
+
+  // Focus (BPF2 Q)  0–12
+  styleFilterSlider(clickUI.focus2Slider);
+  clickUI.focus2Slider.setRange(0.0, 12.0, 0.01);
+  clickUI.focus2Slider.setValue(0.0, juce::dontSendNotification);
+  clickUI.focus2Slider.onValueChange = [this] {
+    processorRef.clickEngine().setFocus2(
+        static_cast<float>(clickUI.focus2Slider.getValue()));
+  };
+  addAndMakeVisible(clickUI.focus2Slider);
+
+  // HPF freq  20–20000 Hz  log
+  styleFilterSlider(clickUI.hpfSlider);
+  clickUI.hpfSlider.setRange(20.0, 20000.0, 1.0);
+  clickUI.hpfSlider.setSkewFactorFromMidPoint(1000.0);
+  clickUI.hpfSlider.setTextValueSuffix(" Hz");
+  clickUI.hpfSlider.setValue(200.0, juce::dontSendNotification);
+  clickUI.hpfSlider.onValueChange = [this] {
+    processorRef.clickEngine().setHpfFreq(
+        static_cast<float>(clickUI.hpfSlider.getValue()));
+  };
+  addAndMakeVisible(clickUI.hpfSlider);
+
+  // HPF Reso  0–12
+  styleFilterSlider(clickUI.hpfQSlider);
+  clickUI.hpfQSlider.setRange(0.0, 12.0, 0.01);
+  clickUI.hpfQSlider.setValue(0.0, juce::dontSendNotification);
+  clickUI.hpfQSlider.onValueChange = [this] {
+    processorRef.clickEngine().setHpfQ(
+        static_cast<float>(clickUI.hpfQSlider.getValue()));
+  };
+  addAndMakeVisible(clickUI.hpfQSlider);
+
+  // LPF freq  20–20000 Hz  log
+  styleFilterSlider(clickUI.lpfSlider);
+  clickUI.lpfSlider.setRange(20.0, 20000.0, 1.0);
+  clickUI.lpfSlider.setSkewFactorFromMidPoint(1000.0);
+  clickUI.lpfSlider.setTextValueSuffix(" Hz");
+  clickUI.lpfSlider.setValue(8000.0, juce::dontSendNotification);
+  clickUI.lpfSlider.onValueChange = [this] {
+    processorRef.clickEngine().setLpfFreq(
+        static_cast<float>(clickUI.lpfSlider.getValue()));
+  };
+  addAndMakeVisible(clickUI.lpfSlider);
+
+  // LPF Reso  0–12
+  styleFilterSlider(clickUI.lpfQSlider);
+  clickUI.lpfQSlider.setRange(0.0, 12.0, 0.01);
+  clickUI.lpfQSlider.setValue(0.0, juce::dontSendNotification);
+  clickUI.lpfQSlider.onValueChange = [this] {
+    processorRef.clickEngine().setLpfQ(
+        static_cast<float>(clickUI.lpfQSlider.getValue()));
+  };
+  addAndMakeVisible(clickUI.lpfQSlider);
+
+  // 起動時デフォルト値を DSP へ反映
+  processorRef.clickEngine().setDecayMs(50.0f);
+  processorRef.clickEngine().setFreq1(5000.0f);
+  processorRef.clickEngine().setFocus1(0.71f);
+  processorRef.clickEngine().setFreq2(10000.0f);
+  processorRef.clickEngine().setFocus2(0.0f);
+  processorRef.clickEngine().setHpfFreq(200.0f);
+  processorRef.clickEngine().setHpfQ(0.0f);
+  processorRef.clickEngine().setLpfFreq(8000.0f);
+  processorRef.clickEngine().setLpfQ(0.0f);
 }
 
 void BabySquatchAudioProcessorEditor::layoutClickParams(
@@ -98,27 +195,28 @@ void BabySquatchAudioProcessorEditor::layoutClickParams(
   clickUI.modeLabel.setBounds(topRow.removeFromLeft(modeLabelW));
   clickUI.modeCombo.setBounds(topRow);
 
-  // 残りエリア: [XYPad] [4px] [Filter params]
-  constexpr int filterPanelW = 84; // label(36) + gap(2) + box(46)
+  // 残りエリア: 全幅をフィルターパネルとして使用（9 行）
   constexpr int rowGap = 3;
   constexpr int labelW = 36;
+  auto &filterPanel = area;
 
-  auto filterPanel = area.removeFromRight(filterPanelW);
-  area.removeFromRight(4); // XYPad ↔ filterPanel 間のギャップ
-  clickUI.xyPad.setBounds(area);
-
-  // filterPanel を 4 行分割
-  const int rowH = (filterPanel.getHeight() - rowGap * 3) / 4;
-  const std::array<std::pair<juce::Label *, juce::TextEditor *>, 4> rows = {{
-      {&clickUI.freq1Label,  &clickUI.freq1Box},
-      {&clickUI.focus1Label, &clickUI.focus1Box},
-      {&clickUI.freq2Label,  &clickUI.freq2Box},
-      {&clickUI.focus2Label, &clickUI.focus2Box},
+  constexpr int numRows = 9;
+  const int rowH = (filterPanel.getHeight() - rowGap * (numRows - 1)) / numRows;
+  const std::array<std::pair<juce::Label *, juce::Slider *>, numRows> rows = {{
+      {&clickUI.decayLabel, &clickUI.decaySlider},
+      {&clickUI.freq1Label, &clickUI.freq1Slider},
+      {&clickUI.focus1Label, &clickUI.focus1Slider},
+      {&clickUI.freq2Label, &clickUI.freq2Slider},
+      {&clickUI.focus2Label, &clickUI.focus2Slider},
+      {&clickUI.hpfLabel, &clickUI.hpfSlider},
+      {&clickUI.hpfQLabel, &clickUI.hpfQSlider},
+      {&clickUI.lpfLabel, &clickUI.lpfSlider},
+      {&clickUI.lpfQLabel, &clickUI.lpfQSlider},
   }};
-  for (auto [label, box] : rows) {
+  for (auto [label, slider] : rows) {
     auto row = filterPanel.removeFromTop(rowH);
     filterPanel.removeFromTop(rowGap);
     label->setBounds(row.removeFromLeft(labelW));
-    box->setBounds(row);
+    slider->setBounds(row);
   }
 }

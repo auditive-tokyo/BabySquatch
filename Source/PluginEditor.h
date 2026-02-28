@@ -1,7 +1,6 @@
 #pragma once
 
 #include "DSP/EnvelopeData.h"
-#include "GUI/ClickXYPad.h"
 #include "GUI/CustomSliderLAF.h"
 #include "GUI/EnvelopeCurveEditor.h"
 #include "GUI/KeyboardComponent.h"
@@ -105,16 +104,25 @@ private:
     enum class Mode { Tone = 1, Noise, Sample };
     juce::Label    modeLabel;
     juce::ComboBox modeCombo;
-    ClickXYPad     xyPad;
-    // ── Filter params (右サイドパネル) ──
-    juce::Label      freq1Label;
-    juce::Label      focus1Label;
-    juce::Label      freq2Label;
-    juce::Label      focus2Label;
-    juce::TextEditor freq1Box;
-    juce::TextEditor focus1Box;
-    juce::TextEditor freq2Box;
-    juce::TextEditor focus2Box;
+    // ── Decay + Filter params ──
+    juce::Label  decayLabel;
+    juce::Slider decaySlider;
+    juce::Label  freq1Label;
+    juce::Slider freq1Slider;
+    juce::Label  focus1Label;
+    juce::Slider focus1Slider;
+    juce::Label  freq2Label;
+    juce::Slider freq2Slider;
+    juce::Label  focus2Label;
+    juce::Slider focus2Slider;
+    juce::Label  hpfLabel;
+    juce::Slider hpfSlider;
+    juce::Label  hpfQLabel;
+    juce::Slider hpfQSlider;
+    juce::Label  lpfLabel;
+    juce::Slider lpfSlider;
+    juce::Label  lpfQLabel;
+    juce::Slider lpfQSlider;
   };
   ClickUI clickUI;
 
