@@ -102,7 +102,10 @@ private:
 
   // ── CLICK展開パネル ──
   struct ClickUI {
-    ClickXYPad xyPad;
+    enum class Mode { Tone = 1, Noise, Sample };
+    juce::Label    modeLabel;
+    juce::ComboBox modeCombo;
+    ClickXYPad     xyPad;
   };
   ClickUI clickUI;
 

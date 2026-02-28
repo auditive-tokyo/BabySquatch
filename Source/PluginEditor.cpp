@@ -213,6 +213,7 @@ BabySquatchAudioProcessorEditor::BabySquatchAudioProcessorEditor(
 
 BabySquatchAudioProcessorEditor::~BabySquatchAudioProcessorEditor() {
   subWave.combo.setLookAndFeel(nullptr);
+  clickUI.modeCombo.setLookAndFeel(nullptr);
 }
 
 void BabySquatchAudioProcessorEditor::paint(juce::Graphics &g) {
