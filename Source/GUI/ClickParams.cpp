@@ -2,6 +2,32 @@
 // Click panel UI setup / layout
 #include "../PluginEditor.h"
 
+namespace {
+void styleFilterBox(juce::TextEditor &box, const juce::String &defaultVal,
+                    const juce::Font &font) {
+  box.setFont(font);
+  box.setText(defaultVal, juce::dontSendNotification);
+  box.setJustification(juce::Justification::centred);
+  box.setInputRestrictions(10, "0123456789.");
+  box.setColour(juce::TextEditor::backgroundColourId,
+                UIConstants::Colours::waveformBg);
+  box.setColour(juce::TextEditor::textColourId,
+                juce::Colours::white.withAlpha(0.90f));
+  box.setColour(juce::TextEditor::outlineColourId,
+                UIConstants::Colours::clickArc.withAlpha(0.30f));
+  box.setColour(juce::TextEditor::focusedOutlineColourId,
+                UIConstants::Colours::clickArc.withAlpha(0.80f));
+}
+
+void styleFilterLabel(juce::Label &label, const juce::String &text,
+                      const juce::Font &font) {
+  label.setText(text, juce::dontSendNotification);
+  label.setFont(font);
+  label.setColour(juce::Label::textColourId, UIConstants::Colours::labelText);
+  label.setJustificationType(juce::Justification::centredRight);
+}
+} // namespace
+
 void BabySquatchAudioProcessorEditor::setupClickParams() {
   // ── Mode label ──
   const auto smallFont =
@@ -41,6 +67,26 @@ void BabySquatchAudioProcessorEditor::setupClickParams() {
   processorRef.clickEngine().setBlend(clickUI.xyPad.getBlend());
   processorRef.clickEngine().setDecayMs(
       juce::jmap(clickUI.xyPad.getDecay(), 0.0f, 1.0f, 200.0f, 5.0f));
+
+  // ── Filter params (FREQ1 / FOCUS / FREQ2 / FOCUS) ──
+  const auto tinyFont = juce::Font(juce::FontOptions(UIConstants::fontSizeSmall));
+  styleFilterLabel(clickUI.freq1Label,  "FREQ1:", tinyFont);
+  styleFilterLabel(clickUI.focus1Label, "FOCUS:", tinyFont);
+  styleFilterLabel(clickUI.freq2Label,  "FREQ2:", tinyFont);
+  styleFilterLabel(clickUI.focus2Label, "FOCUS:", tinyFont);
+  addAndMakeVisible(clickUI.freq1Label);
+  addAndMakeVisible(clickUI.focus1Label);
+  addAndMakeVisible(clickUI.freq2Label);
+  addAndMakeVisible(clickUI.focus2Label);
+
+  styleFilterBox(clickUI.freq1Box,  "5000",  tinyFont);
+  styleFilterBox(clickUI.focus1Box, "0.71",  tinyFont);
+  styleFilterBox(clickUI.freq2Box,  "10000", tinyFont);
+  styleFilterBox(clickUI.focus2Box, "0",     tinyFont);
+  addAndMakeVisible(clickUI.freq1Box);
+  addAndMakeVisible(clickUI.focus1Box);
+  addAndMakeVisible(clickUI.freq2Box);
+  addAndMakeVisible(clickUI.focus2Box);
 }
 
 void BabySquatchAudioProcessorEditor::layoutClickParams(
@@ -52,6 +98,27 @@ void BabySquatchAudioProcessorEditor::layoutClickParams(
   clickUI.modeLabel.setBounds(topRow.removeFromLeft(modeLabelW));
   clickUI.modeCombo.setBounds(topRow);
 
-  // 残りエリア: XYPad（Tone モード時のみ表示）
+  // 残りエリア: [XYPad] [4px] [Filter params]
+  constexpr int filterPanelW = 84; // label(36) + gap(2) + box(46)
+  constexpr int rowGap = 3;
+  constexpr int labelW = 36;
+
+  auto filterPanel = area.removeFromRight(filterPanelW);
+  area.removeFromRight(4); // XYPad ↔ filterPanel 間のギャップ
   clickUI.xyPad.setBounds(area);
+
+  // filterPanel を 4 行分割
+  const int rowH = (filterPanel.getHeight() - rowGap * 3) / 4;
+  const std::array<std::pair<juce::Label *, juce::TextEditor *>, 4> rows = {{
+      {&clickUI.freq1Label,  &clickUI.freq1Box},
+      {&clickUI.focus1Label, &clickUI.focus1Box},
+      {&clickUI.freq2Label,  &clickUI.freq2Box},
+      {&clickUI.focus2Label, &clickUI.focus2Box},
+  }};
+  for (auto [label, box] : rows) {
+    auto row = filterPanel.removeFromTop(rowH);
+    filterPanel.removeFromTop(rowGap);
+    label->setBounds(row.removeFromLeft(labelW));
+    box->setBounds(row);
+  }
 }

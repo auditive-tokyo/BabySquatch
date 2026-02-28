@@ -106,6 +106,15 @@ private:
     juce::Label    modeLabel;
     juce::ComboBox modeCombo;
     ClickXYPad     xyPad;
+    // ── Filter params (右サイドパネル) ──
+    juce::Label      freq1Label;
+    juce::Label      focus1Label;
+    juce::Label      freq2Label;
+    juce::Label      focus2Label;
+    juce::TextEditor freq1Box;
+    juce::TextEditor focus1Box;
+    juce::TextEditor freq2Box;
+    juce::TextEditor focus2Box;
   };
   ClickUI clickUI;
 
