@@ -82,10 +82,12 @@ void BabySquatchAudioProcessorEditor::setupSubKnobsRow() {
 // 波形選択コンボボックス（Tri / SQR / SAW）
 // ────────────────────────────────────────────────────
 void BabySquatchAudioProcessorEditor::setupWaveShapeCombo() {
-  const auto smallFont = juce::Font(juce::FontOptions(UIConstants::fontSizeMedium));
+  const auto smallFont =
+      juce::Font(juce::FontOptions(UIConstants::fontSizeMedium));
   waveLabel.setText("wave:", juce::dontSendNotification);
   waveLabel.setFont(smallFont);
-  waveLabel.setColour(juce::Label::textColourId, UIConstants::Colours::labelText);
+  waveLabel.setColour(juce::Label::textColourId,
+                      UIConstants::Colours::labelText);
   waveLabel.setJustificationType(juce::Justification::centredRight);
   addAndMakeVisible(waveLabel);
 
@@ -122,6 +124,9 @@ void BabySquatchAudioProcessorEditor::setupPitchKnob() {
   subKnobs[1].setSkewFactorFromMidPoint(200.0);
   subKnobs[1].setValue(200.0, juce::dontSendNotification);
   subKnobs[1].setDoubleClickReturnValue(true, 200.0);
+  subKnobs[1].onDragStart = [this] {
+    switchEditTarget(EnvelopeCurveEditor::EditTarget::freq);
+  };
   subKnobs[1].onValueChange = [this] {
     const auto hz = static_cast<float>(subKnobs[1].getValue());
     pitchEnvData.setDefaultValue(hz);
@@ -150,6 +155,9 @@ void BabySquatchAudioProcessorEditor::setupAmpKnob() {
   subKnobs[0].setValue(ampEnvData.getDefaultValue() * 100.0,
                        juce::dontSendNotification);
   subKnobs[0].setDoubleClickReturnValue(true, 100.0);
+  subKnobs[0].onDragStart = [this] {
+    switchEditTarget(EnvelopeCurveEditor::EditTarget::gain);
+  };
   subKnobs[0].onValueChange = [this] {
     const float v = static_cast<float>(subKnobs[0].getValue()) / 100.0f;
     ampEnvData.setDefaultValue(v);
@@ -172,6 +180,9 @@ void BabySquatchAudioProcessorEditor::setupBlendKnob() {
   subKnobs[2].setRange(-100.0, 100.0, 1.0);
   subKnobs[2].setValue(0.0, juce::dontSendNotification);
   subKnobs[2].setDoubleClickReturnValue(true, 0.0);
+  subKnobs[2].onDragStart = [this] {
+    switchEditTarget(EnvelopeCurveEditor::EditTarget::mix);
+  };
   subKnobs[2].onValueChange = [this] {
     const float v = static_cast<float>(subKnobs[2].getValue()) / 100.0f;
     blendEnvData.setDefaultValue(v);
@@ -193,6 +204,9 @@ void BabySquatchAudioProcessorEditor::setupDistKnob() {
   subKnobs[3].setRange(0.0, 100.0, 1.0);
   subKnobs[3].setValue(0.0, juce::dontSendNotification);
   subKnobs[3].setDoubleClickReturnValue(true, 0.0);
+  subKnobs[3].onDragStart = [this] {
+    switchEditTarget(EnvelopeCurveEditor::EditTarget::saturate);
+  };
   subKnobs[3].onValueChange = [this] {
     const float v = static_cast<float>(subKnobs[3].getValue()) / 100.0f;
     distEnvData.setDefaultValue(v);

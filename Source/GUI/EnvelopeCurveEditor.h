@@ -11,7 +11,8 @@ class EnvelopeData;
 /// Gain / Freq Envelope カーブエディタ
 ///
 /// 波形プレビュー: sin(位相累積(freqHz)) × gainEnv(t) を描画
-/// オーバーレイ: 編集中のエンベロープ（Gain / Freq / Saturate / Mix）のカーブ＋制御点
+/// オーバーレイ: 編集中のエンベロープ（Gain / Freq / Saturate /
+/// Mix）のカーブ＋制御点
 class EnvelopeCurveEditor : public juce::Component {
 public:
   EnvelopeCurveEditor(EnvelopeData &ampData, EnvelopeData &pitchData,
@@ -72,13 +73,6 @@ private:
   void paintWaveform(juce::Graphics &g, float w, float h, float centreY) const;
   void paintEnvelopeOverlay(juce::Graphics &g, float w) const;
   void paintTimeline(juce::Graphics &g, float w, float h, float totalH) const;
-  void paintTabs(juce::Graphics &g) const;
-
-  /// タブ矩形（右上の Gain / Freq / Saturate / Mix ボタン）
-  juce::Rectangle<float> tabRect(EditTarget target) const;
-  static constexpr float tabW = 38.0f;
-  static constexpr float tabH = 18.0f;
-  static constexpr float tabPad = 4.0f;
 
   static constexpr float pointHitRadius = 8.0f;
   static constexpr float timelineHeight = 18.0f;
@@ -96,7 +90,8 @@ private:
   EnvelopeData &pitchEnvData;
   EnvelopeData &distEnvData;
   EnvelopeData &blendEnvData;
-  EnvelopeData *editEnvData; // 編集中のエンベロープ（Gain / Freq / Saturate / Mix）
+  EnvelopeData
+      *editEnvData; // 編集中のエンベロープ（Gain / Freq / Saturate / Mix）
   EditTarget editTarget = EditTarget::gain;
   float displayDurationMs = 300.0f;
   float displayCycles = 4.0f;
@@ -106,7 +101,6 @@ private:
   int dragPointIndex{-1};
   std::function<void()> onChange;
   std::function<void(EditTarget)> onEditTargetChanged;
-
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(EnvelopeCurveEditor)
 };

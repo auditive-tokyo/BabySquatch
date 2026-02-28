@@ -28,7 +28,6 @@ void EnvelopeCurveEditor::paint(juce::Graphics &g) {
   paintWaveform(g, w, h, centreY);
   paintEnvelopeOverlay(g, w);
   paintTimeline(g, w, h, bounds.getHeight());
-  paintTabs(g);
 }
 
 // ── paint() 分割ヘルパー ──
@@ -464,19 +463,6 @@ void EnvelopeCurveEditor::mouseDoubleClick(const juce::MouseEvent &e) {
 }
 
 void EnvelopeCurveEditor::mouseDown(const juce::MouseEvent &e) {
-  using enum EditTarget;
-  const auto pt = e.position;
-
-  // タブクリック判定
-  for (const auto t : {gain, freq, saturate, mix}) {
-    if (tabRect(t).contains(pt)) {
-      setEditTarget(t);
-      if (onEditTargetChanged)
-        onEditTargetChanged(t);
-      return;
-    }
-  }
-
   dragPointIndex =
       findPointAtPixel(static_cast<float>(e.x), static_cast<float>(e.y));
 }
@@ -524,83 +510,4 @@ void EnvelopeCurveEditor::setEditTarget(EditTarget target) {
 void EnvelopeCurveEditor::setOnEditTargetChanged(
     std::function<void(EditTarget)> cb) {
   onEditTargetChanged = std::move(cb);
-}
-
-// ── タブ描画・ヒット領域 ──
-
-// 右から左に: mix=0, saturate=1, freq=2, gain=3
-juce::Rectangle<float> EnvelopeCurveEditor::tabRect(EditTarget target) const {
-  using enum EditTarget;
-  int slot = 0;
-  switch (target) {
-  case mix:
-    slot = 0;
-    break;
-  case saturate:
-    slot = 1;
-    break;
-  case freq:
-    slot = 2;
-    break;
-  case gain:
-    slot = 3;
-    break;
-  }
-  const float x = static_cast<float>(getWidth()) - tabPad -
-                  tabW * static_cast<float>(slot + 1) -
-                  static_cast<float>(slot) * 2.0f;
-  return {x, tabPad, tabW, tabH};
-}
-
-void EnvelopeCurveEditor::paintTabs(juce::Graphics &g) const {
-  using enum EditTarget;
-  const auto gainR = tabRect(gain);
-  const auto freqR = tabRect(freq);
-  const auto saturateR = tabRect(saturate);
-  const auto mixR = tabRect(mix);
-
-  using enum EditTarget;
-  g.setFont(juce::Font(
-      juce::FontOptions(UIConstants::fontSizeSmall, juce::Font::bold)));
-
-  // Gain タブ
-  {
-    const bool active = (editTarget == gain);
-    g.setColour(active ? UIConstants::Colours::subArc.withAlpha(0.8f)
-                       : juce::Colours::white.withAlpha(0.12f));
-    g.fillRoundedRectangle(gainR, 3.0f);
-    g.setColour(active ? juce::Colours::white
-                       : juce::Colours::white.withAlpha(0.5f));
-    g.drawText("Gain", gainR, juce::Justification::centred, false);
-  }
-  // Freq タブ
-  {
-    const bool active = (editTarget == freq);
-    g.setColour(active ? juce::Colours::cyan.withAlpha(0.8f)
-                       : juce::Colours::white.withAlpha(0.12f));
-    g.fillRoundedRectangle(freqR, 3.0f);
-    g.setColour(active ? juce::Colours::white
-                       : juce::Colours::white.withAlpha(0.5f));
-    g.drawText("Freq", freqR, juce::Justification::centred, false);
-  }
-  // Saturate タブ
-  {
-    const bool active = (editTarget == saturate);
-    g.setColour(active ? juce::Colour(0xFFFF9500).withAlpha(0.8f)
-                       : juce::Colours::white.withAlpha(0.12f));
-    g.fillRoundedRectangle(saturateR, 3.0f);
-    g.setColour(active ? juce::Colours::white
-                       : juce::Colours::white.withAlpha(0.5f));
-    g.drawText("Saturate", saturateR, juce::Justification::centred, false);
-  }
-  // Mix タブ
-  {
-    const bool active = (editTarget == mix);
-    g.setColour(active ? juce::Colour(0xFF4CAF50).withAlpha(0.8f)
-                       : juce::Colours::white.withAlpha(0.12f));
-    g.fillRoundedRectangle(mixR, 3.0f);
-    g.setColour(active ? juce::Colours::white
-                       : juce::Colours::white.withAlpha(0.5f));
-    g.drawText("Mix", mixR, juce::Justification::centred, false);
-  }
 }

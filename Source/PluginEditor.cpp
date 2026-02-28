@@ -147,24 +147,23 @@ void BabySquatchAudioProcessorEditor::onEnvelopeChanged() {
 // ────────────────────────────────────────────────────
 void BabySquatchAudioProcessorEditor::setupEnvelopeCurveEditor() {
   envelopeCurveEditor.setOnChange([this] { onEnvelopeChanged(); });
+  // 初期状態: Gain が選択済み（ラベル色を反映）
+  switchEditTarget(EnvelopeCurveEditor::EditTarget::gain);
+}
 
-  envelopeCurveEditor.setOnEditTargetChanged(
-      [this](EnvelopeCurveEditor::EditTarget target) {
-        using enum EnvelopeCurveEditor::EditTarget;
-        const auto kLabel = UIConstants::Colours::labelText;
-        subKnobLabels[0].setColour(juce::Label::textColourId,
-                                   target == gain ? UIConstants::Colours::subArc
-                                                  : kLabel);
-        subKnobLabels[1].setColour(juce::Label::textColourId,
-                                   target == freq ? juce::Colours::cyan
-                                                  : kLabel);
-        subKnobLabels[3].setColour(juce::Label::textColourId,
-                                   target == saturate ? juce::Colour(0xFFFF9500)
-                                                      : kLabel);
-        subKnobLabels[2].setColour(juce::Label::textColourId,
-                                   target == mix ? juce::Colour(0xFF4CAF50)
-                                                 : kLabel);
-      });
+void BabySquatchAudioProcessorEditor::switchEditTarget(
+    EnvelopeCurveEditor::EditTarget t) {
+  envelopeCurveEditor.setEditTarget(t);
+  using enum EnvelopeCurveEditor::EditTarget;
+  const auto kLabel = UIConstants::Colours::labelText;
+  subKnobLabels[0].setColour(juce::Label::textColourId,
+                             t == gain ? UIConstants::Colours::subArc : kLabel);
+  subKnobLabels[1].setColour(juce::Label::textColourId,
+                             t == freq ? juce::Colours::cyan : kLabel);
+  subKnobLabels[3].setColour(juce::Label::textColourId,
+                             t == saturate ? juce::Colour(0xFFFF9500) : kLabel);
+  subKnobLabels[2].setColour(juce::Label::textColourId,
+                             t == mix ? juce::Colour(0xFF4CAF50) : kLabel);
 }
 
 // ────────────────────────────────────────────────────

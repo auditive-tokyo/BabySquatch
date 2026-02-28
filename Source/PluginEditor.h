@@ -33,6 +33,7 @@ private:
   void bakeBlendLut();
   void setupPanelRouting(BabySquatchAudioProcessor &p);
   void setupEnvelopeCurveEditor();
+  void switchEditTarget(EnvelopeCurveEditor::EditTarget t);
   void setupSubKnobsRow();
   void setupWaveShapeCombo();
   void setupPitchKnob();
@@ -44,8 +45,8 @@ private:
   void layoutLengthBox(juce::Rectangle<int> btnRow);
   void setupLengthBox();
 
-  PanelComponent subPanel{"SUB",    UIConstants::Colours::subArc};
-  PanelComponent clickPanel{"CLICK",  UIConstants::Colours::clickArc};
+  PanelComponent subPanel{"SUB", UIConstants::Colours::subArc};
+  PanelComponent clickPanel{"CLICK", UIConstants::Colours::clickArc};
   PanelComponent directPanel{"DIRECT", UIConstants::Colours::directArc};
 
   // ── 共有展開エリア（3パネル横断） ──
@@ -59,27 +60,31 @@ private:
   EnvelopeData pitchEnvData;
   EnvelopeData distEnvData;
   EnvelopeData blendEnvData;
-  EnvelopeCurveEditor envelopeCurveEditor{ampEnvData, pitchEnvData, distEnvData, blendEnvData};
+  EnvelopeCurveEditor envelopeCurveEditor{ampEnvData, pitchEnvData, distEnvData,
+                                          blendEnvData};
 
-  // ── SUB展開パネル: LAF（subKnobs より先に宣言し、後に破棄されるようにする） ──
+  // ── SUB展開パネル: LAF（subKnobs より先に宣言し、後に破棄されるようにする）
+  // ──
   ColouredSliderLAF subKnobLAF{UIConstants::Colours::subArc,
-                                  UIConstants::Colours::subThumb};
+                               UIConstants::Colours::subThumb};
   // ── SUB展開パネル: Oscノブ行（8本） ──
   std::array<juce::Slider, 8> subKnobs;
   std::array<juce::Label, 8> subKnobLabels;
   // ── SUB展開パネル: 波形選択（プルダウン）用 LAF ──
   struct DarkComboLAF : public juce::LookAndFeel_V4 {
     DarkComboLAF() {
-      setColour(juce::ComboBox::backgroundColourId,   juce::Colour(0xFF333333));
-      setColour(juce::ComboBox::textColourId,         juce::Colour(0xFFDDDDDD));
-      setColour(juce::ComboBox::outlineColourId,      juce::Colours::white.withAlpha(0.20f));
-      setColour(juce::ComboBox::arrowColourId,        juce::Colour(0xFFBBBBBB));
-      setColour(juce::PopupMenu::backgroundColourId,  juce::Colour(0xFF2A2A2A));
-      setColour(juce::PopupMenu::textColourId,        juce::Colour(0xFFDDDDDD));
-      setColour(juce::PopupMenu::highlightedBackgroundColourId, juce::Colour(0xFF00AAFF).withAlpha(0.6f));
-      setColour(juce::PopupMenu::highlightedTextColourId,       juce::Colours::white);
+      setColour(juce::ComboBox::backgroundColourId, juce::Colour(0xFF333333));
+      setColour(juce::ComboBox::textColourId, juce::Colour(0xFFDDDDDD));
+      setColour(juce::ComboBox::outlineColourId,
+                juce::Colours::white.withAlpha(0.20f));
+      setColour(juce::ComboBox::arrowColourId, juce::Colour(0xFFBBBBBB));
+      setColour(juce::PopupMenu::backgroundColourId, juce::Colour(0xFF2A2A2A));
+      setColour(juce::PopupMenu::textColourId, juce::Colour(0xFFDDDDDD));
+      setColour(juce::PopupMenu::highlightedBackgroundColourId,
+                juce::Colour(0xFF00AAFF).withAlpha(0.6f));
+      setColour(juce::PopupMenu::highlightedTextColourId, juce::Colours::white);
     }
-    juce::Font getComboBoxFont(juce::ComboBox&) override {
+    juce::Font getComboBoxFont(juce::ComboBox &) override {
       return juce::Font(juce::FontOptions(UIConstants::fontSizeMedium));
     }
     juce::Font getPopupMenuFont() override {
