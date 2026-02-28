@@ -98,29 +98,29 @@ void BabySquatchAudioProcessorEditor::onEnvelopeChanged() {
   bakeBlendLut();
   // 1点=ノブ制御（有効化＋ポイント値をノブに反映）、2点以上=エンベロープ制御（無効化）
 
-  // AMP
+  // Gain
   const bool ampCtrl = ampEnvData.isEnvelopeControlled();
-  subKnobs[1].setEnabled(!ampCtrl);
-  subKnobs[1].setTooltip(ampCtrl ? "Value is controlled by envelope" : "");
+  subKnobs[0].setEnabled(!ampCtrl);
+  subKnobs[0].setTooltip(ampCtrl ? "Value is controlled by envelope" : "");
   if (!ampCtrl && ampEnvData.hasPoints()) {
     const float v = ampEnvData.getPoints()[0].value;
     ampEnvData.setDefaultValue(v);
-    subKnobs[1].setValue(v * 100.0, juce::dontSendNotification);
+    subKnobs[0].setValue(v * 100.0, juce::dontSendNotification);
   }
 
-  // PITCH
+  // Freq
   const bool pitchCtrl = pitchEnvData.isEnvelopeControlled();
-  subKnobs[0].setEnabled(!pitchCtrl);
-  subKnobs[0].setTooltip(pitchCtrl ? "Value is controlled by envelope" : "");
+  subKnobs[1].setEnabled(!pitchCtrl);
+  subKnobs[1].setTooltip(pitchCtrl ? "Value is controlled by envelope" : "");
   if (!pitchCtrl && pitchEnvData.hasPoints()) {
     const float hz = pitchEnvData.getPoints()[0].value;
     pitchEnvData.setDefaultValue(hz);
-    subKnobs[0].setValue(hz, juce::dontSendNotification);
+    subKnobs[1].setValue(hz, juce::dontSendNotification);
     envelopeCurveEditor.setDisplayCycles(
         hz * envelopeCurveEditor.getDisplayDurationMs() / 1000.0f);
   }
 
-  // DIST
+  // Saturate
   const bool distCtrl = distEnvData.isEnvelopeControlled();
   subKnobs[3].setEnabled(!distCtrl);
   subKnobs[3].setTooltip(distCtrl ? "Value is controlled by envelope" : "");
@@ -130,7 +130,7 @@ void BabySquatchAudioProcessorEditor::onEnvelopeChanged() {
     subKnobs[3].setValue(v * 100.0, juce::dontSendNotification);
   }
 
-  // BLEND
+  // Mix
   const bool blendCtrl = blendEnvData.isEnvelopeControlled();
   subKnobs[2].setEnabled(!blendCtrl);
   subKnobs[2].setTooltip(blendCtrl ? "Value is controlled by envelope" : "");

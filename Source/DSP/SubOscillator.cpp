@@ -109,7 +109,7 @@ int SubOscillator::bandIndexForFreq(float hz) {
 void SubOscillator::triggerNote() {
   active = true;
   currentIndex = 0.0f;
-  // H1〜H4 位相リセット
+  // Tone1〜Tone4 位相リセット
   for (auto& h : harmonics)
     h.phase = 0.0f;
 }
@@ -130,7 +130,7 @@ void SubOscillator::setFrequencyHz(float hz) {
   activeBand = band;
 
   const auto bandIdx = static_cast<size_t>(band);
-  // Sine テーブルは常に更新（BLEND で参照するため）
+  // Sine テーブルは常に更新（Mix で参照するため）
   activeSineTable = tables[0][bandIdx].data();
   // 選択波形テーブルも更新
   const auto shapeIdx = static_cast<size_t>(currentShape.load());
@@ -149,21 +149,21 @@ WaveShape SubOscillator::getWaveShape() const {
 }
 
 // ────────────────────────────────────────────────────
-// setBlend — BLEND 値設定（-1.0〜+1.0）
+// setBlend — Mix 値設定（-1.0〜+1.0）
 // ────────────────────────────────────────────────────
 void SubOscillator::setBlend(float blend) {
   blend_.store(std::clamp(blend, -1.0f, 1.0f));
 }
 
 // ────────────────────────────────────────────────────
-// setDist — Distortion drive 量設定（0.0〜1.0）
+// setDist — Saturate drive 量設定（0.0〜1.0）
 // ────────────────────────────────────────────────────
 void SubOscillator::setDist(float drive01) {
   dist_.store(std::clamp(drive01, 0.0f, 1.0f));
 }
 
 // ────────────────────────────────────────────────────
-// setHarmonicGain — H1〜H4 倍音ゲイン設定
+// setHarmonicGain — Tone1〜Tone4 倍音ゲイン設定
 // ────────────────────────────────────────────────────
 void SubOscillator::setHarmonicGain(int n, float gain) {
   if (n >= 1 && n <= numHarmonics)
@@ -181,7 +181,7 @@ float SubOscillator::readTable(const float *table) const {
 }
 
 // ────────────────────────────────────────────────────
-// getNextSample — BLEND クロスフェード + H1〜H4 加算合成
+// getNextSample — Mix クロスフェード + Tone1〜Tone4 加算合成
 //   b ≤ 0: lerp(sine, wavetable, -b)
 //   b > 0: lerp(sine, additive,   b)
 // ────────────────────────────────────────────────────
@@ -195,7 +195,7 @@ float SubOscillator::getNextSample() {
   // 選択波形（Tri/Square/Saw）テーブル読み出し
   const float shapeSample = readTable(activeShapeTable);
 
-  // H1〜H4 加算合成（gain=0 のハーモニクスはスキップ）
+  // Tone1〜Tone4 加算合成（gain=0 のハーモニクスはスキップ）
   float additiveSample = 0.0f;
   const float phaseDelta =
       tableDelta * (juce::MathConstants<float>::twoPi /
@@ -213,7 +213,7 @@ float SubOscillator::getNextSample() {
     }
   }
 
-  // BLEND クロスフェード
+  // Mix クロスフェード
   const float b = blend_.load();
   float sample;
   if (b <= 0.0f) {
@@ -221,11 +221,11 @@ float SubOscillator::getNextSample() {
     const float t = -b; // 0.0〜1.0
     sample = std::lerp(sineSample, shapeSample, t);
   } else {
-    // 右側: Sine ← → Additive（H1〜H4）
+    // 右側: Sine ← → Additive（Tone1〜Tone4）
     sample = std::lerp(sineSample, additiveSample, b);
   }
 
-  // Distortion（tanh soft-clip — 常時適用、DIST=0 でも軽いサチュレーション）
+  // Distortion（tanh soft-clip — 常時適用、Saturate=0 でも軽いサチュレーション）
   const float d = dist_.load();
   const float drive = 1.0f + d * 9.0f;  // 1.0〜10.0
   sample = std::tanh(drive * sample) / std::tanh(drive);

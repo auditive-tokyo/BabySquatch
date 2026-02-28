@@ -124,7 +124,7 @@ void BabySquatchAudioProcessor::renderSub(juce::AudioBuffer<float> &buffer,
       fadeGain = 0.5f * (1.0f + std::cos(t * juce::MathConstants<float>::pi));
     }
 
-    // Pitch LUT → Hz
+    // Freq LUT → Hz
     const float pitchLutPos =
         (pitchDurMs > 0.0f)
             ? (noteTimeMs / pitchDurMs) *
@@ -135,7 +135,7 @@ void BabySquatchAudioProcessor::renderSub(juce::AudioBuffer<float> &buffer,
     const float pitchHz = pLut[static_cast<size_t>(pitchLutIdx)];
     subOsc.setFrequencyHz(pitchHz);
 
-    // DIST LUT → drive01 (0.0～1.0)
+    // Saturate LUT → drive01 (0.0～1.0)
     const float distLutPos =
         (distDurMs > 0.0f)
             ? (noteTimeMs / distDurMs) *
@@ -145,7 +145,7 @@ void BabySquatchAudioProcessor::renderSub(juce::AudioBuffer<float> &buffer,
         std::min(static_cast<int>(distLutPos), EnvelopeLutManager::lutSize - 1);
     subOsc.setDist(dLut[static_cast<size_t>(distLutIdx)]);
 
-    // BLEND LUT → blend (-1.0～+1.0)
+    // Mix LUT → blend (-1.0～+1.0)
     const float blendLutPos =
         (blendDurMs > 0.0f)
             ? (noteTimeMs / blendDurMs) *
@@ -155,7 +155,7 @@ void BabySquatchAudioProcessor::renderSub(juce::AudioBuffer<float> &buffer,
         std::min(static_cast<int>(blendLutPos), EnvelopeLutManager::lutSize - 1);
     subOsc.setBlend(bLut[static_cast<size_t>(blendLutIdx)]);
 
-    // AMP LUT → エンベロープゲイン
+    // Gain LUT → エンベロープゲイン
     const float lutPos =
         (ampDurMs > 0.0f)
             ? (noteTimeMs / ampDurMs) *

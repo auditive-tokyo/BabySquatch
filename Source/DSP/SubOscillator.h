@@ -40,16 +40,16 @@ public:
   /// 現在の波形を取得
   WaveShape getWaveShape() const;
 
-  /// BLEND 値を設定（UIスレッドから呼び出し可）
+  /// Mix 値を設定（UIスレッドから呼び出し可）
   /// @param blend -1.0〜+1.0（0=Sine, -1=Wavetable, +1=Additive）
   void setBlend(float blend);
 
-  /// H1〜H4 倍音ゲイン設定（UIスレッドから呼び出し可）
-  /// @param n 倍音番号 1〜4（H1=基底音×1, H2=×2, H3=×3, H4=×4）
+  /// Tone1〜Tone4 倍音ゲイン設定（UIスレッドから呼び出し可）
+  /// @param n 倍音番号 1〜4（Tone1=基底音×1, Tone2=×2, Tone3=×3, Tone4=×4）
   /// @param gain 0.0〜1.0
   void setHarmonicGain(int n, float gain);
 
-  /// Distortion drive 量を設定（UIスレッドから呼び出し可）
+  /// Saturate drive 量を設定（UIスレッドから呼び出し可）
   /// @param drive01 0.0〜1.0（0=クリーン、1=フルドライブ）
   void setDist(float drive01);
 
@@ -77,13 +77,13 @@ private:
   std::atomic<int> currentShape{0};  // WaveShape の int 値
   int activeBand = 0;
 
-  // ── BLEND ──
+  // ── Mix ──
   std::atomic<float> blend_{0.0f};  // -1.0〜+1.0
 
-  // ── DIST ──
+  // ── Saturate ──
   std::atomic<float> dist_{0.0f};  // 0.0〜1.0（UI値そのまま）
 
-  // ── H1〜H4 加算合成 ──
+  // ── Tone1〜Tone4 加算合成 ──
   static constexpr int numHarmonics = 4;
   struct HarmonicOsc {
     float phase = 0.0f;

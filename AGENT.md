@@ -49,11 +49,11 @@ BabySquatchは3つのモジュールで構成されています：
   - C0〜C7表示、PCキー演奏対応（A=C2ベース）
   - Z/Xでオクターブシフト
   - トリガー専用（FIXED/MIDI モード削除済み）
-- **AMP / Pitch / DIST / BLEND Envelope エディタ**（Kick Ninja スタイル）
-  - `EnvelopeData`：ヘッダオンリモデル。制御点なし→`defaultValue`（フラット）、1点→定数、2点→線形補間、3点以上→Catmull-Rom スプライン補間。ファントムポイント端点処理。`movePoint` の値クランプは呼び出し側が担当（AMP/Pitch でレンジが異なるため）
-  - `EnvelopeCurveEditor`：`paint()` ベース。AMP / Pitch / DIST / BLEND の 4 エンベロープを受け取り、**位相累積方式**（`phase += pitchHz × dt × 2π`）でオフライン波形プレビュー。スプラインカーブ＋コントロールポイント描画。左ダブルクリックでポイント追加／削除、ドラッグで移動。横軸 ms タイムライン表示（自動間隔目盛り + ラベル）
-  - 右上に **AMP / PITCH / DIST / BLEND タブボタン**を内蔵。AMP=青（subArc）　1 PITCH=シアン、DIST=オレンジ、BLEND=グリーン。`setOnEditTargetChanged()` コールバックで外部 UI（ノブラベル等）と同期
-  - **Pitch Y軸**: 対数スケール 20～20000 Hz。**DIST Y軸**: 線形 0.0～1.0。**BLEND Y軸**: 線形 -1.0～+1.0（Y中央=0）
+- **Gain / Freq / Saturate / Mix Envelope エディタ**
+  - `EnvelopeData`：ヘッダオンリモデル。制御点なし→`defaultValue`（フラット）、1点→定数、2点→線形補間、3点以上→Catmull-Rom スプライン補間。ファントムポイント端点処理。`movePoint` の値クランプは呼び出し側が担当（Gain/Freq でレンジが異なるため）
+  - `EnvelopeCurveEditor`：`paint()` ベース。Gain / Freq / Saturate / Mix の 4 エンベロープを受け取り、**位相累積方式**（`phase += pitchHz × dt × 2π`）でオフライン波形プレビュー。スプラインカーブ＋コントロールポイント描画。左ダブルクリックでポイント追加／削除、ドラッグで移動。横軸 ms タイムライン表示（自動間隔目盛り + ラベル）
+  - 右上に **Gain / Freq / Saturate / Mix タブボタン**を内蔵。Gain=青（subArc）、Freq=シアン、Saturate=オレンジ、Mix=グリーン。`setOnEditTargetChanged()` コールバックで外部 UI（ノブラベル等）と同期
+  - **Freq Y軸**: 対数スケール 20～20000 Hz。**Saturate Y軸**: 線形 0.0～1.0。**Mix Y軸**: 線形 -1.0～+1.0（Y中央=0）
   - ロックフリー LUT 統合：`envLut_`（AMP gain）/ `pitchLut_`（Hz）/ `distLut_`（drive01）/ `blendLut_`（-1～+1）の 4 系統ダブルバッファ。オーディオスレッドはノートオンで `noteTimeSamples` リセット → サンプル毎に pitchLut→`setFrequencyHz()` + distLut→`setDist()` + blendLut→`setBlend()` + ampLut→ゲイン乗算
   - 各ノブは `xxxEnvData.setDefaultValue()` 経由で間接的に LUT を更新。エンベロープポイントがある間、対応ノブを無効化（ツールチップ表示）
 - **Pitch Envelope 実装**（完了）

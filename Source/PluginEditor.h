@@ -97,7 +97,7 @@ private:
     juce::Label suffix;
   };
   LengthBox lengthBox;
-  // ── ツールチップ（AMPノブの無効時などに使用） ──
+  // ── ツールチップ（Gainノブの無効時などに使用） ──
   juce::TooltipWindow tooltipWindow{this, 500};
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(BabySquatchAudioProcessorEditor)
 };

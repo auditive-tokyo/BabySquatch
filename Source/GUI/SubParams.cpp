@@ -60,7 +60,7 @@ void BabySquatchAudioProcessorEditor::setupLengthBox() {
 // ────────────────────────────────────────────────────
 void BabySquatchAudioProcessorEditor::setupSubKnobsRow() {
   static constexpr std::array<const char *, 8> kLabels = {
-      "PITCH", "AMP", "BLEND", "DIST", "H1", "H2", "H3", "H4"};
+      "Gain", "Freq", "Mix", "Saturate", "Tone1", "Tone2", "Tone3", "Tone4"};
   for (size_t i = 0; i < 8; ++i) {
     auto &knob = subKnobs[i];
     knob.setSliderStyle(juce::Slider::RotaryVerticalDrag);
@@ -115,15 +115,15 @@ void BabySquatchAudioProcessorEditor::setupWaveShapeCombo() {
 }
 
 // ────────────────────────────────────────────────────
-// PITCH ノブ（subKnobs[0]）
+// Freq ノブ（subKnobs[1]）
 // ────────────────────────────────────────────────────
 void BabySquatchAudioProcessorEditor::setupPitchKnob() {
-  subKnobs[0].setRange(20.0, 20000.0);
-  subKnobs[0].setSkewFactorFromMidPoint(200.0);
-  subKnobs[0].setValue(200.0, juce::dontSendNotification);
-  subKnobs[0].setDoubleClickReturnValue(true, 200.0);
-  subKnobs[0].onValueChange = [this] {
-    const auto hz = static_cast<float>(subKnobs[0].getValue());
+  subKnobs[1].setRange(20.0, 20000.0);
+  subKnobs[1].setSkewFactorFromMidPoint(200.0);
+  subKnobs[1].setValue(200.0, juce::dontSendNotification);
+  subKnobs[1].setDoubleClickReturnValue(true, 200.0);
+  subKnobs[1].onValueChange = [this] {
+    const auto hz = static_cast<float>(subKnobs[1].getValue());
     pitchEnvData.setDefaultValue(hz);
     if (!pitchEnvData.isEnvelopeControlled())
       pitchEnvData.setPointValue(0, hz);
@@ -143,15 +143,15 @@ void BabySquatchAudioProcessorEditor::setupPitchKnob() {
 }
 
 // ────────────────────────────────────────────────────
-// AMP ノブ（subKnobs[1]）
+// Gain ノブ（subKnobs[0]）
 // ────────────────────────────────────────────────────
 void BabySquatchAudioProcessorEditor::setupAmpKnob() {
-  subKnobs[1].setRange(0.0, 200.0);
-  subKnobs[1].setValue(ampEnvData.getDefaultValue() * 100.0,
+  subKnobs[0].setRange(0.0, 200.0);
+  subKnobs[0].setValue(ampEnvData.getDefaultValue() * 100.0,
                        juce::dontSendNotification);
-  subKnobs[1].setDoubleClickReturnValue(true, 100.0);
-  subKnobs[1].onValueChange = [this] {
-    const float v = static_cast<float>(subKnobs[1].getValue()) / 100.0f;
+  subKnobs[0].setDoubleClickReturnValue(true, 100.0);
+  subKnobs[0].onValueChange = [this] {
+    const float v = static_cast<float>(subKnobs[0].getValue()) / 100.0f;
     ampEnvData.setDefaultValue(v);
     if (!ampEnvData.isEnvelopeControlled())
       ampEnvData.setPointValue(0, v);
@@ -161,12 +161,12 @@ void BabySquatchAudioProcessorEditor::setupAmpKnob() {
   // 初期デフォルトポイント（1点：ノブ制御状態）
   ampEnvData.addPoint(0.0f, ampEnvData.getDefaultValue());
   const bool controlled = ampEnvData.isEnvelopeControlled();
-  subKnobs[1].setEnabled(!controlled);
-  subKnobs[1].setTooltip(controlled ? "Value is controlled by envelope" : "");
+  subKnobs[0].setEnabled(!controlled);
+  subKnobs[0].setTooltip(controlled ? "Value is controlled by envelope" : "");
 }
 
 // ────────────────────────────────────────────────────
-// BLEND ノブ（subKnobs[2]）
+// Mix ノブ（subKnobs[2]）
 // ────────────────────────────────────────────────────
 void BabySquatchAudioProcessorEditor::setupBlendKnob() {
   subKnobs[2].setRange(-100.0, 100.0, 1.0);
@@ -187,7 +187,7 @@ void BabySquatchAudioProcessorEditor::setupBlendKnob() {
 }
 
 // ────────────────────────────────────────────────────
-// DIST ノブ（subKnobs[3]）
+// Saturate ノブ（subKnobs[3]）
 // ────────────────────────────────────────────────────
 void BabySquatchAudioProcessorEditor::setupDistKnob() {
   subKnobs[3].setRange(0.0, 100.0, 1.0);
@@ -208,7 +208,7 @@ void BabySquatchAudioProcessorEditor::setupDistKnob() {
 }
 
 // ────────────────────────────────────────────────────
-// H1〜H4 ノブ（subKnobs[4〜7]）
+// Tone1〜Tone4 ノブ（subKnobs[4〜7]）
 // ────────────────────────────────────────────────────
 void BabySquatchAudioProcessorEditor::setupHarmonicKnobs() {
   for (int i = 0; i < 4; ++i) {
@@ -230,8 +230,8 @@ void BabySquatchAudioProcessorEditor::setupHarmonicKnobs() {
 // ────────────────────────────────────────────────────
 void BabySquatchAudioProcessorEditor::layoutSubKnobsRow(
     juce::Rectangle<int> area) {
-  // 上段ノブ: PITCH, AMP, BLEND, DIST
-  // 下段ノブ: H1,   H2,  H3,   H4
+  // 上段ノブ: Gain, Freq, Mix, Saturate
+  // 下段ノブ: Tone1, Tone2, Tone3, Tone4
   const int slotW = area.getWidth() / 4;
   const int rowH = area.getHeight() / 2;
   for (int row = 0; row < 2; ++row) {
