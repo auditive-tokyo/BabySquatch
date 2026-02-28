@@ -72,10 +72,13 @@ void EnvelopeCurveEditor::paintWaveform(juce::Graphics &g, float w, float h,
     float waveVal = computePreviewWaveValue(sinVal, blend, phase);
 
     // Saturate: tanh ソフトクリップ（drive01=0〜1 → driveAmount=1〜10）
+    // make-up gain で drive に依らずピーク振幅を一定に保つ
     if (const float drive01 = hasDistPoints ? distEnvData.evaluate(timeMs)
                                             : distEnvData.getValue();
-        drive01 > 0.001f)
-      waveVal = std::tanh(waveVal * (1.0f + drive01 * 9.0f));
+        drive01 > 0.001f) {
+      const float driveAmount = 1.0f + drive01 * 9.0f;
+      waveVal = std::tanh(waveVal * driveAmount) / std::tanh(driveAmount);
+    }
 
     // Gain: 振幅
     const float amplitude =
