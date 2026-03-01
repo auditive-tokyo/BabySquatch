@@ -156,8 +156,7 @@ void BabySquatchAudioProcessorEditor::setupEnvelopeCurveEditor() {
   switchEditTarget(EnvelopeCurveEditor::EditTarget::gain);
 }
 
-void BabySquatchAudioProcessorEditor::mouseDown(
-    const juce::MouseEvent &e) {
+void BabySquatchAudioProcessorEditor::mouseDown(const juce::MouseEvent &e) {
   using enum EnvelopeCurveEditor::EditTarget;
   if (e.eventComponent == &subKnobLabels[0])
     switchEditTarget(gain);
@@ -202,6 +201,7 @@ BabySquatchAudioProcessorEditor::BabySquatchAudioProcessorEditor(
   setupPanelRouting(p);
   setupEnvelopeCurveEditor();
   setupClickParams();
+  setupDirectParams();
   setupSubKnobsRow();
   setupWaveShapeCombo();
   setupLengthBox();
@@ -219,6 +219,7 @@ BabySquatchAudioProcessorEditor::BabySquatchAudioProcessorEditor(
 BabySquatchAudioProcessorEditor::~BabySquatchAudioProcessorEditor() {
   subWave.combo.setLookAndFeel(nullptr);
   clickUI.modeCombo.setLookAndFeel(nullptr);
+  directUI.modeCombo.setLookAndFeel(nullptr);
 }
 
 void BabySquatchAudioProcessorEditor::paint(juce::Graphics &g) {
@@ -268,7 +269,7 @@ void BabySquatchAudioProcessorEditor::resized() {
                                 b.getHeight() - contentTop - contentBot};
     // 底行: [Length ボックス | subWave.combo]
     auto bottomRow = contentArea.removeFromBottom(22);
-    contentArea.removeFromBottom(4);                   // ギャップ
+    contentArea.removeFromBottom(4); // ギャップ
     const int lengthPartW = bottomRow.getWidth() / 2;
     layoutLengthBox(bottomRow.removeFromLeft(lengthPartW));
     constexpr int waveLabelW = 36;
@@ -292,5 +293,22 @@ void BabySquatchAudioProcessorEditor::resized() {
                                     UIConstants::panelPadding,
                                 b.getHeight() - contentTop - contentBot};
     layoutClickParams(contentArea);
+  }
+
+  // DIRECT コンテンツをパネル内に常時配置
+  {
+    const auto b = directPanel.getBounds();
+    constexpr int faderHandleWidth = 12;
+    constexpr int contentLeft =
+        UIConstants::panelPadding + UIConstants::meterWidth + faderHandleWidth;
+    constexpr int contentTop =
+        UIConstants::panelPadding + UIConstants::labelHeight;
+    constexpr int contentBot =
+        UIConstants::panelPadding + UIConstants::expandButtonHeight;
+    juce::Rectangle contentArea{b.getX() + contentLeft, b.getY() + contentTop,
+                                b.getWidth() - contentLeft -
+                                    UIConstants::panelPadding,
+                                b.getHeight() - contentTop - contentBot};
+    layoutDirectParams(contentArea);
   }
 }

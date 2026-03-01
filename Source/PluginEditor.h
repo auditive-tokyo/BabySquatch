@@ -31,6 +31,8 @@ private:
   void switchEditTarget(EnvelopeCurveEditor::EditTarget t);
   void setupClickParams();
   void layoutClickParams(juce::Rectangle<int> area);
+  void setupDirectParams();
+  void layoutDirectParams(juce::Rectangle<int> area);
   void layoutLengthBox(juce::Rectangle<int> btnRow);
   void setupLengthBox();
   void setupWaveShapeCombo();
@@ -127,6 +129,14 @@ private:
     juce::Slider lpfQSlider;
   };
   ClickUI clickUI;
+
+  // ── DIRECTパネル ──
+  struct DirectUI {
+    enum class Mode { Direct = 1, Sample };
+    juce::Label    modeLabel;
+    juce::ComboBox modeCombo;
+  };
+  DirectUI directUI;
 
   // ── ツールチップ（Gainノブの無効時などに使用） ──
   juce::TooltipWindow tooltipWindow{this, 500};
