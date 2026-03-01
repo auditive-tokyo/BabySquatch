@@ -36,6 +36,9 @@ public:
   /// nullptr を渡すとオーバーレイを無効化。
   void setClickPreviewProvider(std::function<float(float)> fn);
 
+  /// Noise モード用: fn(timeSec) → 振幅 0〜1 を返す。±env の帯として描画。
+  void setClickNoiseEnvProvider(std::function<float(float)> fn);
+
   /// 波形プレビュー用: Tone1〜Tone4 倍音ゲインを設定（harmonicNum: 1〜4）
   void setPreviewHarmonicGain(int harmonicNum, float gain);
 
@@ -113,7 +116,8 @@ private:
   float dragCurveStartVal{0.0f}; // ドラッグ開始時の curve 値
   std::function<void()> onChange;
   std::function<void(EditTarget)> onEditTargetChanged;
-  std::function<float(float)> clickPreviewFn_; // Click 波形プロバイダー
+  std::function<float(float)> clickPreviewFn_;   // Click Tone 波形プロバイダー
+  std::function<float(float)> clickNoiseEnvFn_;  // Click Noise 帯プロバイダー
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(EnvelopeCurveEditor)
 };

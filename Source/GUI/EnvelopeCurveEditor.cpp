@@ -130,17 +130,73 @@ void EnvelopeCurveEditor::paintWaveform(juce::Graphics &g, float w, float h,
 
 void EnvelopeCurveEditor::setClickPreviewProvider(
     std::function<float(float)> fn) {
+  clickNoiseEnvFn_ = nullptr;
   clickPreviewFn_ = std::move(fn);
   repaint();
 }
 
-void EnvelopeCurveEditor::paintClickWaveform(juce::Graphics &g, float w,
-                                              float h, float centreY) const {
-  if (!clickPreviewFn_)
-    return;
+void EnvelopeCurveEditor::setClickNoiseEnvProvider(
+    std::function<float(float)> fn) {
+  clickPreviewFn_ = nullptr;
+  clickNoiseEnvFn_ = std::move(fn);
+  repaint();
+}
 
+void EnvelopeCurveEditor::paintClickWaveform(juce::Graphics &g, float w,
+                                             float h, float centreY) const {
+  const juce::Colour baseYellow = UIConstants::Colours::clickArc;
   const auto numPixels = static_cast<int>(w);
   const float dtSec = (displayDurationMs / 1000.0f) / w;
+
+  // ── Noise モード: ±env の対称帯 ──
+  if (clickNoiseEnvFn_) {
+    juce::Path bandPath;
+    juce::Path upperLine;
+    juce::Path lowerLine;
+    // 上側 (左→右)
+    for (int i = 0; i <= numPixels; ++i) {
+      const auto x = static_cast<float>(i);
+      const float env = juce::jlimit(0.0f, 1.0f, clickNoiseEnvFn_(x * dtSec));
+      const float y = juce::jlimit(0.0f, h, centreY - env * centreY);
+      if (i == 0) {
+        bandPath.startNewSubPath(x, y);
+        upperLine.startNewSubPath(x, y);
+      } else {
+        bandPath.lineTo(x, y);
+        upperLine.lineTo(x, y);
+      }
+    }
+    // 下側 (右→左) でバンドを閉じる
+    for (int i = numPixels; i >= 0; --i) {
+      const auto x = static_cast<float>(i);
+      const float env = juce::jlimit(0.0f, 1.0f, clickNoiseEnvFn_(x * dtSec));
+      const float y = juce::jlimit(0.0f, h, centreY + env * centreY);
+      bandPath.lineTo(x, y);
+      if (i == numPixels)
+        lowerLine.startNewSubPath(x, y);
+      else
+        lowerLine.lineTo(x, y);
+    }
+    bandPath.closeSubPath();
+
+    juce::ColourGradient fillGrad(baseYellow.withAlpha(0.18f), 0.0f, 0.0f,
+                                  baseYellow.withAlpha(0.02f), 0.0f, centreY,
+                                  false);
+    g.setGradientFill(fillGrad);
+    g.fillPath(bandPath);
+
+    for (const auto *line : {&upperLine, &lowerLine}) {
+      g.setColour(baseYellow.withAlpha(0.07f));
+      g.strokePath(*line, juce::PathStrokeType(6.0f));
+      g.setColour(baseYellow.withAlpha(0.90f));
+      g.strokePath(*line, juce::PathStrokeType(1.2f));
+    }
+    return;
+  }
+
+  // ── Tone モード: 減衰サイン波 ──
+  if (!clickPreviewFn_)
+    return;
 
   juce::Path fillPath;
   juce::Path waveLine;
@@ -148,35 +204,27 @@ void EnvelopeCurveEditor::paintClickWaveform(juce::Graphics &g, float w,
 
   for (int i = 0; i <= numPixels; ++i) {
     const auto x = static_cast<float>(i);
-    const float timeSec = x * dtSec;
-    const float sample = juce::jlimit(-1.0f, 1.0f, clickPreviewFn_(timeSec));
+    const float sample = juce::jlimit(-1.0f, 1.0f, clickPreviewFn_(x * dtSec));
     const float y = juce::jlimit(0.0f, h, centreY - sample * centreY);
-
     fillPath.lineTo(x, y);
     if (i == 0)
       waveLine.startNewSubPath(x, y);
     else
       waveLine.lineTo(x, y);
   }
-
   fillPath.lineTo(w, centreY);
   fillPath.closeSubPath();
 
-  // 黄色グラジエント塗りつぶし
-  const juce::Colour baseYellow{0xFFFFCC00};
   juce::ColourGradient fillGrad(baseYellow.withAlpha(0.28f), 0.0f, 0.0f,
                                 baseYellow.withAlpha(0.02f), 0.0f, centreY,
                                 false);
   g.setGradientFill(fillGrad);
   g.fillPath(fillPath);
 
-  // グロー ストローク 3層（外→コア）
   g.setColour(baseYellow.withAlpha(0.07f));
   g.strokePath(waveLine, juce::PathStrokeType(9.0f));
-
   g.setColour(baseYellow.withAlpha(0.28f));
   g.strokePath(waveLine, juce::PathStrokeType(3.5f));
-
   g.setColour(baseYellow.withAlpha(0.90f));
   g.strokePath(waveLine, juce::PathStrokeType(1.2f));
 }
@@ -322,8 +370,7 @@ void EnvelopeCurveEditor::paintEnvelopeOverlay(juce::Graphics &g,
     diamond.lineTo(midX - d, midY);
     diamond.closeSubPath();
     const bool active = (i == dragCurveSegment);
-    g.setColour(active ? juce::Colours::white
-                       : envColour.withAlpha(0.6f));
+    g.setColour(active ? juce::Colours::white : envColour.withAlpha(0.6f));
     g.fillPath(diamond);
   }
 }
@@ -604,8 +651,8 @@ void EnvelopeCurveEditor::mouseDrag(const juce::MouseEvent &e) {
     // Shift+ドラッグ: 上方向でカーブ増、下方向でカーブ減
     const float dy = static_cast<float>(e.y) - dragCurveStartY;
     constexpr float sensitivity = 200.0f; // px あたりの curve 変化量
-    const float newCurve = std::clamp(
-        dragCurveStartVal + dy / sensitivity, -1.0f, 1.0f);
+    const float newCurve =
+        std::clamp(dragCurveStartVal + dy / sensitivity, -1.0f, 1.0f);
     editEnvData->setSegmentCurve(dragCurveSegment, newCurve);
 
     if (onChange)

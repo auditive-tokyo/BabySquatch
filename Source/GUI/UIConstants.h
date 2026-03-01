@@ -48,8 +48,8 @@ inline const juce::Colour subArc{0xFF00AAFF};
 inline const juce::Colour subThumb{0xFF00CCFF};
 
 // Click（黄系）
-inline const juce::Colour clickArc{0xFFCCAA00};
-inline const juce::Colour clickThumb{0xFFFFDD00};
+inline const juce::Colour clickArc{0xFFEEFF00};
+inline const juce::Colour clickThumb{0xFFFFFF33};
 
 // Direct（ピンク/マゼンタ系）
 inline const juce::Colour directArc{0xFFCC44CC};
