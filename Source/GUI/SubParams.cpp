@@ -10,49 +10,43 @@
 // Length ボックス
 // ────────────────────────────────────────────────────
 void BabySquatchAudioProcessorEditor::setupLengthBox() {
-  const auto smallFont =
-      juce::Font(juce::FontOptions(UIConstants::fontSizeMedium));
+  const auto tinyFont =
+      juce::Font(juce::FontOptions(UIConstants::fontSizeSmall));
 
-  lengthBox.prefix.setText("length:", juce::dontSendNotification);
-  lengthBox.prefix.setFont(smallFont);
-  lengthBox.prefix.setColour(juce::Label::textColourId,
-                             UIConstants::Colours::labelText);
-  lengthBox.prefix.setJustificationType(juce::Justification::centredRight);
-  addAndMakeVisible(lengthBox.prefix);
+  lengthBox.label.setText("length:", juce::dontSendNotification);
+  lengthBox.label.setFont(tinyFont);
+  lengthBox.label.setColour(juce::Label::textColourId,
+                            UIConstants::Colours::labelText);
+  lengthBox.label.setJustificationType(juce::Justification::centredRight);
+  addAndMakeVisible(lengthBox.label);
 
-  lengthBox.editor.setFont(smallFont);
-  lengthBox.editor.setText("300", false);
-  lengthBox.editor.setInputRestrictions(4, "0123456789");
-  lengthBox.editor.setJustification(juce::Justification::centred);
-  lengthBox.editor.setColour(juce::TextEditor::backgroundColourId,
-                             UIConstants::Colours::knobBg);
-  lengthBox.editor.setColour(juce::TextEditor::textColourId,
-                             UIConstants::Colours::text);
-  lengthBox.editor.setColour(juce::TextEditor::outlineColourId,
-                             juce::Colours::white.withAlpha(0.20f));
-  lengthBox.editor.setColour(juce::TextEditor::focusedOutlineColourId,
-                             juce::Colours::white.withAlpha(0.5f));
-  auto applyLength = [this]() {
-    const int v =
-        juce::jlimit(10, 2000, lengthBox.editor.getText().getIntValue());
-    lengthBox.editor.setText(juce::String(v), false);
-    envelopeCurveEditor.setDisplayDurationMs(static_cast<float>(v));
-    processorRef.subEngine().setLengthMs(static_cast<float>(v));
+  lengthBox.slider.setSliderStyle(juce::Slider::LinearHorizontal);
+  lengthBox.slider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 54, 16);
+  lengthBox.slider.setColour(juce::Slider::backgroundColourId,
+                             UIConstants::Colours::waveformBg);
+  lengthBox.slider.setColour(juce::Slider::trackColourId,
+                             UIConstants::Colours::subArc.withAlpha(0.45f));
+  lengthBox.slider.setColour(juce::Slider::thumbColourId,
+                             UIConstants::Colours::subArc);
+  lengthBox.slider.setColour(juce::Slider::textBoxTextColourId,
+                             juce::Colours::white.withAlpha(0.90f));
+  lengthBox.slider.setColour(juce::Slider::textBoxBackgroundColourId,
+                             UIConstants::Colours::waveformBg);
+  lengthBox.slider.setColour(juce::Slider::textBoxOutlineColourId,
+                             juce::Colours::transparentBlack);
+  lengthBox.slider.setRange(10.0, 2000.0, 1.0);
+  lengthBox.slider.setTextValueSuffix(" ms");
+  lengthBox.slider.setValue(300.0, juce::dontSendNotification);
+  lengthBox.slider.onValueChange = [this] {
+    const auto v = static_cast<float>(lengthBox.slider.getValue());
+    envelopeCurveEditor.setDisplayDurationMs(v);
+    processorRef.subEngine().setLengthMs(v);
     bakeAmpLut();
     bakePitchLut();
     bakeDistLut();
     bakeBlendLut();
   };
-  lengthBox.editor.onReturnKey = applyLength;
-  lengthBox.editor.onFocusLost = applyLength;
-  addAndMakeVisible(lengthBox.editor);
-
-  lengthBox.suffix.setText("ms", juce::dontSendNotification);
-  lengthBox.suffix.setFont(smallFont);
-  lengthBox.suffix.setColour(juce::Label::textColourId,
-                             UIConstants::Colours::labelText);
-  lengthBox.suffix.setJustificationType(juce::Justification::centredLeft);
-  addAndMakeVisible(lengthBox.suffix);
+  addAndMakeVisible(lengthBox.slider);
 }
 
 // ────────────────────────────────────────────────────
@@ -75,7 +69,8 @@ void BabySquatchAudioProcessorEditor::setupSubKnobsRow() {
     label.setJustificationType(juce::Justification::centred);
     label.setColour(juce::Label::textColourId, UIConstants::Colours::labelText);
     addAndMakeVisible(label);
-    // エンベロープ制御中でもラベルクリックで editTarget を切り替えられるよう登録
+    // エンベロープ制御中でもラベルクリックで editTarget
+    // を切り替えられるよう登録
     if (i < 4)
       label.addMouseListener(this, false);
   }
@@ -90,7 +85,7 @@ void BabySquatchAudioProcessorEditor::setupWaveShapeCombo() {
   subWave.label.setText("wave:", juce::dontSendNotification);
   subWave.label.setFont(smallFont);
   subWave.label.setColour(juce::Label::textColourId,
-                      UIConstants::Colours::labelText);
+                          UIConstants::Colours::labelText);
   subWave.label.setJustificationType(juce::Justification::centredRight);
   addAndMakeVisible(subWave.label);
 
@@ -263,20 +258,8 @@ void BabySquatchAudioProcessorEditor::layoutSubKnobsRow(
 }
 
 void BabySquatchAudioProcessorEditor::layoutLengthBox(
-    juce::Rectangle<int> btnRow) {
-  constexpr int rowH = 22;
-  constexpr int prefixW = 44;
-  constexpr int editorW = 34;
-  constexpr int suffixW = 18;
-  constexpr int innerGap = 2;
-  constexpr int totalW = prefixW + editorW + suffixW + innerGap * 2;
-
-  auto la = btnRow.removeFromLeft(totalW).withSizeKeepingCentre(totalW, rowH);
-  int lx = la.getX();
-  const int ly = la.getY();
-  lengthBox.prefix.setBounds(lx, ly, prefixW, rowH);
-  lx += prefixW + innerGap;
-  lengthBox.editor.setBounds(lx, ly, editorW, rowH);
-  lx += editorW + innerGap;
-  lengthBox.suffix.setBounds(lx, ly, suffixW, rowH);
+    juce::Rectangle<int> area) {
+  constexpr int labelW = 36;
+  lengthBox.label.setBounds(area.removeFromLeft(labelW));
+  lengthBox.slider.setBounds(area);
 }

@@ -192,10 +192,7 @@ void BabySquatchAudioProcessorEditor::setupClickParams() {
                           ? std::exp(-timeSec * 5000.0f / (decayMs + 1e-6f))
                           : 0.0f;
     const auto freq1 = static_cast<float>(clickUI.freq1Slider.getValue());
-    const float maxVisibleFreq = 30000.0f / (decayMs + 1e-6f);
-    const float usedFreq = std::min(freq1, maxVisibleFreq);
-    return std::sin(juce::MathConstants<float>::twoPi * usedFreq * timeSec) *
-           env;
+    return std::sin(juce::MathConstants<float>::twoPi * freq1 * timeSec) * env;
   };
   auto noiseEnvProvider = [this](float timeSec) {
     const auto decayMs = static_cast<float>(clickUI.decaySlider.getValue());
@@ -220,22 +217,28 @@ void BabySquatchAudioProcessorEditor::setupClickParams() {
 
 void BabySquatchAudioProcessorEditor::layoutClickParams(
     juce::Rectangle<int> area) {
-  // 上段: mode ラベル + コンボ
+  // 上段: mode ラベル + コンボ  |  Decay ラベル + スライダー（同一行）
   auto topRow = area.removeFromTop(22);
   area.removeFromTop(4);
-  constexpr int modeLabelW = 38;
-  clickUI.modeLabel.setBounds(topRow.removeFromLeft(modeLabelW));
-  clickUI.modeCombo.setBounds(topRow);
 
-  // 残りエリア: 全幅をフィルターパネルとして使用（9 行）
+  constexpr int modeLabelW = 38;
+  constexpr int modeComboW = 72;
   constexpr int rowGap = 3;
   constexpr int labelW = 36;
+  constexpr int colGap = 6;
+
+  clickUI.modeLabel.setBounds(topRow.removeFromLeft(modeLabelW));
+  clickUI.modeCombo.setBounds(topRow.removeFromLeft(modeComboW));
+  topRow.removeFromLeft(colGap);
+  clickUI.decayLabel.setBounds(topRow.removeFromLeft(labelW));
+  clickUI.decaySlider.setBounds(topRow);
+
+  // 残りエリア: 8 行（freq1〜lpfQ）
   auto &filterPanel = area;
 
-  constexpr int numRows = 9;
+  constexpr int numRows = 8;
   const int rowH = (filterPanel.getHeight() - rowGap * (numRows - 1)) / numRows;
   const std::array<std::pair<juce::Label *, juce::Slider *>, numRows> rows = {{
-      {&clickUI.decayLabel, &clickUI.decaySlider},
       {&clickUI.freq1Label, &clickUI.freq1Slider},
       {&clickUI.focus1Label, &clickUI.focus1Slider},
       {&clickUI.freq2Label, &clickUI.freq2Slider},

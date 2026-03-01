@@ -91,11 +91,10 @@ private:
     juce::ComboBox combo;
   };
   SubWaveUI subWave;
-  // ── SUB展開パネル: Length ボックス ──
+  // ── SUB展開パネル: Length スライダー ──
   struct LengthBox {
-    juce::Label prefix;
-    juce::TextEditor editor;
-    juce::Label suffix;
+    juce::Label  label;
+    juce::Slider slider;
   };
   LengthBox lengthBox;
 
