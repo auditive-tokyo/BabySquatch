@@ -100,6 +100,17 @@ BabySquatchは3つのモジュールで構成されています：
   - 検証項目: Sasquatch の発火条件が「トランジェント検出」か「入力レベル/サイドチェイン閾値」かを確認
   - 実装候補: 短時間エネルギー差分 or ハイパス後エンベロープ検出でトリガー、ヒステリシス付きゲートで多重発火防止
 
+- **HPF/LPF スロープ（dB/oct）選択の追加**
+  - 現状: 全フィルターが `juce::dsp::StateVariableTPTFilter`（固定 12 dB/oct = 2極）
+  - DSP 追加案: 24 dB/oct（2段カスケード）/ 48 dB/oct（4段カスケード）を選択可能にする
+  - **確定 UI 案: `SlopeSelector` カスタムコンポーネント**
+    - HPF/LPF それぞれのラベル行（14px）を `SlopeSelector` で置き換え、高さ変更なし
+    - 表示: `HP 12 24 48`（テキストのみ、ボタン枠なし）
+    - 選択中の値は `UIConstants::Colours::clickArc` 色、非選択はグレー
+    - `juce::Component` を継承し `paint()` + `mouseDown()` で実装（ヘッダーオンリー可）
+    - `onChange` コールバックで slope 値（12/24/48）を通知 → DSP 側でカスケード段数を切り替え
+    - HPF/LPF は独立して個別設定
+
 - **Direct Sample モード UI/DSP 実装**
   - mode コンボ（Direct / Sample）は実装済み。Sample 選択時に以下を追加する
   - **確定レイアウト（Sustain 省略・Click と同じ 2×4 グリッド構造）**:

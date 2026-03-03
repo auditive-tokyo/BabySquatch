@@ -69,19 +69,26 @@ void BabySquatchAudioProcessorEditor::setupClickParams() {
   styleKnobLabel(clickUI.focus1Label, "Focus", tinyFont);
   styleKnobLabel(clickUI.freq2Label, "Air", tinyFont);
   styleKnobLabel(clickUI.focus2Label, "Focus", tinyFont);
-  styleKnobLabel(clickUI.hpfLabel, "HPF", tinyFont);
   styleKnobLabel(clickUI.hpfQLabel, "Reso", tinyFont);
-  styleKnobLabel(clickUI.lpfLabel, "LPF", tinyFont);
   styleKnobLabel(clickUI.lpfQLabel, "Reso", tinyFont);
   addAndMakeVisible(clickUI.decayLabel);
   addAndMakeVisible(clickUI.freq1Label);
   addAndMakeVisible(clickUI.focus1Label);
   addAndMakeVisible(clickUI.freq2Label);
   addAndMakeVisible(clickUI.focus2Label);
-  addAndMakeVisible(clickUI.hpfLabel);
+  addAndMakeVisible(clickUI.hpfSlope);
   addAndMakeVisible(clickUI.hpfQLabel);
-  addAndMakeVisible(clickUI.lpfLabel);
+  addAndMakeVisible(clickUI.lpfSlope);
   addAndMakeVisible(clickUI.lpfQLabel);
+
+  // HPF slope selector
+  clickUI.hpfSlope.setOnChange([this](int dboct) {
+    processorRef.clickEngine().setHpfSlope(dboct);
+  });
+  // LPF slope selector
+  clickUI.lpfSlope.setOnChange([this](int dboct) {
+    processorRef.clickEngine().setLpfSlope(dboct);
+  });
 
   // ── Sliders ──
   // Decay  1–2000 ms
@@ -263,14 +270,14 @@ void BabySquatchAudioProcessorEditor::layoutClickParams(
       &clickUI.lpfSlider,
       &clickUI.lpfQSlider,
   }};
-  const std::array<juce::Label *, 8> labels = {{
+  const std::array<juce::Component *, 8> labels = {{
       &clickUI.freq1Label,
       &clickUI.focus1Label,
       &clickUI.freq2Label,
       &clickUI.focus2Label,
-      &clickUI.hpfLabel,
+      &clickUI.hpfSlope,
       &clickUI.hpfQLabel,
-      &clickUI.lpfLabel,
+      &clickUI.lpfSlope,
       &clickUI.lpfQLabel,
   }};
   const int slotW = area.getWidth() / 4;

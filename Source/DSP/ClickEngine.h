@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <atomic>
 #include <juce_audio_basics/juce_audio_basics.h>
 #include <juce_core/juce_core.h>
@@ -33,31 +34,57 @@ public:
   void setFreq2(float hz) { freq2_.store(hz); }
   void setFocus2(float q) { focus2_.store(q); }
   /// HPF カットオフ周波数 (Q=0 でバイパス)
-  void setHpfFreq(float hz) { hpfFreq_.store(hz); }
-  void setHpfQ(float q) { hpfQ_.store(q); }
+  void setHpfFreq(float hz) { hpfParams_.freq.store(hz); }
+  void setHpfQ(float q) { hpfParams_.q.store(q); }
+  /// HPF スロープ選択（12/24/48 dB/oct → 1/2/4 カスケード段数）
+  void setHpfSlope(int dboct) {
+    int stages = 1;
+    if (dboct >= 48)      stages = 4;
+    else if (dboct >= 24) stages = 2;
+    hpfParams_.stages.store(stages);
+  }
   /// LPF カットオフ周波数 (Q=0 でバイパス)
-  void setLpfFreq(float hz) { lpfFreq_.store(hz); }
-  void setLpfQ(float q) { lpfQ_.store(q); }
+  void setLpfFreq(float hz) { lpfParams_.freq.store(hz); }
+  void setLpfQ(float q) { lpfParams_.q.store(q); }
+  /// LPF スロープ選択（12/24/48 dB/oct → 1/2/4 カスケード段数）
+  void setLpfSlope(int dboct) {
+    int stages = 1;
+    if (dboct >= 48)      stages = 4;
+    else if (dboct >= 24) stages = 2;
+    lpfParams_.stages.store(stages);
+  }
 
   /// レベル計測用 scratchBuffer の先頭ポインタ
   const float *scratchData() const noexcept { return scratchBuffer_.data(); }
 
 private:
+  static constexpr int kMaxCascade = 4;
+
+  /// HPF/LPF のパラメーター（freq / Q / カスケード段数）をまとめた構造体
+  struct FilterParams {
+    std::atomic<float> freq{0.0f};
+    std::atomic<float> q{0.0f};
+    std::atomic<int>   stages{1};
+  };
+
   // ── render() の分割ヘルパー ──
   struct FilterFlags {
     bool bpf1;
     bool bpf2;
     bool hpf;
     bool lpf;
+    int  hpfStages; ///< 1=12dB/oct, 2=24dB/oct, 4=48dB/oct
+    int  lpfStages;
   };
   FilterFlags setupFilters(float sr);
   float synthesizeSample(int mode, const FilterFlags &flags);
+
   // ── 2 段 BPF ──
   juce::dsp::StateVariableTPTFilter<float> bpf1_; // freq1 / focus1
   juce::dsp::StateVariableTPTFilter<float> bpf2_; // freq2 / focus2
-  // ── ポスト HPF / LPF ──
-  juce::dsp::StateVariableTPTFilter<float> hpf_;
-  juce::dsp::StateVariableTPTFilter<float> lpf_;
+  // ── ポスト HPF / LPF（カスケード最大4段）──
+  std::array<juce::dsp::StateVariableTPTFilter<float>, kMaxCascade> hpfs_;
+  std::array<juce::dsp::StateVariableTPTFilter<float>, kMaxCascade> lpfs_;
 
   juce::Random random_; // Noise モード用 RNG
 
@@ -72,8 +99,6 @@ private:
   std::atomic<float> focus1_{0.71f};    // BPF1 Q
   std::atomic<float> freq2_{10000.0f};  // BPF2 中心周波数
   std::atomic<float> focus2_{0.0f};     // BPF2 Q (0=bypass)
-  std::atomic<float> hpfFreq_{200.0f};  // HPF カットオフ
-  std::atomic<float> hpfQ_{0.0f};       // HPF Q (0=bypass)
-  std::atomic<float> lpfFreq_{8000.0f}; // LPF カットオフ
-  std::atomic<float> lpfQ_{0.0f};       // LPF Q (0=bypass)
+  FilterParams hpfParams_{200.0f, 0.0f, 1};
+  FilterParams lpfParams_{8000.0f, 0.0f, 1};
 };

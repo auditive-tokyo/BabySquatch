@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <juce_gui_basics/juce_gui_basics.h>
 
 namespace UIConstants {
@@ -69,4 +70,68 @@ inline const juce::Colour muteOn{0xFFCC2222};
 inline const juce::Colour soloOff{0xFF444444};
 inline const juce::Colour soloOn{0xFFCCAA00};
 } // namespace Colours
+
+/// HPF/LPF スロープ（12/24/48 dB/oct）をクリックで切り替えるミニセレクター。
+/// ラベル行（14px 程度）にそのまま配置できるサイズで設計。
+class SlopeSelector : public juce::Component {
+public:
+  explicit SlopeSelector(juce::String prefix = {}) : prefix_(std::move(prefix)) {}
+
+  /// 選択変更時に slope 値（12/24/48）を通知するコールバックを登録する
+  void setOnChange(std::function<void(int)> cb) { onChange_ = std::move(cb); }
+
+  int getSlope() const noexcept { return kSlopes[static_cast<std::size_t>(selected_)]; }
+
+  void setSlope(int slope, bool notify = false) {
+    for (int i = 0; i < 3; ++i) {
+      if (kSlopes[static_cast<std::size_t>(i)] == slope) {
+        selected_ = i;
+        repaint();
+        if (notify && onChange_) onChange_(slope);
+        return;
+      }
+    }
+  }
+
+  void paint(juce::Graphics &g) override {
+    const auto font = juce::Font(juce::FontOptions(fontSizeSmall));
+    g.setFont(font);
+    const int h       = getHeight();
+    const int prefixW = prefix_.isEmpty() ? 0 : 18;
+    if (!prefix_.isEmpty()) {
+      g.setColour(juce::Colour(0xFFBBBBBB));
+      g.drawText(prefix_, 0, 0, prefixW, h, juce::Justification::centredLeft, false);
+    }
+    const int slotsW = getWidth() - prefixW;
+    const int slotW  = slotsW / 3;
+    for (int i = 0; i < 3; ++i) {
+      g.setColour(i == selected_ ? Colours::clickArc
+                                 : juce::Colour(0x88BBBBBB));
+      g.drawText(juce::String(kSlopes[static_cast<std::size_t>(i)]),
+                 prefixW + i * slotW, 0, slotW, h,
+                 juce::Justification::centred, false);
+    }
+  }
+
+  void mouseDown(const juce::MouseEvent &e) override {
+    const int prefixW  = prefix_.isEmpty() ? 0 : 18;
+    const int xInSlots = e.x - prefixW;
+    if (xInSlots < 0) return;
+    const int slotsW = getWidth() - prefixW;
+    const int slotW  = slotsW / 3;
+    const int idx    = juce::jlimit(0, 2, xInSlots / slotW);
+    if (idx != selected_) {
+      selected_ = idx;
+      repaint();
+      if (onChange_) onChange_(kSlopes[static_cast<std::size_t>(selected_)]);
+    }
+  }
+
+private:
+  std::function<void(int)> onChange_;
+  juce::String prefix_;
+  int          selected_ = 0;
+  static constexpr std::array<int, 3> kSlopes = {12, 24, 48};
+};
+
 } // namespace UIConstants

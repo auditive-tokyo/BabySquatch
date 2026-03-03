@@ -8,10 +8,8 @@ void ClickEngine::prepareToPlay(double /*sampleRate*/, int samplesPerBlock) {
   bpf1_.setType(bandpass);
   bpf2_.reset();
   bpf2_.setType(bandpass);
-  hpf_.reset();
-  hpf_.setType(highpass);
-  lpf_.reset();
-  lpf_.setType(lowpass);
+  for (auto &f : hpfs_) { f.reset(); f.setType(highpass); }
+  for (auto &f : lpfs_) { f.reset(); f.setType(lowpass); }
 
   scratchBuffer_.resize(static_cast<size_t>(samplesPerBlock));
   noteTimeSamples_ = 0.0f;
@@ -22,11 +20,9 @@ void ClickEngine::triggerNote() {
   active_.store(true);
   bpf1_.reset();
   bpf2_.reset();
-  hpf_.reset();
-  lpf_.reset();
+  for (auto &f : hpfs_) f.reset();
+  for (auto &f : lpfs_) f.reset();
   noteTimeSamples_ = 0.0f;
-
-
 }
 
 auto ClickEngine::setupFilters(float sr) -> FilterFlags {
@@ -34,16 +30,30 @@ auto ClickEngine::setupFilters(float sr) -> FilterFlags {
   const float q1   = focus1_.load();
   const float f2   = juce::jlimit(20.0f, sr * 0.49f, freq2_.load());
   const float q2   = focus2_.load();
-  const float hpfF = juce::jlimit(20.0f, sr * 0.49f, hpfFreq_.load());
-  const float hpfQv = hpfQ_.load();
-  const float lpfF = juce::jlimit(20.0f, sr * 0.49f, lpfFreq_.load());
-  const float lpfQv = lpfQ_.load();
+  const float hpfF = juce::jlimit(20.0f, sr * 0.49f, hpfParams_.freq.load());
+  const float hpfQv = hpfParams_.q.load();
+  const float lpfF = juce::jlimit(20.0f, sr * 0.49f, lpfParams_.freq.load());
+  const float lpfQv = lpfParams_.q.load();
+  const int   hpfStg = hpfParams_.stages.load();
+  const int   lpfStg = lpfParams_.stages.load();
 
-  const FilterFlags flags{ q1 > 0.001f, q2 > 0.001f, hpfQv > 0.001f, lpfQv > 0.001f };
-  if (flags.bpf1) { bpf1_.setCutoffFrequency(f1);   bpf1_.setResonance(juce::jlimit(0.01f, 30.0f, q1)); }
-  if (flags.bpf2) { bpf2_.setCutoffFrequency(f2);   bpf2_.setResonance(juce::jlimit(0.01f, 30.0f, q2)); }
-  if (flags.hpf)  { hpf_.setCutoffFrequency(hpfF);  hpf_.setResonance(juce::jlimit(0.01f, 30.0f, hpfQv)); }
-  if (flags.lpf)  { lpf_.setCutoffFrequency(lpfF);  lpf_.setResonance(juce::jlimit(0.01f, 30.0f, lpfQv)); }
+  const FilterFlags flags{ q1 > 0.001f, q2 > 0.001f, hpfQv > 0.001f, lpfQv > 0.001f, hpfStg, lpfStg };
+  if (flags.bpf1) { bpf1_.setCutoffFrequency(f1);  bpf1_.setResonance(juce::jlimit(0.01f, 30.0f, q1)); }
+  if (flags.bpf2) { bpf2_.setCutoffFrequency(f2);  bpf2_.setResonance(juce::jlimit(0.01f, 30.0f, q2)); }
+  if (flags.hpf) {
+    const float qH = juce::jlimit(0.01f, 30.0f, hpfQv);
+    for (int i = 0; i < hpfStg; ++i) {
+      hpfs_[static_cast<std::size_t>(i)].setCutoffFrequency(hpfF);
+      hpfs_[static_cast<std::size_t>(i)].setResonance(qH);
+    }
+  }
+  if (flags.lpf) {
+    const float qL = juce::jlimit(0.01f, 30.0f, lpfQv);
+    for (int i = 0; i < lpfStg; ++i) {
+      lpfs_[static_cast<std::size_t>(i)].setCutoffFrequency(lpfF);
+      lpfs_[static_cast<std::size_t>(i)].setResonance(qL);
+    }
+  }
   return flags;
 }
 
@@ -61,8 +71,14 @@ float ClickEngine::synthesizeSample(int mode, const FilterFlags &flags) {
     if (flags.bpf2) s = bpf2_.processSample(0, s);
   }
   // ── ポスト HPF / LPF ──
-  if (flags.hpf) s = hpf_.processSample(0, s);
-  if (flags.lpf) s = lpf_.processSample(0, s);
+  if (flags.hpf) {
+    for (int i = 0; i < flags.hpfStages; ++i)
+      s = hpfs_[static_cast<std::size_t>(i)].processSample(0, s);
+  }
+  if (flags.lpf) {
+    for (int i = 0; i < flags.lpfStages; ++i)
+      s = lpfs_[static_cast<std::size_t>(i)].processSample(0, s);
+  }
   return s;
 }
 

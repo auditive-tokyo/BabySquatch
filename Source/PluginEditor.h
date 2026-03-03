@@ -119,11 +119,11 @@ private:
     juce::Slider freq2Slider;
     juce::Label  focus2Label;
     juce::Slider focus2Slider;
-    juce::Label  hpfLabel;
+    UIConstants::SlopeSelector hpfSlope{"HP"};
     juce::Slider hpfSlider;
     juce::Label  hpfQLabel;
     juce::Slider hpfQSlider;
-    juce::Label  lpfLabel;
+    UIConstants::SlopeSelector lpfSlope{"LP"};
     juce::Slider lpfSlider;
     juce::Label  lpfQLabel;
     juce::Slider lpfQSlider;
