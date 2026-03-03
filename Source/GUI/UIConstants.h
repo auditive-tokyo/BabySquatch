@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -149,17 +150,17 @@ class SampleDropButton : public juce::TextButton,
 public:
   using juce::TextButton::TextButton;
 
-  /// ファイルがドロップまたはクリック選択されたときのコールバック
-  std::function<void(const juce::File &)> onFileDropped;
+  /// ファイルがドロップまたはクリック選択されたときのコールバックを登録する
+  void setOnFileDropped(std::function<void(const juce::File &)> cb) {
+    onFileDropped_ = std::move(cb);
+  }
 
   bool isInterestedInFileDrag(const juce::StringArray &files) override {
-    for (const auto &f : files) {
+    return std::ranges::any_of(files, [](const juce::String &f) {
       const auto ext = juce::File(f).getFileExtension().toLowerCase();
-      if (ext == ".wav" || ext == ".aif" || ext == ".aiff" ||
-          ext == ".flac" || ext == ".ogg")
-        return true;
-    }
-    return false;
+      return ext == ".wav" || ext == ".aif" || ext == ".aiff" ||
+             ext == ".flac" || ext == ".ogg";
+    });
   }
 
   void fileDragEnter(const juce::StringArray &, int, int) override {
@@ -178,8 +179,8 @@ public:
     for (const auto &path : files) {
       const juce::File file(path);
       if (file.existsAsFile()) {
-        if (onFileDropped)
-          onFileDropped(file);
+        if (onFileDropped_)
+          onFileDropped_(file);
         return; // 最初の1ファイルのみ処理
       }
     }
@@ -195,6 +196,7 @@ public:
   }
 
 private:
+  std::function<void(const juce::File &)> onFileDropped_;
   bool dragHovered_ = false;
 };
 

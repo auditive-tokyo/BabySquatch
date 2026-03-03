@@ -47,9 +47,9 @@ void BabySquatchAudioProcessorEditor::setupDirectParams() {
                                       UIConstants::Colours::labelText);
   directUI.sampleLoadButton.setVisible(false);
   directUI.sampleLoadButton.onClick = [this] { onSampleLoadClicked(); };
-  directUI.sampleLoadButton.onFileDropped = [this](const juce::File &file) {
+  directUI.sampleLoadButton.setOnFileDropped([this](const juce::File &file) {
     onSampleFileChosen(file);
-  };
+  });
   addAndMakeVisible(directUI.sampleLoadButton);
 
   // ── Mode コンボ変更時: ボタン表示切り替え ──
