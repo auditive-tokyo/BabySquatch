@@ -35,6 +35,7 @@ private:
   void layoutDirectParams(juce::Rectangle<int> area);
   void onSampleLoadClicked();
   void onSampleFileChosen(const juce::File &file);
+  void refreshDirectProvider();
   void layoutLengthBox(juce::Rectangle<int> btnRow);
   void setupLengthBox();
   void setupWaveShapeCombo();
@@ -143,6 +144,10 @@ private:
     UIConstants::SampleDropButton sampleLoadButton{"Drop or Click to Load"};
     juce::String     loadedFilePath;
     std::unique_ptr<juce::FileChooser> fileChooser;
+    // サムネイルデータ（Pitch プレビュー更新用）
+    std::vector<float> thumbMin;
+    std::vector<float> thumbMax;
+    double thumbDurSec = 0.0;
     // ── Pitch / Envelope ノブ（上段） ──
     juce::Label  pitchLabel;
     juce::Slider pitchSlider;

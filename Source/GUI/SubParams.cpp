@@ -226,14 +226,17 @@ void BabySquatchAudioProcessorEditor::setupHarmonicKnobs() {
   for (int i = 0; i < 4; ++i) {
     const auto idx = static_cast<size_t>(i + 4);
     subKnobs[idx].setRange(0.0, 100.0, 0.1);
-    subKnobs[idx].setValue(0.0, juce::dontSendNotification);
-    subKnobs[idx].setDoubleClickReturnValue(true, 0.0);
+    subKnobs[idx].setValue(25.0, juce::dontSendNotification);
+    subKnobs[idx].setDoubleClickReturnValue(true, 25.0);
     const int harmonicNum = i + 1;
     subKnobs[idx].onValueChange = [this, idx, harmonicNum] {
       const auto gain = static_cast<float>(subKnobs[idx].getValue()) / 100.0f;
       processorRef.subEngine().oscillator().setHarmonicGain(harmonicNum, gain);
       envelopeCurveEditor.setPreviewHarmonicGain(harmonicNum, gain);
     };
+    // 起動時デフォルト値を DSP へ反映
+    processorRef.subEngine().oscillator().setHarmonicGain(harmonicNum, 0.25f);
+    envelopeCurveEditor.setPreviewHarmonicGain(harmonicNum, 0.25f);
   }
 }
 

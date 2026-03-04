@@ -17,6 +17,33 @@ void styleKnobLabelDirect(juce::Label &label, const juce::String &text,
 }
 } // namespace
 
+static std::pair<float, float> computeDirectPreview(
+    const std::vector<float> &thumbMin, const std::vector<float> &thumbMax,
+    double durSec, float attackSec, float holdSec, float releaseSec,
+    float timeSec) {
+  // A → Hold → R エンベロープ
+  float env = 0.0f;
+  if (timeSec < attackSec) {
+    env = (attackSec > 0.0f) ? timeSec / attackSec : 1.0f;
+  } else if (timeSec < attackSec + holdSec) {
+    env = 1.0f;
+  } else {
+    const float rel = timeSec - attackSec - holdSec;
+    env = (releaseSec > 0.0f)
+              ? juce::jlimit(0.0f, 1.0f, 1.0f - rel / releaseSec)
+              : 0.0f;
+  }
+  // サムネイル参照
+  if (durSec <= 0.0 || timeSec < 0.0f || timeSec >= static_cast<float>(durSec))
+    return {0.0f, 0.0f};
+  const float t = timeSec / static_cast<float>(durSec);
+  const auto n = static_cast<int>(thumbMin.size());
+  const int idx =
+      juce::jlimit(0, n - 1, static_cast<int>(t * static_cast<float>(n)));
+  return {thumbMin[static_cast<std::size_t>(idx)] * env,
+          thumbMax[static_cast<std::size_t>(idx)] * env};
+}
+
 void BabySquatchAudioProcessorEditor::setupDirectParams() {
   const auto smallFont =
       juce::Font(juce::FontOptions(UIConstants::fontSizeMedium));
@@ -47,9 +74,8 @@ void BabySquatchAudioProcessorEditor::setupDirectParams() {
                                       UIConstants::Colours::labelText);
   directUI.sampleLoadButton.setVisible(false);
   directUI.sampleLoadButton.onClick = [this] { onSampleLoadClicked(); };
-  directUI.sampleLoadButton.setOnFileDropped([this](const juce::File &file) {
-    onSampleFileChosen(file);
-  });
+  directUI.sampleLoadButton.setOnFileDropped(
+      [this](const juce::File &file) { onSampleFileChosen(file); });
   addAndMakeVisible(directUI.sampleLoadButton);
 
   // ── Mode コンボ変更時: ボタン表示切り替え ──
@@ -68,10 +94,12 @@ void BabySquatchAudioProcessorEditor::setupDirectParams() {
   // Pitch: -24 〜 +24 半音
   styleDirectKnob(directUI.pitchSlider, directKnobLAF);
   directUI.pitchSlider.setRange(-24.0, 24.0, 1.0);
+  directUI.pitchSlider.setDoubleClickReturnValue(true, 0.0);
   directUI.pitchSlider.setValue(0.0, juce::dontSendNotification);
   directUI.pitchSlider.onValueChange = [this] {
     processorRef.directEngine().setPitchSemitones(
         static_cast<float>(directUI.pitchSlider.getValue()));
+    refreshDirectProvider();
   };
   addAndMakeVisible(directUI.pitchSlider);
   styleKnobLabelDirect(directUI.pitchLabel, "Pitch", knobFont);
@@ -81,10 +109,12 @@ void BabySquatchAudioProcessorEditor::setupDirectParams() {
   styleDirectKnob(directUI.attackSlider, directKnobLAF);
   directUI.attackSlider.setRange(0.1, 500.0, 0.1);
   directUI.attackSlider.setSkewFactorFromMidPoint(20.0);
+  directUI.attackSlider.setDoubleClickReturnValue(true, 1.0);
   directUI.attackSlider.setValue(1.0, juce::dontSendNotification);
   directUI.attackSlider.onValueChange = [this] {
     processorRef.directEngine().setAttackMs(
         static_cast<float>(directUI.attackSlider.getValue()));
+    refreshDirectProvider();
   };
   addAndMakeVisible(directUI.attackSlider);
   styleKnobLabelDirect(directUI.attackLabel, "A", knobFont);
@@ -94,10 +124,12 @@ void BabySquatchAudioProcessorEditor::setupDirectParams() {
   styleDirectKnob(directUI.decaySlider, directKnobLAF);
   directUI.decaySlider.setRange(1.0, 2000.0, 1.0);
   directUI.decaySlider.setSkewFactorFromMidPoint(200.0);
+  directUI.decaySlider.setDoubleClickReturnValue(true, 200.0);
   directUI.decaySlider.setValue(200.0, juce::dontSendNotification);
   directUI.decaySlider.onValueChange = [this] {
     processorRef.directEngine().setDecayMs(
         static_cast<float>(directUI.decaySlider.getValue()));
+    refreshDirectProvider();
   };
   addAndMakeVisible(directUI.decaySlider);
   styleKnobLabelDirect(directUI.decayLabel, "D", knobFont);
@@ -107,19 +139,20 @@ void BabySquatchAudioProcessorEditor::setupDirectParams() {
   styleDirectKnob(directUI.releaseSlider, directKnobLAF);
   directUI.releaseSlider.setRange(1.0, 1000.0, 1.0);
   directUI.releaseSlider.setSkewFactorFromMidPoint(100.0);
+  directUI.releaseSlider.setDoubleClickReturnValue(true, 50.0);
   directUI.releaseSlider.setValue(50.0, juce::dontSendNotification);
   directUI.releaseSlider.onValueChange = [this] {
     processorRef.directEngine().setReleaseMs(
         static_cast<float>(directUI.releaseSlider.getValue()));
+    refreshDirectProvider();
   };
   addAndMakeVisible(directUI.releaseSlider);
   styleKnobLabelDirect(directUI.releaseLabel, "R", knobFont);
   addAndMakeVisible(directUI.releaseLabel);
 
   // HPF: SlopeSelector (label) + freq knob + Q knob
-  directUI.hpfSlope.setOnChange([this](int dboct) {
-    processorRef.directEngine().setHpfSlope(dboct);
-  });
+  directUI.hpfSlope.setOnChange(
+      [this](int dboct) { processorRef.directEngine().setHpfSlope(dboct); });
   addAndMakeVisible(directUI.hpfSlope);
 
   styleDirectKnob(directUI.hpfSlider, directKnobLAF);
@@ -135,8 +168,10 @@ void BabySquatchAudioProcessorEditor::setupDirectParams() {
   addAndMakeVisible(directUI.hpfSlider);
 
   styleDirectKnob(directUI.hpfQSlider, directKnobLAF);
-  directUI.hpfQSlider.setRange(0.1, 30.0, 0.01);
-  directUI.hpfQSlider.textFromValueFunction = [](double v) { return juce::String(v, 2); };
+  directUI.hpfQSlider.setRange(0.1, 12.0, 0.01);
+  directUI.hpfQSlider.textFromValueFunction = [](double v) {
+    return juce::String(v, 2);
+  };
   directUI.hpfQSlider.setValue(0.707, juce::dontSendNotification);
   directUI.hpfQSlider.setDoubleClickReturnValue(true, 0.707);
   directUI.hpfQSlider.onValueChange = [this] {
@@ -148,9 +183,8 @@ void BabySquatchAudioProcessorEditor::setupDirectParams() {
   addAndMakeVisible(directUI.hpfQLabel);
 
   // LPF: SlopeSelector (label) + freq knob + Q knob
-  directUI.lpfSlope.setOnChange([this](int dboct) {
-    processorRef.directEngine().setLpfSlope(dboct);
-  });
+  directUI.lpfSlope.setOnChange(
+      [this](int dboct) { processorRef.directEngine().setLpfSlope(dboct); });
   addAndMakeVisible(directUI.lpfSlope);
 
   styleDirectKnob(directUI.lpfSlider, directKnobLAF);
@@ -166,8 +200,10 @@ void BabySquatchAudioProcessorEditor::setupDirectParams() {
   addAndMakeVisible(directUI.lpfSlider);
 
   styleDirectKnob(directUI.lpfQSlider, directKnobLAF);
-  directUI.lpfQSlider.setRange(0.1, 30.0, 0.01);
-  directUI.lpfQSlider.textFromValueFunction = [](double v) { return juce::String(v, 2); };
+  directUI.lpfQSlider.setRange(0.1, 12.0, 0.01);
+  directUI.lpfQSlider.textFromValueFunction = [](double v) {
+    return juce::String(v, 2);
+  };
   directUI.lpfQSlider.setValue(0.707, juce::dontSendNotification);
   directUI.lpfQSlider.setDoubleClickReturnValue(true, 0.707);
   directUI.lpfQSlider.onValueChange = [this] {
@@ -183,7 +219,7 @@ void BabySquatchAudioProcessorEditor::setupDirectParams() {
   processorRef.directEngine().setAttackMs(1.0f);
   processorRef.directEngine().setDecayMs(200.0f);
   processorRef.directEngine().setReleaseMs(50.0f);
-  processorRef.directEngine().setHpfFreq(20.0f);   // 20Hz = バイパス
+  processorRef.directEngine().setHpfFreq(20.0f); // 20Hz = バイパス
   processorRef.directEngine().setHpfQ(0.707f);
   processorRef.directEngine().setHpfSlope(12);
   processorRef.directEngine().setLpfFreq(20000.0f); // 20kHz = バイパス
@@ -229,8 +265,7 @@ void BabySquatchAudioProcessorEditor::layoutDirectParams(
     }};
     for (int col = 0; col < 4; ++col) {
       const auto col_u = static_cast<std::size_t>(col);
-      juce::Rectangle slot(area.getX() + col * slotW, area.getY(), slotW,
-                           rowH);
+      juce::Rectangle slot(area.getX() + col * slotW, area.getY(), slotW, rowH);
       rowLabels[col_u]->setBounds(slot.removeFromBottom(14));
       rowKnobs[col_u]->setBounds(slot);
     }
@@ -254,8 +289,8 @@ void BabySquatchAudioProcessorEditor::layoutDirectParams(
     }};
     for (int col = 0; col < 4; ++col) {
       const auto col_u = static_cast<std::size_t>(col);
-      juce::Rectangle slot(area.getX() + col * slotW, area.getY() + rowH,
-                           slotW, rowH);
+      juce::Rectangle slot(area.getX() + col * slotW, area.getY() + rowH, slotW,
+                           rowH);
       rowLabels[col_u]->setBounds(slot.removeFromBottom(14));
       rowKnobs[col_u]->setBounds(slot);
     }
@@ -284,25 +319,35 @@ void BabySquatchAudioProcessorEditor::onSampleFileChosen(
   directUI.sampleLoadButton.setTooltip(directUI.loadedFilePath);
   processorRef.directEngine().loadSample(file);
 
-  // ロード完了後に波形サムネイルをプレビュープロバイダーとして設定
-  std::vector<float> thumbMin;
-  std::vector<float> thumbMax;
-  if (!processorRef.directEngine().copyWaveformThumbnail(thumbMin, thumbMax))
+  // サムネイルデータをメンバーに保存してプロバイダーを登録
+  if (!processorRef.directEngine().copyWaveformThumbnail(directUI.thumbMin,
+                                                         directUI.thumbMax))
+    return;
+  directUI.thumbDurSec = processorRef.directEngine().getSampleDurationSec();
+  refreshDirectProvider();
+}
+
+void BabySquatchAudioProcessorEditor::refreshDirectProvider() {
+  if (directUI.thumbMin.empty() || directUI.thumbDurSec <= 0.0)
     return;
 
-  const double durSec = processorRef.directEngine().getSampleDurationSec();
-  auto minPtr = std::make_shared<std::vector<float>>(std::move(thumbMin));
-  auto maxPtr = std::make_shared<std::vector<float>>(std::move(thumbMax));
+  // Pitch (semitones) → 再生速度倍率
+  const auto semitones = static_cast<float>(directUI.pitchSlider.getValue());
+  const float speedRatio = std::pow(2.0f, semitones / 12.0f);
+  const double durSec = directUI.thumbDurSec / static_cast<double>(speedRatio);
+
+  // A / D(Hold) / R を秒単位でキャプチャ
+  const float attackSec  = static_cast<float>(directUI.attackSlider.getValue())  / 1000.0f;
+  const float holdSec    = static_cast<float>(directUI.decaySlider.getValue())   / 1000.0f;
+  const float releaseSec = static_cast<float>(directUI.releaseSlider.getValue()) / 1000.0f;
+
+  auto minPtr = std::make_shared<std::vector<float>>(directUI.thumbMin);
+  auto maxPtr = std::make_shared<std::vector<float>>(directUI.thumbMax);
+
   envelopeCurveEditor.setDirectProvider(
-      [minPtr, maxPtr, durSec](float timeSec) -> std::pair<float, float> {
-        if (durSec <= 0.0 || timeSec < 0.0f ||
-            timeSec >= static_cast<float>(durSec))
-          return {0.0f, 0.0f};
-        const float t = timeSec / static_cast<float>(durSec);
-        const auto n = static_cast<int>(minPtr->size());
-        const int idx =
-            juce::jlimit(0, n - 1, static_cast<int>(t * static_cast<float>(n)));
-        return {(*minPtr)[static_cast<std::size_t>(idx)],
-                (*maxPtr)[static_cast<std::size_t>(idx)]};
+      [minPtr, maxPtr, durSec,
+       attackSec, holdSec, releaseSec](float timeSec) {
+        return computeDirectPreview(*minPtr, *maxPtr, durSec,
+                                   attackSec, holdSec, releaseSec, timeSec);
       });
 }
