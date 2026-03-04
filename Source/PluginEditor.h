@@ -61,13 +61,9 @@ private:
   EnvelopeCurveEditor envelopeCurveEditor{ampEnvData, pitchEnvData, distEnvData,
                                           blendEnvData};
 
-  // ── SUB展開パネル: LAF（subKnobs より先に宣言し、後に破棄されるようにする）
-  // ──
+  // ── SUB展開パネル: LAF（subUI より先に宣言し、後に破棄されるようにする） ──
   ColouredSliderLAF subKnobLAF{UIConstants::Colours::subArc,
                                UIConstants::Colours::subThumb};
-  // ── SUB展開パネル: Oscノブ行（8本） ──
-  std::array<juce::Slider, 8> subKnobs;
-  std::array<juce::Label, 8> subKnobLabels;
   // ── SUB展開パネル: 波形選択（プルダウン）用 LAF ──
   struct DarkComboLAF : public juce::LookAndFeel_V4 {
     DarkComboLAF() {
@@ -90,18 +86,14 @@ private:
     }
   };
   DarkComboLAF darkComboLAF;
-  // ── SUB展開パネル: 波形選択（プルダウン） ──
-  struct SubWaveUI {
-    juce::Label label;
-    juce::ComboBox combo;
+  // ── SUB展開パネル: Oscノブ行 / 波形選択 / Length（まとめて管理） ──
+  struct SubUI {
+    std::array<juce::Slider, 8> knobs;
+    std::array<juce::Label, 8>  knobLabels;
+    struct { juce::Label label; juce::ComboBox combo;  } wave;
+    struct { juce::Label label; juce::Slider   slider; } length;
   };
-  SubWaveUI subWave;
-  // ── SUB展開パネル: Length スライダー ──
-  struct LengthBox {
-    juce::Label  label;
-    juce::Slider slider;
-  };
-  LengthBox lengthBox;
+  SubUI subUI;
 
   // ── CLICK展開パネル: LAF（clickUI のスライダーより先に宣言） ──
   ColouredSliderLAF clickKnobLAF{UIConstants::Colours::clickArc,
@@ -149,14 +141,8 @@ private:
     std::vector<float> thumbMax;
     double thumbDurSec = 0.0;
     // ── Pitch / Envelope ノブ（上段） ──
-    juce::Label  pitchLabel;
-    juce::Slider pitchSlider;
-    juce::Label  attackLabel;
-    juce::Slider attackSlider;
-    juce::Label  decayLabel;
-    juce::Slider decaySlider;
-    juce::Label  releaseLabel;
-    juce::Slider releaseSlider;
+    struct KnobUI { juce::Label label; juce::Slider slider; };
+    KnobUI pitch, attack, decay, release;
     // ── フィルター ノブ（下段） ──
     UIConstants::SlopeSelector hpfSlope{"HP", UIConstants::Colours::directArc};
     juce::Slider hpfSlider;

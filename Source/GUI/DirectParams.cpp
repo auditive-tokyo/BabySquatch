@@ -92,63 +92,63 @@ void BabySquatchAudioProcessorEditor::setupDirectParams() {
       juce::Font(juce::FontOptions(UIConstants::fontSizeSmall));
 
   // Pitch: -24 〜 +24 半音
-  styleDirectKnob(directUI.pitchSlider, directKnobLAF);
-  directUI.pitchSlider.setRange(-24.0, 24.0, 1.0);
-  directUI.pitchSlider.setDoubleClickReturnValue(true, 0.0);
-  directUI.pitchSlider.setValue(0.0, juce::dontSendNotification);
-  directUI.pitchSlider.onValueChange = [this] {
+  styleDirectKnob(directUI.pitch.slider, directKnobLAF);
+  directUI.pitch.slider.setRange(-24.0, 24.0, 1.0);
+  directUI.pitch.slider.setDoubleClickReturnValue(true, 0.0);
+  directUI.pitch.slider.setValue(0.0, juce::dontSendNotification);
+  directUI.pitch.slider.onValueChange = [this] {
     processorRef.directEngine().setPitchSemitones(
-        static_cast<float>(directUI.pitchSlider.getValue()));
+        static_cast<float>(directUI.pitch.slider.getValue()));
     refreshDirectProvider();
   };
-  addAndMakeVisible(directUI.pitchSlider);
-  styleKnobLabelDirect(directUI.pitchLabel, "Pitch", knobFont);
-  addAndMakeVisible(directUI.pitchLabel);
+  addAndMakeVisible(directUI.pitch.slider);
+  styleKnobLabelDirect(directUI.pitch.label, "Pitch", knobFont);
+  addAndMakeVisible(directUI.pitch.label);
 
   // Attack: 0.1 〜 500 ms
-  styleDirectKnob(directUI.attackSlider, directKnobLAF);
-  directUI.attackSlider.setRange(0.1, 500.0, 0.1);
-  directUI.attackSlider.setSkewFactorFromMidPoint(20.0);
-  directUI.attackSlider.setDoubleClickReturnValue(true, 1.0);
-  directUI.attackSlider.setValue(1.0, juce::dontSendNotification);
-  directUI.attackSlider.onValueChange = [this] {
+  styleDirectKnob(directUI.attack.slider, directKnobLAF);
+  directUI.attack.slider.setRange(0.1, 500.0, 0.1);
+  directUI.attack.slider.setSkewFactorFromMidPoint(20.0);
+  directUI.attack.slider.setDoubleClickReturnValue(true, 1.0);
+  directUI.attack.slider.setValue(1.0, juce::dontSendNotification);
+  directUI.attack.slider.onValueChange = [this] {
     processorRef.directEngine().setAttackMs(
-        static_cast<float>(directUI.attackSlider.getValue()));
+        static_cast<float>(directUI.attack.slider.getValue()));
     refreshDirectProvider();
   };
-  addAndMakeVisible(directUI.attackSlider);
-  styleKnobLabelDirect(directUI.attackLabel, "A", knobFont);
-  addAndMakeVisible(directUI.attackLabel);
+  addAndMakeVisible(directUI.attack.slider);
+  styleKnobLabelDirect(directUI.attack.label, "A", knobFont);
+  addAndMakeVisible(directUI.attack.label);
 
   // Decay: 1 〜 2000 ms
-  styleDirectKnob(directUI.decaySlider, directKnobLAF);
-  directUI.decaySlider.setRange(1.0, 2000.0, 1.0);
-  directUI.decaySlider.setSkewFactorFromMidPoint(200.0);
-  directUI.decaySlider.setDoubleClickReturnValue(true, 200.0);
-  directUI.decaySlider.setValue(200.0, juce::dontSendNotification);
-  directUI.decaySlider.onValueChange = [this] {
+  styleDirectKnob(directUI.decay.slider, directKnobLAF);
+  directUI.decay.slider.setRange(1.0, 2000.0, 1.0);
+  directUI.decay.slider.setSkewFactorFromMidPoint(200.0);
+  directUI.decay.slider.setDoubleClickReturnValue(true, 200.0);
+  directUI.decay.slider.setValue(200.0, juce::dontSendNotification);
+  directUI.decay.slider.onValueChange = [this] {
     processorRef.directEngine().setDecayMs(
-        static_cast<float>(directUI.decaySlider.getValue()));
+        static_cast<float>(directUI.decay.slider.getValue()));
     refreshDirectProvider();
   };
-  addAndMakeVisible(directUI.decaySlider);
-  styleKnobLabelDirect(directUI.decayLabel, "D", knobFont);
-  addAndMakeVisible(directUI.decayLabel);
+  addAndMakeVisible(directUI.decay.slider);
+  styleKnobLabelDirect(directUI.decay.label, "D", knobFont);
+  addAndMakeVisible(directUI.decay.label);
 
   // Release: 1 〜 1000 ms
-  styleDirectKnob(directUI.releaseSlider, directKnobLAF);
-  directUI.releaseSlider.setRange(1.0, 1000.0, 1.0);
-  directUI.releaseSlider.setSkewFactorFromMidPoint(100.0);
-  directUI.releaseSlider.setDoubleClickReturnValue(true, 50.0);
-  directUI.releaseSlider.setValue(50.0, juce::dontSendNotification);
-  directUI.releaseSlider.onValueChange = [this] {
+  styleDirectKnob(directUI.release.slider, directKnobLAF);
+  directUI.release.slider.setRange(1.0, 1000.0, 1.0);
+  directUI.release.slider.setSkewFactorFromMidPoint(100.0);
+  directUI.release.slider.setDoubleClickReturnValue(true, 50.0);
+  directUI.release.slider.setValue(50.0, juce::dontSendNotification);
+  directUI.release.slider.onValueChange = [this] {
     processorRef.directEngine().setReleaseMs(
-        static_cast<float>(directUI.releaseSlider.getValue()));
+        static_cast<float>(directUI.release.slider.getValue()));
     refreshDirectProvider();
   };
-  addAndMakeVisible(directUI.releaseSlider);
-  styleKnobLabelDirect(directUI.releaseLabel, "R", knobFont);
-  addAndMakeVisible(directUI.releaseLabel);
+  addAndMakeVisible(directUI.release.slider);
+  styleKnobLabelDirect(directUI.release.label, "R", knobFont);
+  addAndMakeVisible(directUI.release.label);
 
   // HPF: SlopeSelector (label) + freq knob + Q knob
   directUI.hpfSlope.setOnChange(
@@ -252,16 +252,16 @@ void BabySquatchAudioProcessorEditor::layoutDirectParams(
   // 上段行: Pitch / A / D / R
   {
     const std::array<juce::Slider *, 4> rowKnobs = {{
-        &directUI.pitchSlider,
-        &directUI.attackSlider,
-        &directUI.decaySlider,
-        &directUI.releaseSlider,
+        &directUI.pitch.slider,
+        &directUI.attack.slider,
+        &directUI.decay.slider,
+        &directUI.release.slider,
     }};
     const std::array<juce::Label *, 4> rowLabels = {{
-        &directUI.pitchLabel,
-        &directUI.attackLabel,
-        &directUI.decayLabel,
-        &directUI.releaseLabel,
+        &directUI.pitch.label,
+        &directUI.attack.label,
+        &directUI.decay.label,
+        &directUI.release.label,
     }};
     for (int col = 0; col < 4; ++col) {
       const auto col_u = static_cast<std::size_t>(col);
@@ -332,14 +332,14 @@ void BabySquatchAudioProcessorEditor::refreshDirectProvider() {
     return;
 
   // Pitch (semitones) → 再生速度倍率
-  const auto semitones = static_cast<float>(directUI.pitchSlider.getValue());
+  const auto semitones = static_cast<float>(directUI.pitch.slider.getValue());
   const float speedRatio = std::pow(2.0f, semitones / 12.0f);
   const double durSec = directUI.thumbDurSec / static_cast<double>(speedRatio);
 
   // A / D(Hold) / R を秒単位でキャプチャ
-  const float attackSec  = static_cast<float>(directUI.attackSlider.getValue())  / 1000.0f;
-  const float holdSec    = static_cast<float>(directUI.decaySlider.getValue())   / 1000.0f;
-  const float releaseSec = static_cast<float>(directUI.releaseSlider.getValue()) / 1000.0f;
+  const float attackSec  = static_cast<float>(directUI.attack.slider.getValue())  / 1000.0f;
+  const float holdSec    = static_cast<float>(directUI.decay.slider.getValue())   / 1000.0f;
+  const float releaseSec = static_cast<float>(directUI.release.slider.getValue()) / 1000.0f;
 
   auto minPtr = std::make_shared<std::vector<float>>(directUI.thumbMin);
   auto maxPtr = std::make_shared<std::vector<float>>(directUI.thumbMax);

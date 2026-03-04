@@ -109,44 +109,44 @@ void BabySquatchAudioProcessorEditor::onEnvelopeChanged() {
 
   // Gain
   const bool ampCtrl = ampEnvData.isEnvelopeControlled();
-  subKnobs[0].setEnabled(!ampCtrl);
-  subKnobs[0].setTooltip(ampCtrl ? "Value is controlled by envelope" : "");
+  subUI.knobs[0].setEnabled(!ampCtrl);
+  subUI.knobs[0].setTooltip(ampCtrl ? "Value is controlled by envelope" : "");
   if (!ampCtrl && ampEnvData.hasPoints()) {
     const float v = ampEnvData.getPoints()[0].value;
     ampEnvData.setDefaultValue(v);
-    subKnobs[0].setValue(v * 100.0, juce::dontSendNotification);
+    subUI.knobs[0].setValue(v * 100.0, juce::dontSendNotification);
   }
 
   // Freq
   const bool pitchCtrl = pitchEnvData.isEnvelopeControlled();
-  subKnobs[1].setEnabled(!pitchCtrl);
-  subKnobs[1].setTooltip(pitchCtrl ? "Value is controlled by envelope" : "");
+  subUI.knobs[1].setEnabled(!pitchCtrl);
+  subUI.knobs[1].setTooltip(pitchCtrl ? "Value is controlled by envelope" : "");
   if (!pitchCtrl && pitchEnvData.hasPoints()) {
     const float hz = pitchEnvData.getPoints()[0].value;
     pitchEnvData.setDefaultValue(hz);
-    subKnobs[1].setValue(hz, juce::dontSendNotification);
+    subUI.knobs[1].setValue(hz, juce::dontSendNotification);
     envelopeCurveEditor.setDisplayCycles(
         hz * envelopeCurveEditor.getDisplayDurationMs() / 1000.0f);
   }
 
   // Saturate
   const bool distCtrl = distEnvData.isEnvelopeControlled();
-  subKnobs[3].setEnabled(!distCtrl);
-  subKnobs[3].setTooltip(distCtrl ? "Value is controlled by envelope" : "");
+  subUI.knobs[3].setEnabled(!distCtrl);
+  subUI.knobs[3].setTooltip(distCtrl ? "Value is controlled by envelope" : "");
   if (!distCtrl && distEnvData.hasPoints()) {
     const float v = distEnvData.getPoints()[0].value;
     distEnvData.setDefaultValue(v);
-    subKnobs[3].setValue(v * 100.0, juce::dontSendNotification);
+    subUI.knobs[3].setValue(v * 100.0, juce::dontSendNotification);
   }
 
   // Mix
   const bool blendCtrl = blendEnvData.isEnvelopeControlled();
-  subKnobs[2].setEnabled(!blendCtrl);
-  subKnobs[2].setTooltip(blendCtrl ? "Value is controlled by envelope" : "");
+  subUI.knobs[2].setEnabled(!blendCtrl);
+  subUI.knobs[2].setTooltip(blendCtrl ? "Value is controlled by envelope" : "");
   if (!blendCtrl && blendEnvData.hasPoints()) {
     const float v = blendEnvData.getPoints()[0].value;
     blendEnvData.setDefaultValue(v);
-    subKnobs[2].setValue(v * 100.0, juce::dontSendNotification);
+    subUI.knobs[2].setValue(v * 100.0, juce::dontSendNotification);
     envelopeCurveEditor.setPreviewBlend(v);
   }
 }
@@ -162,13 +162,13 @@ void BabySquatchAudioProcessorEditor::setupEnvelopeCurveEditor() {
 
 void BabySquatchAudioProcessorEditor::mouseDown(const juce::MouseEvent &e) {
   using enum EnvelopeCurveEditor::EditTarget;
-  if (e.eventComponent == &subKnobLabels[0])
+  if (e.eventComponent == &subUI.knobLabels[0])
     switchEditTarget(gain);
-  else if (e.eventComponent == &subKnobLabels[1])
+  else if (e.eventComponent == &subUI.knobLabels[1])
     switchEditTarget(freq);
-  else if (e.eventComponent == &subKnobLabels[2])
+  else if (e.eventComponent == &subUI.knobLabels[2])
     switchEditTarget(mix);
-  else if (e.eventComponent == &subKnobLabels[3])
+  else if (e.eventComponent == &subUI.knobLabels[3])
     switchEditTarget(saturate);
 }
 
@@ -177,13 +177,13 @@ void BabySquatchAudioProcessorEditor::switchEditTarget(
   envelopeCurveEditor.setEditTarget(t);
   using enum EnvelopeCurveEditor::EditTarget;
   const auto kLabel = UIConstants::Colours::labelText;
-  subKnobLabels[0].setColour(juce::Label::textColourId,
+  subUI.knobLabels[0].setColour(juce::Label::textColourId,
                              t == gain ? UIConstants::Colours::subArc : kLabel);
-  subKnobLabels[1].setColour(juce::Label::textColourId,
+  subUI.knobLabels[1].setColour(juce::Label::textColourId,
                              t == freq ? juce::Colours::cyan : kLabel);
-  subKnobLabels[3].setColour(juce::Label::textColourId,
+  subUI.knobLabels[3].setColour(juce::Label::textColourId,
                              t == saturate ? juce::Colour(0xFFFF9500) : kLabel);
-  subKnobLabels[2].setColour(juce::Label::textColourId,
+  subUI.knobLabels[2].setColour(juce::Label::textColourId,
                              t == mix ? juce::Colour(0xFF4CAF50) : kLabel);
 }
 
@@ -221,7 +221,7 @@ BabySquatchAudioProcessorEditor::BabySquatchAudioProcessorEditor(
 }
 
 BabySquatchAudioProcessorEditor::~BabySquatchAudioProcessorEditor() {
-  subWave.combo.setLookAndFeel(nullptr);
+  subUI.wave.combo.setLookAndFeel(nullptr);
   clickUI.modeCombo.setLookAndFeel(nullptr);
   directUI.modeCombo.setLookAndFeel(nullptr);
 }
@@ -271,14 +271,14 @@ void BabySquatchAudioProcessorEditor::resized() {
                                 b.getWidth() - contentLeft -
                                     UIConstants::panelPadding,
                                 b.getHeight() - contentTop - contentBot};
-    // 底行: [Length ボックス | subWave.combo]
+    // 底行: [Length ボックス | subUI.wave.combo]
     auto bottomRow = contentArea.removeFromBottom(22);
     contentArea.removeFromBottom(4); // ギャップ
     const int lengthPartW = bottomRow.getWidth() / 2;
     layoutLengthBox(bottomRow.removeFromLeft(lengthPartW));
     constexpr int waveLabelW = 36;
-    subWave.label.setBounds(bottomRow.removeFromLeft(waveLabelW));
-    subWave.combo.setBounds(bottomRow);
+    subUI.wave.label.setBounds(bottomRow.removeFromLeft(waveLabelW));
+    subUI.wave.combo.setBounds(bottomRow);
     layoutSubKnobsRow(contentArea);
   }
 
