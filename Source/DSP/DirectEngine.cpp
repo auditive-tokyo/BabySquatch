@@ -121,18 +121,18 @@ auto DirectEngine::prepareFilters(float sr) -> FilterState {
   const float lpfF = juce::jlimit(20.0f, sr * 0.49f, lpfParams_.freq.load());
   const float lpfQv = lpfParams_.q.load();
   const int lpfStg = lpfParams_.stages.load();
-  const bool doHpf = hpfQv > 0.001f;
-  const bool doLpf = lpfQv > 0.001f;
+  const bool doHpf = hpfF > 20.5f;      // HPF: 最小値(20Hz)より上で有効
+  const bool doLpf = lpfF < 19999.0f;   // LPF: 最大値(20kHz)より下で有効
 
   if (doHpf) {
-    const float qH = juce::jlimit(0.01f, 30.0f, hpfQv);
+    const float qH = juce::jlimit(0.1f, 30.0f, hpfQv > 0.001f ? hpfQv : 0.707f);
     for (int i = 0; i < hpfStg; ++i) {
       hpfs_[static_cast<std::size_t>(i)].setCutoffFrequency(hpfF);
       hpfs_[static_cast<std::size_t>(i)].setResonance(qH);
     }
   }
   if (doLpf) {
-    const float qL = juce::jlimit(0.01f, 30.0f, lpfQv);
+    const float qL = juce::jlimit(0.1f, 30.0f, lpfQv > 0.001f ? lpfQv : 0.707f);
     for (int i = 0; i < lpfStg; ++i) {
       lpfs_[static_cast<std::size_t>(i)].setCutoffFrequency(lpfF);
       lpfs_[static_cast<std::size_t>(i)].setResonance(qL);

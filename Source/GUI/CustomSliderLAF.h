@@ -79,10 +79,11 @@ public:
                                  juce::PathStrokeType::rounded));
     }
 
-    // ── ノブ中央に値を描画（サフィックスはスライダーに委譲） ──
+    // ── ノブ中央に値を描画（textFromValueFunction があれば尊重） ──
     {
-      const auto suffix = slider.getTextValueSuffix();
-      const auto valueText = juce::String(slider.getValue(), 1) + suffix;
+      const auto valueText = slider.textFromValueFunction
+          ? slider.getTextFromValue(slider.getValue())
+          : juce::String(slider.getValue(), 1) + slider.getTextValueSuffix();
       const float fontSize = radius * 0.38f;
       g.setFont(fontSize);
       g.setColour(UIConstants::Colours::text);

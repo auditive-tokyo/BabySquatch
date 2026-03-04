@@ -69,7 +69,10 @@ void BabySquatchAudioProcessorEditor::setupDirectParams() {
   styleDirectKnob(directUI.pitchSlider, directKnobLAF);
   directUI.pitchSlider.setRange(-24.0, 24.0, 1.0);
   directUI.pitchSlider.setValue(0.0, juce::dontSendNotification);
-  directUI.pitchSlider.onValueChange = [] { /* TODO: DSP */ };
+  directUI.pitchSlider.onValueChange = [this] {
+    processorRef.directEngine().setPitchSemitones(
+        static_cast<float>(directUI.pitchSlider.getValue()));
+  };
   addAndMakeVisible(directUI.pitchSlider);
   styleKnobLabelDirect(directUI.pitchLabel, "Pitch", knobFont);
   addAndMakeVisible(directUI.pitchLabel);
@@ -79,7 +82,10 @@ void BabySquatchAudioProcessorEditor::setupDirectParams() {
   directUI.attackSlider.setRange(0.1, 500.0, 0.1);
   directUI.attackSlider.setSkewFactorFromMidPoint(20.0);
   directUI.attackSlider.setValue(1.0, juce::dontSendNotification);
-  directUI.attackSlider.onValueChange = [] { /* TODO: DSP */ };
+  directUI.attackSlider.onValueChange = [this] {
+    processorRef.directEngine().setAttackMs(
+        static_cast<float>(directUI.attackSlider.getValue()));
+  };
   addAndMakeVisible(directUI.attackSlider);
   styleKnobLabelDirect(directUI.attackLabel, "A", knobFont);
   addAndMakeVisible(directUI.attackLabel);
@@ -89,7 +95,10 @@ void BabySquatchAudioProcessorEditor::setupDirectParams() {
   directUI.decaySlider.setRange(1.0, 2000.0, 1.0);
   directUI.decaySlider.setSkewFactorFromMidPoint(200.0);
   directUI.decaySlider.setValue(200.0, juce::dontSendNotification);
-  directUI.decaySlider.onValueChange = [] { /* TODO: DSP */ };
+  directUI.decaySlider.onValueChange = [this] {
+    processorRef.directEngine().setDecayMs(
+        static_cast<float>(directUI.decaySlider.getValue()));
+  };
   addAndMakeVisible(directUI.decaySlider);
   styleKnobLabelDirect(directUI.decayLabel, "D", knobFont);
   addAndMakeVisible(directUI.decayLabel);
@@ -99,54 +108,87 @@ void BabySquatchAudioProcessorEditor::setupDirectParams() {
   directUI.releaseSlider.setRange(1.0, 1000.0, 1.0);
   directUI.releaseSlider.setSkewFactorFromMidPoint(100.0);
   directUI.releaseSlider.setValue(50.0, juce::dontSendNotification);
-  directUI.releaseSlider.onValueChange = [] { /* TODO: DSP */ };
+  directUI.releaseSlider.onValueChange = [this] {
+    processorRef.directEngine().setReleaseMs(
+        static_cast<float>(directUI.releaseSlider.getValue()));
+  };
   addAndMakeVisible(directUI.releaseSlider);
   styleKnobLabelDirect(directUI.releaseLabel, "R", knobFont);
   addAndMakeVisible(directUI.releaseLabel);
 
-  // HPF: SlopeSelector (label) + freq knob + Reso knob
-  directUI.hpfSlope.setOnChange([](int /*dboct*/) { /* TODO: DSP */ });
+  // HPF: SlopeSelector (label) + freq knob + Q knob
+  directUI.hpfSlope.setOnChange([this](int dboct) {
+    processorRef.directEngine().setHpfSlope(dboct);
+  });
   addAndMakeVisible(directUI.hpfSlope);
 
   styleDirectKnob(directUI.hpfSlider, directKnobLAF);
   directUI.hpfSlider.setRange(20.0, 20000.0, 1.0);
   directUI.hpfSlider.setSkewFactorFromMidPoint(1000.0);
   directUI.hpfSlider.setTextValueSuffix(" Hz");
-  directUI.hpfSlider.setValue(200.0, juce::dontSendNotification);
-  directUI.hpfSlider.setDoubleClickReturnValue(true, 200.0);
-  directUI.hpfSlider.onValueChange = [] { /* TODO: DSP */ };
+  directUI.hpfSlider.setValue(20.0, juce::dontSendNotification);
+  directUI.hpfSlider.setDoubleClickReturnValue(true, 20.0);
+  directUI.hpfSlider.onValueChange = [this] {
+    processorRef.directEngine().setHpfFreq(
+        static_cast<float>(directUI.hpfSlider.getValue()));
+  };
   addAndMakeVisible(directUI.hpfSlider);
 
   styleDirectKnob(directUI.hpfQSlider, directKnobLAF);
-  directUI.hpfQSlider.setRange(0.0, 12.0, 0.01);
-  directUI.hpfQSlider.setValue(0.0, juce::dontSendNotification);
-  directUI.hpfQSlider.setDoubleClickReturnValue(true, 0.0);
-  directUI.hpfQSlider.onValueChange = [] { /* TODO: DSP */ };
+  directUI.hpfQSlider.setRange(0.1, 30.0, 0.01);
+  directUI.hpfQSlider.textFromValueFunction = [](double v) { return juce::String(v, 2); };
+  directUI.hpfQSlider.setValue(0.707, juce::dontSendNotification);
+  directUI.hpfQSlider.setDoubleClickReturnValue(true, 0.707);
+  directUI.hpfQSlider.onValueChange = [this] {
+    processorRef.directEngine().setHpfQ(
+        static_cast<float>(directUI.hpfQSlider.getValue()));
+  };
   addAndMakeVisible(directUI.hpfQSlider);
-  styleKnobLabelDirect(directUI.hpfQLabel, "Reso", knobFont);
+  styleKnobLabelDirect(directUI.hpfQLabel, "Q", knobFont);
   addAndMakeVisible(directUI.hpfQLabel);
 
-  // LPF: SlopeSelector (label) + freq knob + Reso knob
-  directUI.lpfSlope.setOnChange([](int /*dboct*/) { /* TODO: DSP */ });
+  // LPF: SlopeSelector (label) + freq knob + Q knob
+  directUI.lpfSlope.setOnChange([this](int dboct) {
+    processorRef.directEngine().setLpfSlope(dboct);
+  });
   addAndMakeVisible(directUI.lpfSlope);
 
   styleDirectKnob(directUI.lpfSlider, directKnobLAF);
   directUI.lpfSlider.setRange(20.0, 20000.0, 1.0);
   directUI.lpfSlider.setSkewFactorFromMidPoint(1000.0);
   directUI.lpfSlider.setTextValueSuffix(" Hz");
-  directUI.lpfSlider.setValue(8000.0, juce::dontSendNotification);
-  directUI.lpfSlider.setDoubleClickReturnValue(true, 8000.0);
-  directUI.lpfSlider.onValueChange = [] { /* TODO: DSP */ };
+  directUI.lpfSlider.setValue(20000.0, juce::dontSendNotification);
+  directUI.lpfSlider.setDoubleClickReturnValue(true, 20000.0);
+  directUI.lpfSlider.onValueChange = [this] {
+    processorRef.directEngine().setLpfFreq(
+        static_cast<float>(directUI.lpfSlider.getValue()));
+  };
   addAndMakeVisible(directUI.lpfSlider);
 
   styleDirectKnob(directUI.lpfQSlider, directKnobLAF);
-  directUI.lpfQSlider.setRange(0.0, 12.0, 0.01);
-  directUI.lpfQSlider.setValue(0.0, juce::dontSendNotification);
-  directUI.lpfQSlider.setDoubleClickReturnValue(true, 0.0);
-  directUI.lpfQSlider.onValueChange = [] { /* TODO: DSP */ };
+  directUI.lpfQSlider.setRange(0.1, 30.0, 0.01);
+  directUI.lpfQSlider.textFromValueFunction = [](double v) { return juce::String(v, 2); };
+  directUI.lpfQSlider.setValue(0.707, juce::dontSendNotification);
+  directUI.lpfQSlider.setDoubleClickReturnValue(true, 0.707);
+  directUI.lpfQSlider.onValueChange = [this] {
+    processorRef.directEngine().setLpfQ(
+        static_cast<float>(directUI.lpfQSlider.getValue()));
+  };
   addAndMakeVisible(directUI.lpfQSlider);
-  styleKnobLabelDirect(directUI.lpfQLabel, "Reso", knobFont);
+  styleKnobLabelDirect(directUI.lpfQLabel, "Q", knobFont);
   addAndMakeVisible(directUI.lpfQLabel);
+
+  // ── 起動時デフォルト値を DSP へ反映 ──
+  processorRef.directEngine().setPitchSemitones(0.0f);
+  processorRef.directEngine().setAttackMs(1.0f);
+  processorRef.directEngine().setDecayMs(200.0f);
+  processorRef.directEngine().setReleaseMs(50.0f);
+  processorRef.directEngine().setHpfFreq(20.0f);   // 20Hz = バイパス
+  processorRef.directEngine().setHpfQ(0.707f);
+  processorRef.directEngine().setHpfSlope(12);
+  processorRef.directEngine().setLpfFreq(20000.0f); // 20kHz = バイパス
+  processorRef.directEngine().setLpfQ(0.707f);
+  processorRef.directEngine().setLpfSlope(12);
 }
 
 void BabySquatchAudioProcessorEditor::layoutDirectParams(
@@ -194,8 +236,8 @@ void BabySquatchAudioProcessorEditor::layoutDirectParams(
     }
   }
 
-  // 下段行: HP (slope label + freq knob) | Reso | LP (slope label + freq knob)
-  // | Reso
+  // 下段行: HP (slope label + freq knob) | Q | LP (slope label + freq knob)
+  // | Q
   //   Click と同パターン: SlopeSelector はノブのラベル位置を占める
   {
     const std::array<juce::Slider *, 4> rowKnobs = {{
