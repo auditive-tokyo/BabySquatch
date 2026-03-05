@@ -1,60 +1,6 @@
 #include "PluginEditor.h"
 #include "PluginProcessor.h"
-
-// ────────────────────────────────────────────────────
-// LUT ベイクメンバー関数
-// ────────────────────────────────────────────────────
-void BabySquatchAudioProcessorEditor::bakeAmpLut() {
-  constexpr int lutSize = EnvelopeLutManager::lutSize;
-  std::array<float, lutSize> lut{};
-  const float durationMs = envelopeCurveEditor.getDisplayDurationMs();
-  for (int i = 0; i < lutSize; ++i) {
-    const float t =
-        static_cast<float>(i) / static_cast<float>(lutSize - 1) * durationMs;
-    lut[static_cast<size_t>(i)] = ampEnvData.evaluate(t);
-  }
-  processorRef.subEngine().envLut().setDurationMs(durationMs);
-  processorRef.subEngine().envLut().bake(lut.data(), lutSize);
-}
-
-void BabySquatchAudioProcessorEditor::bakePitchLut() {
-  constexpr int lutSize = EnvelopeLutManager::lutSize;
-  std::array<float, lutSize> lut{};
-  const float durationMs = envelopeCurveEditor.getDisplayDurationMs();
-  for (int i = 0; i < lutSize; ++i) {
-    const float t =
-        static_cast<float>(i) / static_cast<float>(lutSize - 1) * durationMs;
-    lut[static_cast<size_t>(i)] = pitchEnvData.evaluate(t);
-  }
-  processorRef.subEngine().pitchLut().setDurationMs(durationMs);
-  processorRef.subEngine().pitchLut().bake(lut.data(), lutSize);
-}
-
-void BabySquatchAudioProcessorEditor::bakeDistLut() {
-  constexpr int lutSize = EnvelopeLutManager::lutSize;
-  std::array<float, lutSize> lut{};
-  const float durationMs = envelopeCurveEditor.getDisplayDurationMs();
-  for (int i = 0; i < lutSize; ++i) {
-    const float t =
-        static_cast<float>(i) / static_cast<float>(lutSize - 1) * durationMs;
-    lut[static_cast<size_t>(i)] = distEnvData.evaluate(t);
-  }
-  processorRef.subEngine().distLut().setDurationMs(durationMs);
-  processorRef.subEngine().distLut().bake(lut.data(), lutSize);
-}
-
-void BabySquatchAudioProcessorEditor::bakeBlendLut() {
-  constexpr int lutSize = EnvelopeLutManager::lutSize;
-  std::array<float, lutSize> lut{};
-  const float durationMs = envelopeCurveEditor.getDisplayDurationMs();
-  for (int i = 0; i < lutSize; ++i) {
-    const float t =
-        static_cast<float>(i) / static_cast<float>(lutSize - 1) * durationMs;
-    lut[static_cast<size_t>(i)] = blendEnvData.evaluate(t);
-  }
-  processorRef.subEngine().blendLut().setDurationMs(durationMs);
-  processorRef.subEngine().blendLut().bake(lut.data(), lutSize);
-}
+#include "GUI/LutBaker.h"
 
 // ────────────────────────────────────────────────────
 // パネルルーティング（Mute/Solo/レベルメーター）
@@ -101,10 +47,11 @@ void BabySquatchAudioProcessorEditor::setupPanelRouting(
 // エンベロープ変更時のノブ同期
 // ────────────────────────────────────────────────────
 void BabySquatchAudioProcessorEditor::onEnvelopeChanged() {
-  bakeAmpLut();
-  bakePitchLut();
-  bakeDistLut();
-  bakeBlendLut();
+  const float durationMs = envelopeCurveEditor.getDisplayDurationMs();
+  bakeLut(ampEnvData, processorRef.subEngine().envLut(), durationMs);
+  bakeLut(pitchEnvData, processorRef.subEngine().pitchLut(), durationMs);
+  bakeLut(distEnvData, processorRef.subEngine().distLut(), durationMs);
+  bakeLut(blendEnvData, processorRef.subEngine().blendLut(), durationMs);
   // 1点=ノブ制御（有効化＋ポイント値をノブに反映）、2点以上=エンベロープ制御（無効化）
 
   // Gain
@@ -178,13 +125,15 @@ void BabySquatchAudioProcessorEditor::switchEditTarget(
   using enum EnvelopeCurveEditor::EditTarget;
   const auto kLabel = UIConstants::Colours::labelText;
   subUI.knobLabels[0].setColour(juce::Label::textColourId,
-                             t == gain ? UIConstants::Colours::subArc : kLabel);
+                                t == gain ? UIConstants::Colours::subArc
+                                          : kLabel);
   subUI.knobLabels[1].setColour(juce::Label::textColourId,
-                             t == freq ? juce::Colours::cyan : kLabel);
+                                t == freq ? juce::Colours::cyan : kLabel);
   subUI.knobLabels[3].setColour(juce::Label::textColourId,
-                             t == saturate ? juce::Colour(0xFFFF9500) : kLabel);
+                                t == saturate ? juce::Colour(0xFFFF9500)
+                                              : kLabel);
   subUI.knobLabels[2].setColour(juce::Label::textColourId,
-                             t == mix ? juce::Colour(0xFF4CAF50) : kLabel);
+                                t == mix ? juce::Colour(0xFF4CAF50) : kLabel);
 }
 
 // ────────────────────────────────────────────────────

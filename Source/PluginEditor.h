@@ -22,10 +22,6 @@ private:
   void onEnvelopeChanged();
 
   // ── コンストラクター分割ヘルパー ──
-  void bakeAmpLut();
-  void bakePitchLut();
-  void bakeDistLut();
-  void bakeBlendLut();
   void setupPanelRouting(BabySquatchAudioProcessor &p);
   void setupEnvelopeCurveEditor();
   void switchEditTarget(EnvelopeCurveEditor::EditTarget t);
@@ -39,6 +35,8 @@ private:
   void onClickSampleLoadClicked();
   void onClickSampleFileChosen(const juce::File &file);
   void refreshClickSampleProvider();
+  void applyClickSampleMode();
+  void applyClickToneNoiseMode(int m);
   void layoutLengthBox(juce::Rectangle<int> btnRow);
   void setupLengthBox();
   void setupWaveShapeCombo();
@@ -107,39 +105,43 @@ private:
   // ── CLICK展開パネル ──
   struct ClickUI {
     enum class Mode { Tone = 1, Noise, Sample };
+    struct KnobUI  { juce::Label label; juce::Slider slider; };
+    struct BpfBand { juce::Label freqLabel; juce::Slider freqSlider;
+                     juce::Label qLabel;   juce::Slider qSlider; };
+    struct FilterBand {
+      UIConstants::SlopeSelector slope;
+      juce::Slider slider;
+      juce::Label  qLabel;
+      juce::Slider qSlider;
+      explicit FilterBand(const char *tag) : slope{tag} {}
+    };
+    struct ToneNoiseUI {
+      juce::Label  decayLabel;
+      juce::Slider decaySlider;
+      BpfBand bpf1; ///< Freq / Focus
+      BpfBand bpf2; ///< Air  / Focus
+    };
+    struct SampleUI {
+      UIConstants::SampleDropButton loadButton{"Drop or Click to Load"};
+      juce::String loadedFilePath;
+      std::unique_ptr<juce::FileChooser> fileChooser;
+      std::vector<float> thumbMin;
+      std::vector<float> thumbMax;
+      double thumbDurSec = 0.0;
+      KnobUI pitch;
+      KnobUI attack;
+      KnobUI hold;
+      KnobUI release;
+    };
+
     juce::Label    modeLabel;
     juce::ComboBox modeCombo;
-    // ── Decay + Filter params (Tone/Noise モード) ──
-    juce::Label  decayLabel;
-    juce::Slider decaySlider;
-    juce::Label  freq1Label;
-    juce::Slider freq1Slider;
-    juce::Label  focus1Label;
-    juce::Slider focus1Slider;
-    juce::Label  freq2Label;
-    juce::Slider freq2Slider;
-    juce::Label  focus2Label;
-    juce::Slider focus2Slider;
-    UIConstants::SlopeSelector hpfSlope{"HP"};
-    juce::Slider hpfSlider;
-    juce::Label  hpfQLabel;
-    juce::Slider hpfQSlider;
-    UIConstants::SlopeSelector lpfSlope{"LP"};
-    juce::Slider lpfSlider;
-    juce::Label  lpfQLabel;
-    juce::Slider lpfQSlider;
-    // ── Sample モード用 (Pitch / A / D / R + ファイルロード) ──
-    struct KnobUI { juce::Label label; juce::Slider slider; };
-    UIConstants::SampleDropButton sampleLoadButton{"Drop or Click to Load"};
-    juce::String loadedFilePath;
-    std::unique_ptr<juce::FileChooser> fileChooser;
-    std::vector<float> thumbMin;
-    std::vector<float> thumbMax;
-    double thumbDurSec = 0.0;
-    KnobUI pitch;   // -24 〜 +24 半音
-    KnobUI attack;  // 0.1 〜 500 ms
-    KnobUI hold;    // 1 〜 2000 ms (ラベル "D")
-    KnobUI release; // 1 〜 1000 ms
+    ToneNoiseUI    toneNoise;
+    FilterBand     hpf{"HP"};
+    FilterBand     lpf{"LP"};
+    SampleUI       sample;
+    std::function<float(float)> toneProvider;
+    std::function<float(float)> noiseProvider;
   };
   ClickUI clickUI;
 

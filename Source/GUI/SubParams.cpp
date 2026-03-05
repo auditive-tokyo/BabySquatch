@@ -5,6 +5,7 @@
 
 #include "PluginEditor.h"
 #include "PluginProcessor.h"
+#include "LutBaker.h"
 
 // ────────────────────────────────────────────────────
 // Length ボックス
@@ -41,10 +42,10 @@ void BabySquatchAudioProcessorEditor::setupLengthBox() {
     const auto v = static_cast<float>(subUI.length.slider.getValue());
     envelopeCurveEditor.setDisplayDurationMs(v);
     processorRef.subEngine().setLengthMs(v);
-    bakeAmpLut();
-    bakePitchLut();
-    bakeDistLut();
-    bakeBlendLut();
+    bakeLut(ampEnvData,   processorRef.subEngine().envLut(),   v);
+    bakeLut(pitchEnvData, processorRef.subEngine().pitchLut(), v);
+    bakeLut(distEnvData,  processorRef.subEngine().distLut(),  v);
+    bakeLut(blendEnvData, processorRef.subEngine().blendLut(), v);
   };
   addAndMakeVisible(subUI.length.slider);
 }
@@ -130,7 +131,8 @@ void BabySquatchAudioProcessorEditor::setupPitchKnob() {
     pitchEnvData.setDefaultValue(hz);
     if (!pitchEnvData.isEnvelopeControlled())
       pitchEnvData.setPointValue(0, hz);
-    bakePitchLut();
+    bakeLut(pitchEnvData, processorRef.subEngine().pitchLut(),
+            envelopeCurveEditor.getDisplayDurationMs());
     const float cycles =
         hz * envelopeCurveEditor.getDisplayDurationMs() / 1000.0f;
     envelopeCurveEditor.setDisplayCycles(cycles);
@@ -140,7 +142,8 @@ void BabySquatchAudioProcessorEditor::setupPitchKnob() {
   constexpr float initHz = 200.0f;
   envelopeCurveEditor.setDisplayCycles(
       initHz * envelopeCurveEditor.getDisplayDurationMs() / 1000.0f);
-  bakePitchLut();
+  bakeLut(pitchEnvData, processorRef.subEngine().pitchLut(),
+          envelopeCurveEditor.getDisplayDurationMs());
   // 初期デフォルトポイント（1点：ノブ制御状態）
   pitchEnvData.addPoint(0.0f, initHz);
 }
@@ -161,7 +164,8 @@ void BabySquatchAudioProcessorEditor::setupAmpKnob() {
     ampEnvData.setDefaultValue(v);
     if (!ampEnvData.isEnvelopeControlled())
       ampEnvData.setPointValue(0, v);
-    bakeAmpLut();
+    bakeLut(ampEnvData, processorRef.subEngine().envLut(),
+            envelopeCurveEditor.getDisplayDurationMs());
     envelopeCurveEditor.repaint();
   };
   // 初期デフォルトポイント（1点：ノブ制御状態）
@@ -186,11 +190,13 @@ void BabySquatchAudioProcessorEditor::setupBlendKnob() {
     blendEnvData.setDefaultValue(v);
     if (!blendEnvData.isEnvelopeControlled())
       blendEnvData.setPointValue(0, v);
-    bakeBlendLut();
+    bakeLut(blendEnvData, processorRef.subEngine().blendLut(),
+            envelopeCurveEditor.getDisplayDurationMs());
     envelopeCurveEditor.setPreviewBlend(v);
   };
   blendEnvData.setDefaultValue(0.0f);
-  bakeBlendLut();
+  bakeLut(blendEnvData, processorRef.subEngine().blendLut(),
+          envelopeCurveEditor.getDisplayDurationMs());
   // 初期デフォルトポイント（1点：ノブ制御状態）
   blendEnvData.addPoint(0.0f, 0.0f);
 }
@@ -210,11 +216,13 @@ void BabySquatchAudioProcessorEditor::setupDistKnob() {
     distEnvData.setDefaultValue(v);
     if (!distEnvData.isEnvelopeControlled())
       distEnvData.setPointValue(0, v);
-    bakeDistLut();
+    bakeLut(distEnvData, processorRef.subEngine().distLut(),
+            envelopeCurveEditor.getDisplayDurationMs());
     envelopeCurveEditor.repaint();
   };
   distEnvData.setDefaultValue(0.0f);
-  bakeDistLut();
+  bakeLut(distEnvData, processorRef.subEngine().distLut(),
+          envelopeCurveEditor.getDisplayDurationMs());
   // 初期デフォルトポイント（1点：ノブ制御状態）
   distEnvData.addPoint(0.0f, 0.0f);
 }
