@@ -31,9 +31,10 @@ constexpr int expandedAreaHeight =
     360; // 290(curve) + 70(keyboard)（length/wave行はパネル内に移動）
 constexpr int waveformDisplayHeight = 80;
 
-// ── レベルメーター ──
+// ── チャンネルフェーダー ──
 constexpr int meterWidth = 28;
-constexpr float meterFontSize = 8.0f;
+constexpr float meterFontSize = 8.0f;       // dB スケール目盛りラベル
+constexpr float faderValueFontSize = 12.0f; // フェーダー現在値ラベル
 
 // ── 鍵盤 ──
 constexpr int keyboardHeight = 70;

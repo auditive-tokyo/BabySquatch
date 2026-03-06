@@ -21,7 +21,7 @@ public:
 
   void paint(juce::Graphics &g) override;
   void resized() override;
-  void mouseDown(const juce::MouseEvent &) override; // クリックでピークリセット
+  void mouseDown(const juce::MouseEvent &) override;
 
   /// フェーダースライダーへの参照（onValueChange 配線などに使用）
   juce::Slider &getFader() { return fader; }
@@ -38,6 +38,8 @@ public:
 
   /// フェーダーハンドルの幅（PanelComponent::resized から参照）
   static constexpr int faderHandleWidth = 12;
+  /// フェーダー値ラベルの高さ（コンポーネント上端に確保）
+  static constexpr int valueLabelHeight = 36;
 
 private:
   // ── フェーダーサム LookAndFeel ──
@@ -72,9 +74,15 @@ private:
   float peakFallVelocity{0.0f};
 
   static constexpr int timerHz = 30;
-  static constexpr int peakHoldFrames_ = timerHz * 2; // 2 秒保持
+  static constexpr int peakHoldFrames_ = timerHz * 1; // 1 秒保持
   static constexpr float peakFallPerFrame =
-      (maxDb - minDb) / (timerHz * 1.5f); // 1.5 秒でフォール
+      (maxDb - minDb) / (timerHz * 0.5f); // 0.5 秒でフォール
+
+  // ── 値ラベル直接入力 ──
+  void showValueEditor();
+  void commitValueEditor();
+  juce::TextEditor valueEditor;
+  bool isEditing{false};
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ChannelFader)
 };

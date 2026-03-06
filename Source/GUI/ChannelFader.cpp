@@ -13,7 +13,29 @@ ChannelFader::ChannelFader(juce::Colour accentColour_)
   fader.setDoubleClickReturnValue(true, 0.0);
   fader.setTextValueSuffix(" dB");
   fader.setLookAndFeel(&faderLAF);
+  fader.onValueChange = [this] { repaint(); };
   addAndMakeVisible(fader);
+
+  // ── 値ラベル直接入力用 TextEditor ──
+  valueEditor.setInputRestrictions(0, "0123456789.-");
+  valueEditor.setFont(
+      juce::Font(juce::FontOptions(UIConstants::faderValueFontSize)));
+  valueEditor.setJustification(juce::Justification::centred);
+  valueEditor.setColour(juce::TextEditor::backgroundColourId,
+                        juce::Colour(0xFF2A2A2A));
+  valueEditor.setColour(juce::TextEditor::outlineColourId, accentColour_);
+  valueEditor.setColour(juce::TextEditor::textColourId, accentColour_);
+  valueEditor.setColour(juce::TextEditor::focusedOutlineColourId,
+                        accentColour_);
+  valueEditor.onReturnKey = [this] { commitValueEditor(); };
+  valueEditor.onEscapeKey = [this] {
+    valueEditor.setVisible(false);
+    isEditing = false;
+    repaint();
+  };
+  valueEditor.onFocusLost = [this] { commitValueEditor(); };
+  valueEditor.setVisible(false);
+  addChildComponent(valueEditor);
 
   startTimerHz(timerHz);
 }
@@ -29,8 +51,9 @@ ChannelFader::~ChannelFader() {
 // ────────────────────────────────────────────────────
 void ChannelFader::resized() {
   auto area = getLocalBounds();
-  fader.setBounds(area.removeFromRight(faderHandleWidth));
-  // meter は paint() が area 相当の領域を自前で描画（子 Component なし）
+  auto faderCol = area.removeFromRight(faderHandleWidth);
+  fader.setBounds(faderCol.withTrimmedTop(valueLabelHeight));
+  valueEditor.setBounds(getLocalBounds().withHeight(valueLabelHeight));
 }
 
 // ────────────────────────────────────────────────────
@@ -43,6 +66,9 @@ void ChannelFader::setLevelProvider(std::function<float()> provider) {
 void ChannelFader::setAccentColour(juce::Colour colour) {
   accentColour = colour;
   faderLAF.setAccent(colour);
+  valueEditor.setColour(juce::TextEditor::outlineColourId, colour);
+  valueEditor.setColour(juce::TextEditor::textColourId, colour);
+  valueEditor.setColour(juce::TextEditor::focusedOutlineColourId, colour);
   repaint();
 }
 
@@ -73,12 +99,41 @@ void ChannelFader::timerCallback() {
 }
 
 // ────────────────────────────────────────────────────
-// マウスクリックでピークリセット
+// マウスクリック
+//   ラベルエリア → 値入力エディター表示
+//   メーターエリア → ピークリセット
 // ────────────────────────────────────────────────────
-void ChannelFader::mouseDown(const juce::MouseEvent &) {
+void ChannelFader::mouseDown(const juce::MouseEvent &e) {
+  if (e.y < valueLabelHeight) {
+    showValueEditor();
+    return;
+  }
   peakDb = minDb;
   peakHoldFrames = 0;
   peakFallVelocity = 0.0f;
+  repaint();
+}
+
+void ChannelFader::showValueEditor() {
+  valueEditor.setColour(juce::TextEditor::outlineColourId, accentColour);
+  valueEditor.setColour(juce::TextEditor::textColourId, accentColour);
+  valueEditor.setColour(juce::TextEditor::focusedOutlineColourId, accentColour);
+  valueEditor.setText(juce::String(fader.getValue(), 1), false);
+  valueEditor.setVisible(true);
+  valueEditor.grabKeyboardFocus();
+  valueEditor.selectAll();
+  isEditing = true;
+  repaint();
+}
+
+void ChannelFader::commitValueEditor() {
+  if (!isEditing)
+    return;
+  isEditing = false;
+  const float val =
+      juce::jlimit(minDb, maxDb, valueEditor.getText().getFloatValue());
+  fader.setValue(val, juce::sendNotificationAsync);
+  valueEditor.setVisible(false);
   repaint();
 }
 
@@ -87,9 +142,23 @@ void ChannelFader::mouseDown(const juce::MouseEvent &) {
 // フェーダー（子 Component）は右端 faderHandleWidth px を自前描画
 // ────────────────────────────────────────────────────
 void ChannelFader::paint(juce::Graphics &g) {
-  // メーターが占有する領域（フェーダーハンドルを除く左側）
-  const auto bounds =
-      getLocalBounds().withTrimmedRight(faderHandleWidth).toFloat();
+  // ── フェーダー現在値（編集中は TextEditor が上に表示） ──
+  if (!isEditing) {
+    const auto valText = juce::String(fader.getValue(), 1);
+    g.setFont(juce::Font(juce::FontOptions(UIConstants::faderValueFontSize)));
+    g.setColour(accentColour);
+    g.drawText(valText,
+               juce::Rectangle<float>(0.0f, 0.0f,
+                                      static_cast<float>(getWidth()),
+                                      static_cast<float>(valueLabelHeight)),
+               juce::Justification::centred, false);
+  }
+
+  // メーターが占有する領域（ラベル上端とフェーダーハンドルを除く）
+  const auto bounds = getLocalBounds()
+                          .withTrimmedTop(valueLabelHeight)
+                          .withTrimmedRight(faderHandleWidth)
+                          .toFloat();
 
   constexpr float barWidth = 8.0f;
   const float labelWidth = bounds.getWidth() - barWidth;
@@ -124,7 +193,7 @@ void ChannelFader::paint(juce::Graphics &g) {
   if (peakDb > minDb) {
     const float peakNorm = juce::jmap(juce::jlimit(minDb, maxDb, peakDb), minDb,
                                       maxDb, 0.0f, 1.0f);
-    const float peakY = bounds.getHeight() * (1.0f - peakNorm);
+    const float peakY = bounds.getY() + bounds.getHeight() * (1.0f - peakNorm);
     peakYForScale = peakY;
 
     const bool clipping = (peakDb >= 0.0f);
@@ -147,7 +216,7 @@ void ChannelFader::paint(juce::Graphics &g) {
                                             -36.0f, -48.0f, -60.0f};
   for (const float db : dbMarks) {
     const float norm = juce::jmap(db, minDb, maxDb, 0.0f, 1.0f);
-    const float y = bounds.getHeight() * (1.0f - norm);
+    const float y = bounds.getY() + bounds.getHeight() * (1.0f - norm);
 
     g.setColour(juce::Colour(0xFF888888));
     g.drawHorizontalLine(static_cast<int>(y), barBounds.getX(),
