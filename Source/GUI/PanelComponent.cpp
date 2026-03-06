@@ -8,6 +8,7 @@ PanelComponent::PanelComponent(const juce::String &name,
                                juce::Colour accentColour)
     : faderLAF(accentColour) {
   // ── レベルメーター（背景として先に追加） ──
+  levelMeter.setAccentColour(accentColour);
   addAndMakeVisible(levelMeter);
 
   // ── フェーダー（レベルメーターの上に重ねる） ──
@@ -106,9 +107,8 @@ void PanelComponent::FaderLAF::drawLinearSlider(
   const auto minVal = slider.getMinimum();
   const auto maxVal = slider.getMaximum();
   const auto zeroNorm = static_cast<float>((0.0 - minVal) / (maxVal - minVal));
-  const float zeroY =
-      static_cast<float>(trackY) +
-      (1.0f - zeroNorm) * static_cast<float>(height);
+  const float zeroY = static_cast<float>(trackY) +
+                      (1.0f - zeroNorm) * static_cast<float>(height);
   g.setColour(juce::Colours::white.withAlpha(0.22f));
   g.drawHorizontalLine(static_cast<int>(zeroY), static_cast<float>(x),
                        static_cast<float>(x + width));
@@ -118,10 +118,10 @@ void PanelComponent::FaderLAF::drawLinearSlider(
   constexpr float triH = 14.0f;
   g.setColour(accent_.withAlpha(0.92f));
   juce::Path tri;
-  tri.addTriangle(
-      static_cast<float>(x),          sliderPos,               // 先端（左）
-      static_cast<float>(x + width),  sliderPos - triH * 0.5f, // 右上
-      static_cast<float>(x + width),  sliderPos + triH * 0.5f  // 右下
+  tri.addTriangle(static_cast<float>(x), sliderPos, // 先端（左）
+                  static_cast<float>(x + width),
+                  sliderPos - triH * 0.5f, // 右上
+                  static_cast<float>(x + width), sliderPos + triH * 0.5f // 右下
   );
   g.fillPath(tri);
   (void)triW;

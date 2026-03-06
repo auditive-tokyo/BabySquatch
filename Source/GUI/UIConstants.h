@@ -7,7 +7,8 @@
 namespace UIConstants {
 // ── ウィンドウ ──
 constexpr int windowWidth = 1100;
-constexpr int windowHeight = 294; // 260 + waveShapeButtonRowHeight(28) + panelGap(6)
+constexpr int windowHeight =
+    294; // 260 + waveShapeButtonRowHeight(28) + panelGap(6)
 
 // ── パネル ──
 constexpr int panelPadding = 8;
@@ -23,7 +24,8 @@ constexpr int valueHeight = 20;
 
 // ── 展開パネル ──
 constexpr int expandButtonHeight = 20;
-constexpr int subKnobRowHeight = 88; // パネル内配置に変更済み（expand area では未使用）
+constexpr int subKnobRowHeight =
+    88; // パネル内配置に変更済み（expand area では未使用）
 constexpr int waveShapeButtonRowHeight = 28;
 constexpr int expandedAreaHeight =
     360; // 290(curve) + 70(keyboard)（length/wave行はパネル内に移動）
@@ -31,18 +33,19 @@ constexpr int waveformDisplayHeight = 80;
 
 // ── レベルメーター ──
 constexpr int meterWidth = 28;
+constexpr float meterFontSize = 8.0f;
 
 // ── 鍵盤 ──
 constexpr int keyboardHeight = 70;
 
 // ── フォント ──
-constexpr float fontSizeSmall  = 10.0f;  // ノブラベル、エンベロープ等
-constexpr float fontSizeMedium = 12.0f;  // ComboBox、Length ボックス等
+constexpr float fontSizeSmall = 10.0f; // ノブラベル、エンベロープ等
+constexpr float fontSizeMedium = 12.0f; // ComboBox、Length ボックス等
 
 // ── 波形表示 opacity ──
-constexpr float subWaveOpacity    = 0.8f;  // Sub 波形
-constexpr float clickWaveOpacity  = 0.8f;  // Click 波形
-constexpr float directWaveOpacity = 0.8f;  // Direct 波形
+constexpr float subWaveOpacity = 0.8f;    // Sub 波形
+constexpr float clickWaveOpacity = 0.8f;  // Click 波形
+constexpr float directWaveOpacity = 0.8f; // Direct 波形
 
 // ── カラーパレット ──
 namespace Colours {
@@ -88,14 +91,17 @@ public:
   /// 選択変更時に slope 値（12/24/48）を通知するコールバックを登録する
   void setOnChange(std::function<void(int)> cb) { onChange_ = std::move(cb); }
 
-  int getSlope() const noexcept { return kSlopes[static_cast<std::size_t>(selected_)]; }
+  int getSlope() const noexcept {
+    return kSlopes[static_cast<std::size_t>(selected_)];
+  }
 
   void setSlope(int slope, bool notify = false) {
     for (int i = 0; i < 3; ++i) {
       if (kSlopes[static_cast<std::size_t>(i)] == slope) {
         selected_ = i;
         repaint();
-        if (notify && onChange_) onChange_(slope);
+        if (notify && onChange_)
+          onChange_(slope);
         return;
       }
     }
@@ -104,34 +110,36 @@ public:
   void paint(juce::Graphics &g) override {
     const auto font = juce::Font(juce::FontOptions(fontSizeSmall));
     g.setFont(font);
-    const int h       = getHeight();
+    const int h = getHeight();
     const int prefixW = prefix_.isEmpty() ? 0 : 18;
     if (!prefix_.isEmpty()) {
       g.setColour(juce::Colour(0xFFBBBBBB));
-      g.drawText(prefix_, 0, 0, prefixW, h, juce::Justification::centredLeft, false);
+      g.drawText(prefix_, 0, 0, prefixW, h, juce::Justification::centredLeft,
+                 false);
     }
     const int slotsW = getWidth() - prefixW;
-    const int slotW  = slotsW / 3;
+    const int slotW = slotsW / 3;
     for (int i = 0; i < 3; ++i) {
-      g.setColour(i == selected_ ? accent_
-                                 : juce::Colour(0x88BBBBBB));
+      g.setColour(i == selected_ ? accent_ : juce::Colour(0x88BBBBBB));
       g.drawText(juce::String(kSlopes[static_cast<std::size_t>(i)]),
-                 prefixW + i * slotW, 0, slotW, h,
-                 juce::Justification::centred, false);
+                 prefixW + i * slotW, 0, slotW, h, juce::Justification::centred,
+                 false);
     }
   }
 
   void mouseDown(const juce::MouseEvent &e) override {
-    const int prefixW  = prefix_.isEmpty() ? 0 : 18;
+    const int prefixW = prefix_.isEmpty() ? 0 : 18;
     const int xInSlots = e.x - prefixW;
-    if (xInSlots < 0) return;
+    if (xInSlots < 0)
+      return;
     const int slotsW = getWidth() - prefixW;
-    const int slotW  = slotsW / 3;
-    const int idx    = juce::jlimit(0, 2, xInSlots / slotW);
+    const int slotW = slotsW / 3;
+    const int idx = juce::jlimit(0, 2, xInSlots / slotW);
     if (idx != selected_) {
       selected_ = idx;
       repaint();
-      if (onChange_) onChange_(kSlopes[static_cast<std::size_t>(selected_)]);
+      if (onChange_)
+        onChange_(kSlopes[static_cast<std::size_t>(selected_)]);
     }
   }
 
@@ -139,7 +147,7 @@ private:
   std::function<void(int)> onChange_;
   juce::String prefix_;
   juce::Colour accent_;
-  int          selected_ = 0;
+  int selected_ = 0;
   static constexpr std::array<int, 3> kSlopes = {12, 24, 48};
 };
 
@@ -190,8 +198,8 @@ public:
     juce::TextButton::paintButton(g, highlighted || dragHovered_, down);
     if (dragHovered_) {
       g.setColour(juce::Colours::white.withAlpha(0.15f));
-      g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(1.0f),
-                             3.0f, 1.5f);
+      g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(1.0f), 3.0f,
+                             1.5f);
     }
   }
 
