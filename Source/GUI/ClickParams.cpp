@@ -479,12 +479,14 @@ void BabySquatchAudioProcessorEditor::applyClickSampleMode() {
   // HPF/LPF Q を "Q" / 0.1–6.0 に変更
   clickUI.hpf.qSlider.setRange(0.1, 6.0, 0.01);
   clickUI.hpf.qSlider.setValue(0.707, juce::dontSendNotification);
+  clickUI.hpf.qSlider.setDoubleClickReturnValue(true, 0.707);
   clickUI.hpf.qSlider.textFromValueFunction = [](double v) {
     return juce::String(v, 2);
   };
   clickUI.hpf.qLabel.setText("Q", juce::dontSendNotification);
   clickUI.lpf.qSlider.setRange(0.1, 6.0, 0.01);
   clickUI.lpf.qSlider.setValue(0.707, juce::dontSendNotification);
+  clickUI.lpf.qSlider.setDoubleClickReturnValue(true, 0.707);
   clickUI.lpf.qSlider.textFromValueFunction = [](double v) {
     return juce::String(v, 2);
   };
@@ -547,10 +549,12 @@ void BabySquatchAudioProcessorEditor::applyClickToneNoiseMode(int m) {
   const bool fromSample = (clickUI.hpf.qSlider.getRange().getStart() > 0.0);
   clickUI.hpf.qSlider.setRange(0.0, 12.0, 0.01);
   if (fromSample) clickUI.hpf.qSlider.setValue(0.0, juce::dontSendNotification);
+  clickUI.hpf.qSlider.setDoubleClickReturnValue(true, 0.0);
   clickUI.hpf.qSlider.textFromValueFunction = nullptr;
   clickUI.hpf.qLabel.setText("Reso", juce::dontSendNotification);
   clickUI.lpf.qSlider.setRange(0.0, 12.0, 0.01);
   if (fromSample) clickUI.lpf.qSlider.setValue(0.0, juce::dontSendNotification);
+  clickUI.lpf.qSlider.setDoubleClickReturnValue(true, 0.0);
   clickUI.lpf.qSlider.textFromValueFunction = nullptr;
   clickUI.lpf.qLabel.setText("Reso", juce::dontSendNotification);
 
