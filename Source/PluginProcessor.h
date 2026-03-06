@@ -3,7 +3,9 @@
 #include "DSP/ChannelState.h"
 #include "DSP/ClickEngine.h"
 #include "DSP/DirectEngine.h"
+#include "DSP/LevelDetector.h"
 #include "DSP/SubEngine.h"
+#include <array>
 #include <atomic>
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_audio_utils/juce_audio_utils.h>
@@ -51,6 +53,8 @@ public:
 
   void setMasterGainDb(float db) { masterGainDb_.store(db); }
   float getMasterGainDb() const  { return masterGainDb_.load(); }
+  /// UIスレッドからマスター出力ドアを取得 (ch: 0=L, 1=R)
+  float getMasterLevelDb(int ch) const { return masterDetector_[static_cast<std::size_t>(ch & 1)].getPeakDb(); }
 
 private:
   void handleMidiEvents(juce::MidiBuffer &midiMessages, int numSamples);
@@ -61,6 +65,7 @@ private:
   DirectEngine directEngine_;
   ChannelState channelState_;
   std::atomic<float> masterGainDb_{0.0f};
+  mutable std::array<LevelDetector, 2> masterDetector_; // 0=L, 1=R
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(BabySquatchAudioProcessor)
 };

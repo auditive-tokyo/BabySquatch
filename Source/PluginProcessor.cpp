@@ -102,6 +102,15 @@ void BabySquatchAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   // マスターゲイン適用
   buffer.applyGain(juce::Decibels::decibelsToGain(masterGainDb_.load()));
 
+  // マスター出力 L/R レベル計測
+  for (std::size_t ch = 0; ch < 2; ++ch) {
+    const int bufCh = juce::jmin(static_cast<int>(ch), buffer.getNumChannels() - 1);
+    if (bufCh >= 0)
+      masterDetector_[ch].process(buffer.getReadPointer(bufCh), numSamples);
+    else
+      masterDetector_[ch].process(nullptr, numSamples);
+  }
+
   using enum ChannelState::Channel;
 
   // Sub レベル計測
@@ -112,13 +121,15 @@ void BabySquatchAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
 
   // Click レベル計測
   if (passes.click)
-    channelState_.detector(click).process(clickEngine_.scratchData(), numSamples);
+    channelState_.detector(click).process(clickEngine_.scratchData(),
+                                          numSamples);
   else
     channelState_.detector(click).process(nullptr, numSamples);
 
   // Direct レベル計測（render 後に scratchData を参照）
   if (passes.direct)
-    channelState_.detector(direct).process(directEngine_.scratchData(), numSamples);
+    channelState_.detector(direct).process(directEngine_.scratchData(),
+                                           numSamples);
   else
     channelState_.detector(direct).process(nullptr, numSamples);
 }

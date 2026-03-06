@@ -1,6 +1,6 @@
 #include "PluginEditor.h"
-#include "PluginProcessor.h"
 #include "GUI/LutBaker.h"
+#include "PluginProcessor.h"
 
 // ────────────────────────────────────────────────────
 // パネルルーティング（Mute/Solo/レベルメーター）
@@ -156,7 +156,7 @@ BabySquatchAudioProcessorEditor::BabySquatchAudioProcessorEditor(
   infoBox.setFont(juce::Font(juce::FontOptions(UIConstants::fontSizeSmall)));
   infoBox.setColour(juce::Label::textColourId, UIConstants::Colours::labelText);
   infoBox.setColour(juce::Label::backgroundColourId,
-                   UIConstants::Colours::panelBg.withAlpha(0.0f));
+                    UIConstants::Colours::panelBg.withAlpha(0.0f));
   infoBox.setJustificationType(juce::Justification::centredLeft);
 
   pitchEnvData.setDefaultValue(200.0f);
@@ -175,8 +175,13 @@ BabySquatchAudioProcessorEditor::BabySquatchAudioProcessorEditor(
   setupHarmonicKnobs();
 
   // マスターフェーダー配線
-  masterSection.setOnValueChange([this](float db) {
-    processorRef.setMasterGainDb(db);
+  masterSection.setOnValueChange(
+      [this](float db) { processorRef.setMasterGainDb(db); });
+  masterSection.setLevelProvider(0, [this]() {
+    return processorRef.getMasterLevelDb(0); // L
+  });
+  masterSection.setLevelProvider(1, [this]() {
+    return processorRef.getMasterLevelDb(1); // R
   });
 
   setSize(UIConstants::windowWidth, UIConstants::windowHeight +
@@ -207,8 +212,8 @@ void BabySquatchAudioProcessorEditor::resized() {
 
     // 鍵盤行: 鍵盤自然幅で左寄せ、余白にマスターセクション
     auto keyboardRow = expandArea.removeFromBottom(UIConstants::keyboardHeight);
-    const int kbWidth = juce::jmin(keyboardRow.getWidth(),
-                                   keyboard.getPreferredWidth());
+    const int kbWidth =
+        juce::jmin(keyboardRow.getWidth(), keyboard.getPreferredWidth());
     keyboard.setBounds(keyboardRow.removeFromLeft(kbWidth));
 
     // マスターセクション（鍵盤の右余白）
