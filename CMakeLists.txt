@@ -43,8 +43,8 @@ target_sources(BabySquatch
         Source/GUI/KeyboardComponent.cpp
         Source/GUI/EnvelopeCurveEditor.h
         Source/GUI/EnvelopeCurveEditor.cpp
-        Source/GUI/LevelMeter.h
-        Source/GUI/LevelMeter.cpp
+        Source/GUI/ChannelFader.h
+        Source/GUI/ChannelFader.cpp
         Source/DSP/ChannelState.h
         Source/DSP/ClickEngine.h
         Source/DSP/ClickEngine.cpp

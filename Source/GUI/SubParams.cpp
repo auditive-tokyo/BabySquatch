@@ -37,6 +37,7 @@ void BabySquatchAudioProcessorEditor::setupLengthBox() {
                              juce::Colours::transparentBlack);
   subUI.length.slider.setRange(10.0, 2000.0, 1.0);
   subUI.length.slider.setTextValueSuffix(" ms");
+  subUI.length.slider.setDoubleClickReturnValue(true, 300.0);
   subUI.length.slider.setValue(300.0, juce::dontSendNotification);
   subUI.length.slider.onValueChange = [this] {
     const auto v = static_cast<float>(subUI.length.slider.getValue());

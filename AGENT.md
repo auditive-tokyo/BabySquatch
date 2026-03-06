@@ -53,14 +53,20 @@ BabySquatchは3つのモジュールで構成されています：
 │   ├── ChannelState.h         // チャンネルMute/Solo/レベル管理（ヘッダオンリー）
 │   ├── ClickEngine.cpp        // Click DSP 実装（Tone/Noise モード、BPF × 2、HPF/LPF）
 │   ├── ClickEngine.h          // Click DSP 宣言
+│   ├── DirectEngine.cpp       // Direct DSP 実装（入力パススルー / サンプル再生）
+│   ├── DirectEngine.h         // Direct DSP 宣言
 │   ├── EnvelopeData.h         // エンベロープデータモデル（Catmull-Rom・ヘッダオンリー）
 │   ├── EnvelopeLutManager.h   // LUTダブルバッファ管理（ヘッダオンリー、ロックフリー）
 │   ├── LevelDetector.h        // ロックフリーピーク検出（ヘッダオンリー）
+│   ├── SamplePlayer.cpp       // サンプル再生エンジン実装
+│   ├── SamplePlayer.h         // サンプル再生エンジン宣言
 │   ├── SubEngine.cpp          // Sub DSP 実装（Wavetable OSC、LUT 駆動）
 │   ├── SubEngine.h            // Sub DSP 宣言
 │   ├── SubOscillator.cpp      // Sub用Wavetable OSC実装
 │   └── SubOscillator.h        // Sub用Wavetable OSC宣言
 ├── GUI
+│   ├── ChannelFader.cpp       // チャンネルフェーダー実装（メーター＋フェーダー一体）
+│   ├── ChannelFader.h         // チャンネルフェーダー宣言（Sub/Click/Direct 共通）
 │   ├── ClickParams.cpp        // Click パネル UI セットアップ / レイアウト
 │   ├── CustomSliderLAF.h      // ノブ描画LookAndFeel（グラデーション/値表示）
 │   ├── DirectParams.cpp       // Direct パネル UI セットアップ / レイアウト
@@ -68,10 +74,9 @@ BabySquatchは3つのモジュールで構成されています：
 │   ├── EnvelopeCurveEditor.h  // エンベロープカーブエディタ宣言
 │   ├── KeyboardComponent.cpp  // 鍵盤UI実装
 │   ├── KeyboardComponent.h    // 鍵盤UI宣言
-│   ├── LevelMeter.cpp         // レベルメーター実装
-│   ├── LevelMeter.h           // レベルメーター宣言
+│   ├── LutBaker.h             // Sub波形 LUT ベイク処理（ヘッダオンリー）
 │   ├── PanelComponent.cpp     // SUB/CLICK/DIRECT共通パネル実装
-│   ├── PanelComponent.h       // 共通パネル宣言（フェーダー・展開ボタン）
+│   ├── PanelComponent.h       // 共通パネル宣言（ChannelFader・M/S ボタン）
 │   ├── SubParams.cpp          // Sub パネル UI セットアップ / レイアウト
 │   └── UIConstants.h          // UI定数集約（色・レイアウト寸法）
 ├── PluginEditor.cpp

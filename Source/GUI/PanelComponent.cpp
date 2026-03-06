@@ -6,20 +6,9 @@
 // ────────────────────────────────────────────────────
 PanelComponent::PanelComponent(const juce::String &name,
                                juce::Colour accentColour)
-    : faderLAF(accentColour) {
-  // ── レベルメーター（背景として先に追加） ──
-  levelMeter.setAccentColour(accentColour);
-  addAndMakeVisible(levelMeter);
-
-  // ── フェーダー（レベルメーターの上に重ねる） ──
-  fader.setSliderStyle(juce::Slider::LinearVertical);
-  fader.setTextBoxStyle(juce::Slider::NoTextBox, true, 0, 0);
-  fader.setRange(-48.0, 6.0, 0.1);
-  fader.setValue(0.0, juce::dontSendNotification);
-  fader.setDoubleClickReturnValue(true, 0.0);
-  fader.setTextValueSuffix(" dB");
-  fader.setLookAndFeel(&faderLAF);
-  addAndMakeVisible(fader);
+    : channelFader(accentColour) {
+  // ── ChannelFader（メーター＋フェーダー一体） ──
+  addAndMakeVisible(channelFader);
 
   // ── タイトルラベル ──
   titleLabel.setText(name, juce::dontSendNotification);
@@ -59,11 +48,6 @@ PanelComponent::PanelComponent(const juce::String &name,
 }
 
 // ────────────────────────────────────────────────────
-// デストラクタ
-// ────────────────────────────────────────────────────
-PanelComponent::~PanelComponent() { fader.setLookAndFeel(nullptr); }
-
-// ────────────────────────────────────────────────────
 // paint / resized
 // ────────────────────────────────────────────────────
 void PanelComponent::paint(juce::Graphics &g) {
@@ -82,50 +66,15 @@ void PanelComponent::resized() {
   muteButton.setBounds(bottomRow.removeFromLeft(btnW));
   soloButton.setBounds(bottomRow);
 
-  // レベルメーター（左列）+ フェーダーハンドル（その右に隣接）
-  constexpr int faderHandleWidth = 12;
-  levelMeter.setBounds(area.removeFromLeft(UIConstants::meterWidth));
-  fader.setBounds(area.removeFromLeft(faderHandleWidth));
+  // ChannelFader: メーターとフェーダーを内包（内部レイアウトは ChannelFader::resized が管理）
+  channelFader.setBounds(area.removeFromLeft(
+      UIConstants::meterWidth + ChannelFader::faderHandleWidth));
 }
 
 // ────────────────────────────────────────────────
 // getFader
 // ────────────────────────────────────────────────
-juce::Slider &PanelComponent::getFader() { return fader; }
-
-// ────────────────────────────────────────────────
-// FaderLAF::drawLinearSlider
-// トラック: 透明（LevelMeter が背景役）
-// サム:     アクセントカラーの水平バー + 右端の ◁
-// ────────────────────────────────────────────────
-void PanelComponent::FaderLAF::drawLinearSlider(
-    juce::Graphics &g, int x, int trackY, int width, int height,
-    float sliderPos, float /*minPos*/, float /*maxPos*/,
-    juce::Slider::SliderStyle, juce::Slider &slider) {
-
-  // 0 dB 基準ライン（薄いグレー）
-  const auto minVal = slider.getMinimum();
-  const auto maxVal = slider.getMaximum();
-  const auto zeroNorm = static_cast<float>((0.0 - minVal) / (maxVal - minVal));
-  const float zeroY = static_cast<float>(trackY) +
-                      (1.0f - zeroNorm) * static_cast<float>(height);
-  g.setColour(juce::Colours::white.withAlpha(0.22f));
-  g.drawHorizontalLine(static_cast<int>(zeroY), static_cast<float>(x),
-                       static_cast<float>(x + width));
-
-  // ◁ 三角形のみ（左向き、先端が左）
-  constexpr float triW = 10.0f;
-  constexpr float triH = 14.0f;
-  g.setColour(accent_.withAlpha(0.92f));
-  juce::Path tri;
-  tri.addTriangle(static_cast<float>(x), sliderPos, // 先端（左）
-                  static_cast<float>(x + width),
-                  sliderPos - triH * 0.5f, // 右上
-                  static_cast<float>(x + width), sliderPos + triH * 0.5f // 右下
-  );
-  g.fillPath(tri);
-  (void)triW;
-}
+juce::Slider &PanelComponent::getFader() { return channelFader.getFader(); }
 
 // ────────────────────────────────────────────────
 // Mute / Solo コールバック + 外部状態更新
@@ -147,5 +96,5 @@ void PanelComponent::setSoloState(bool soloed) {
 }
 
 void PanelComponent::setLevelProvider(std::function<float()> provider) {
-  levelMeter.setLevelProvider(std::move(provider));
+  channelFader.setLevelProvider(std::move(provider));
 }
