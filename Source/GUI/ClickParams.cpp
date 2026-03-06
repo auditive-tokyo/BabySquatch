@@ -121,6 +121,7 @@ void BabySquatchAudioProcessorEditor::setupClickParams() {
   styleFilterSlider(clickUI.toneNoise.decaySlider);
   clickUI.toneNoise.decaySlider.setRange(1.0, 2000.0, 1.0);
   clickUI.toneNoise.decaySlider.setTextValueSuffix(" ms");
+  clickUI.toneNoise.decaySlider.setDoubleClickReturnValue(true, 50.0);
   clickUI.toneNoise.decaySlider.setValue(50.0, juce::dontSendNotification);
   clickUI.toneNoise.decaySlider.onValueChange = [this] {
     processorRef.clickEngine().setDecayMs(
@@ -152,6 +153,7 @@ void BabySquatchAudioProcessorEditor::setupClickParams() {
   clickUI.toneNoise.bpf1.qSlider.onValueChange = [this] {
     processorRef.clickEngine().setFocus1(
         static_cast<float>(clickUI.toneNoise.bpf1.qSlider.getValue()));
+    envelopeCurveEditor.repaint();
   };
   addAndMakeVisible(clickUI.toneNoise.bpf1.qSlider);
 
@@ -323,15 +325,23 @@ void BabySquatchAudioProcessorEditor::setupClickParams() {
   processorRef.clickEngine().setReleaseMs(50.0f);
 
   // プレビュープロバイダーを clickUI に保持
+  // DSP = BPFインパルス応答 × Decayエンベロープ なので両方の積を使う
   clickUI.toneProvider = [this](float timeSec) {
-    const auto decayMs =
-        static_cast<float>(clickUI.toneNoise.decaySlider.getValue());
-    const float env = (timeSec * 1000.0f < decayMs)
-                          ? std::exp(-timeSec * 5000.0f / (decayMs + 1e-6f))
-                          : 0.0f;
     const auto freq1 =
         static_cast<float>(clickUI.toneNoise.bpf1.freqSlider.getValue());
-    return std::sin(juce::MathConstants<float>::twoPi * freq1 * timeSec) * env;
+    const auto q1 =
+        static_cast<float>(clickUI.toneNoise.bpf1.qSlider.getValue());
+    const auto decayMs =
+        static_cast<float>(clickUI.toneNoise.decaySlider.getValue());
+    // BPFインパルス応答: exp(-π·f/Q·t)
+    const float bpfEnv =
+        (q1 > 0.01f)
+            ? std::exp(-juce::MathConstants<float>::pi * freq1 / q1 * timeSec)
+            : 0.0f;
+    // Decayエンベロープ: exp(-t·5000/decayMs)  ── DSPと同一式
+    const float decayEnv = std::exp(-timeSec * 5000.0f / (decayMs + 1e-6f));
+    return std::sin(juce::MathConstants<float>::twoPi * freq1 * timeSec) *
+           bpfEnv * decayEnv;
   };
   clickUI.noiseProvider = [this](float timeSec) {
     const auto decayMs =
@@ -548,12 +558,14 @@ void BabySquatchAudioProcessorEditor::applyClickToneNoiseMode(int m) {
   // Sample モードから来た場合（range下限が0.1）のみ値もリセットする
   const bool fromSample = (clickUI.hpf.qSlider.getRange().getStart() > 0.0);
   clickUI.hpf.qSlider.setRange(0.0, 12.0, 0.01);
-  if (fromSample) clickUI.hpf.qSlider.setValue(0.0, juce::dontSendNotification);
+  if (fromSample)
+    clickUI.hpf.qSlider.setValue(0.0, juce::dontSendNotification);
   clickUI.hpf.qSlider.setDoubleClickReturnValue(true, 0.0);
   clickUI.hpf.qSlider.textFromValueFunction = nullptr;
   clickUI.hpf.qLabel.setText("Reso", juce::dontSendNotification);
   clickUI.lpf.qSlider.setRange(0.0, 12.0, 0.01);
-  if (fromSample) clickUI.lpf.qSlider.setValue(0.0, juce::dontSendNotification);
+  if (fromSample)
+    clickUI.lpf.qSlider.setValue(0.0, juce::dontSendNotification);
   clickUI.lpf.qSlider.setDoubleClickReturnValue(true, 0.0);
   clickUI.lpf.qSlider.textFromValueFunction = nullptr;
   clickUI.lpf.qLabel.setText("Reso", juce::dontSendNotification);
