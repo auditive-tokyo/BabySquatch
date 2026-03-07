@@ -108,6 +108,18 @@ BabySquatchは3つのモジュールで構成されています：
   - 外部ファイル（.json / .txt）方式は配布・パス解決が面倒なので採用しない
   - `juce::TooltipWindow` はスタイル固定で右端常駐 UI に不向きなので採用しない
 
+- **Direct ピッチシフト（再生速度変更方式）**
+  - 目的: Direct サンプル再生時にキックの音程を±数半音調整できるようにする
+  - 方式: **再生速度変更（テープピッチ）** — CPU 追加コストゼロ、レイテンシー追加ゼロ
+  - 実装: `SamplePlayer` の position 更新部分に係数を掛けるだけ（数行）
+    ```cpp
+    const double playbackRate = std::pow(2.0, semitones / 12.0);
+    position += playbackRate;  // 毎サンプルこれだけ
+    ```
+  - トレードオフ: 音程と再生時間が連動して変わる（±3〜5半音の実用範囲では許容範囲内）
+  - Phase Vocoder / Rubber Band 方式は FFT レイテンシーや実装コストが大きく、キックの過渡成分が滲むため不採用
+  - UI: Direct パネルの Pitch ノブ（既存）を semitones 入力として `playbackRate` に変換して接続
+
 - **Sub/Click 共通トリガー（トランジェント検出）**
   - 目的: 入力信号の立ち上がり過渡成分を検出して Sub/Click を瞬時に発音（VST/AU の Kick トラック挿入を想定）
   - 検証項目: Sasquatch の発火条件が「トランジェント検出」か「入力レベル/サイドチェイン閾値」かを確認
