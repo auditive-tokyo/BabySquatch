@@ -69,15 +69,14 @@ void BabySquatchAudioProcessorEditor::setupClickParams() {
   clickUI.noise.bpf1.slopeSelector.setOnChange(
       [this](int dboct) { processorRef.clickEngine().setBpf1Slope(dboct); });
   styleKnobLabel(clickUI.noise.bpf1.qLabel, "Q", tinyFont);
-  styleKnobLabel(clickUI.noise.bpf2.freqLabel, "Air", tinyFont);
-  styleKnobLabel(clickUI.noise.bpf2.qLabel, "Focus", tinyFont);
+  styleKnobLabel(clickUI.noise.saturator.drive.label, "Drive", tinyFont);
   styleKnobLabel(clickUI.hpf.qLabel, "Reso", tinyFont);
   styleKnobLabel(clickUI.lpf.qLabel, "Reso", tinyFont);
   addAndMakeVisible(clickUI.noise.decayLabel);
   addAndMakeVisible(clickUI.noise.bpf1.slopeSelector);
   addAndMakeVisible(clickUI.noise.bpf1.qLabel);
-  addAndMakeVisible(clickUI.noise.bpf2.freqLabel);
-  addAndMakeVisible(clickUI.noise.bpf2.qLabel);
+  addAndMakeVisible(clickUI.noise.saturator.drive.label);
+  addAndMakeVisible(clickUI.noise.saturator.clipType);
   addAndMakeVisible(clickUI.hpf.slope);
   addAndMakeVisible(clickUI.hpf.qLabel);
   addAndMakeVisible(clickUI.lpf.slope);
@@ -133,29 +132,23 @@ void BabySquatchAudioProcessorEditor::setupClickParams() {
   };
   addAndMakeVisible(clickUI.noise.bpf1.qSlider);
 
-  // Air (BPF2 freq)  20–20000 Hz  log
-  styleClickKnob(clickUI.noise.bpf2.freqSlider, clickKnobLAF);
-  clickUI.noise.bpf2.freqSlider.setRange(20.0, 20000.0, 1.0);
-  clickUI.noise.bpf2.freqSlider.setSkewFactorFromMidPoint(1000.0);
-  clickUI.noise.bpf2.freqSlider.setTextValueSuffix(" Hz");
-  clickUI.noise.bpf2.freqSlider.setValue(10000.0, juce::dontSendNotification);
-  clickUI.noise.bpf2.freqSlider.setDoubleClickReturnValue(true, 10000.0);
-  clickUI.noise.bpf2.freqSlider.onValueChange = [this] {
-    processorRef.clickEngine().setFreq2(
-        static_cast<float>(clickUI.noise.bpf2.freqSlider.getValue()));
+  // Drive  0–24 dB
+  styleClickKnob(clickUI.noise.saturator.drive.slider, clickKnobLAF);
+  clickUI.noise.saturator.drive.slider.setRange(0.0, 24.0, 0.1);
+  clickUI.noise.saturator.drive.slider.setValue(0.0, juce::dontSendNotification);
+  clickUI.noise.saturator.drive.slider.setDoubleClickReturnValue(true, 0.0);
+  clickUI.noise.saturator.drive.slider.textFromValueFunction = [](double v) {
+    return juce::String(v, 1) + " dB";
   };
-  addAndMakeVisible(clickUI.noise.bpf2.freqSlider);
+  clickUI.noise.saturator.drive.slider.onValueChange = [this] {
+    processorRef.clickEngine().setDriveDb(
+        static_cast<float>(clickUI.noise.saturator.drive.slider.getValue()));
+  };
+  addAndMakeVisible(clickUI.noise.saturator.drive.slider);
 
-  // Focus (BPF2 Q)  0–12
-  styleClickKnob(clickUI.noise.bpf2.qSlider, clickKnobLAF);
-  clickUI.noise.bpf2.qSlider.setRange(0.0, 12.0, 0.01);
-  clickUI.noise.bpf2.qSlider.setValue(0.0, juce::dontSendNotification);
-  clickUI.noise.bpf2.qSlider.setDoubleClickReturnValue(true, 0.0);
-  clickUI.noise.bpf2.qSlider.onValueChange = [this] {
-    processorRef.clickEngine().setFocus2(
-        static_cast<float>(clickUI.noise.bpf2.qSlider.getValue()));
-  };
-  addAndMakeVisible(clickUI.noise.bpf2.qSlider);
+  // ClipType セレクター（Soft / Hard / Tube）
+  clickUI.noise.saturator.clipType.setOnChange(
+      [this](int t) { processorRef.clickEngine().setClipType(t); });
 
   // HPF freq  20–20000 Hz  log
   styleClickKnob(clickUI.hpf.slider, clickKnobLAF);
@@ -289,8 +282,8 @@ void BabySquatchAudioProcessorEditor::setupClickParams() {
   processorRef.clickEngine().setDecayMs(50.0f);
   processorRef.clickEngine().setFreq1(5000.0f);
   processorRef.clickEngine().setFocus1(0.71f);
-  processorRef.clickEngine().setFreq2(10000.0f);
-  processorRef.clickEngine().setFocus2(0.0f);
+  processorRef.clickEngine().setDriveDb(0.0f);
+  processorRef.clickEngine().setClipType(0);
   processorRef.clickEngine().setHpfFreq(200.0f);
   processorRef.clickEngine().setHpfQ(0.0f);
   processorRef.clickEngine().setLpfFreq(8000.0f);
@@ -352,30 +345,37 @@ void BabySquatchAudioProcessorEditor::layoutClickParams(
   const int slotW = area.getWidth() / 4;
   const int rowH = area.getHeight() / 2;
 
-  // 上段4ノブ: Sample → Pitch/A/D/R, Noise → Freq/Focus/Air/Focus
-  const std::array<juce::Slider *, 4> topKnobs =
-      isSample
-          ? std::array<juce::Slider *, 4>{{&clickUI.sample.pitch.slider,
-                                           &clickUI.sample.attack.slider,
-                                           &clickUI.sample.hold.slider,
-                                           &clickUI.sample.release.slider}}
-          : std::array<juce::Slider *, 4>{
-                {&clickUI.noise.bpf1.freqSlider, &clickUI.noise.bpf1.qSlider,
-                 &clickUI.noise.bpf2.freqSlider, &clickUI.noise.bpf2.qSlider}};
-  const std::array<juce::Component *, 4> topLabels =
-      isSample
-          ? std::array<juce::Component *, 4>{{&clickUI.sample.pitch.label,
-                                              &clickUI.sample.attack.label,
-                                              &clickUI.sample.hold.label,
-                                              &clickUI.sample.release.label}}
-          : std::array<juce::Component *, 4>{
-                {&clickUI.noise.bpf1.slopeSelector, &clickUI.noise.bpf1.qLabel,
-                 &clickUI.noise.bpf2.freqLabel, &clickUI.noise.bpf2.qLabel}};
-  for (int col = 0; col < 4; ++col) {
-    const auto idx = static_cast<size_t>(col);
-    juce::Rectangle slot(area.getX() + col * slotW, area.getY(), slotW, rowH);
-    topLabels[idx]->setBounds(slot.removeFromBottom(14));
-    topKnobs[idx]->setBounds(slot);
+  // 上段4ノブ: Sample → Pitch/A/D/R, Noise → BP/Q/Drive/ClipType
+  if (isSample) {
+    const std::array<juce::Slider *, 4> topKnobs = {
+        {&clickUI.sample.pitch.slider, &clickUI.sample.attack.slider,
+         &clickUI.sample.hold.slider, &clickUI.sample.release.slider}};
+    const std::array<juce::Component *, 4> topLabels = {
+        {&clickUI.sample.pitch.label, &clickUI.sample.attack.label,
+         &clickUI.sample.hold.label, &clickUI.sample.release.label}};
+    for (int col = 0; col < 4; ++col) {
+      const auto idx = static_cast<size_t>(col);
+      juce::Rectangle slot(area.getX() + col * slotW, area.getY(), slotW, rowH);
+      topLabels[idx]->setBounds(slot.removeFromBottom(14));
+      topKnobs[idx]->setBounds(slot);
+    }
+  } else {
+    // Noise: スロット 0-2 はノブ+ラベル、スロット 3 は ClipType フル幅
+    const std::array<juce::Slider *, 3> topKnobs = {
+        {&clickUI.noise.bpf1.freqSlider, &clickUI.noise.bpf1.qSlider,
+         &clickUI.noise.saturator.drive.slider}};
+    const std::array<juce::Component *, 3> topLabels = {
+        {&clickUI.noise.bpf1.slopeSelector, &clickUI.noise.bpf1.qLabel,
+         &clickUI.noise.saturator.drive.label}};
+    for (int col = 0; col < 3; ++col) {
+      const auto idx = static_cast<size_t>(col);
+      juce::Rectangle slot(area.getX() + col * slotW, area.getY(), slotW, rowH);
+      topLabels[idx]->setBounds(slot.removeFromBottom(14));
+      topKnobs[idx]->setBounds(slot);
+    }
+    // スロット 3: ClipType（ノブなし、全高使用）
+    juce::Rectangle clipSlot(area.getX() + 3 * slotW, area.getY(), slotW, rowH);
+    clickUI.noise.saturator.clipType.setBounds(clipSlot);
   }
 
   // 下段4ノブ: HP(slope) / HPQ / LP(slope) / LPQ（常時）
@@ -422,10 +422,9 @@ void BabySquatchAudioProcessorEditor::setClickModeVisible(bool isSample) {
         static_cast<juce::Component *>(&clickUI.noise.bpf1.freqSlider),
         static_cast<juce::Component *>(&clickUI.noise.bpf1.qLabel),
         static_cast<juce::Component *>(&clickUI.noise.bpf1.qSlider),
-        static_cast<juce::Component *>(&clickUI.noise.bpf2.freqLabel),
-        static_cast<juce::Component *>(&clickUI.noise.bpf2.freqSlider),
-        static_cast<juce::Component *>(&clickUI.noise.bpf2.qLabel),
-        static_cast<juce::Component *>(&clickUI.noise.bpf2.qSlider)})
+        static_cast<juce::Component *>(&clickUI.noise.saturator.drive.label),
+        static_cast<juce::Component *>(&clickUI.noise.saturator.drive.slider),
+        static_cast<juce::Component *>(&clickUI.noise.saturator.clipType)})
     c->setVisible(!isSample);
 
   for (juce::Component *c :

@@ -51,7 +51,7 @@ BabySquatchは3つのモジュールで構成されています：
 .
 ├── DSP
 │   ├── ChannelState.h         // チャンネルMute/Solo/レベル管理（ヘッダオンリー）
-│   ├── ClickEngine.cpp        // Click DSP 実装（Noise/Sample モード、BPF × 2、HPF/LPF）
+│   ├── ClickEngine.cpp        // Click DSP 実装（Noise/Sample モード、BPF1カスケード、HPF/LPF）
 │   ├── ClickEngine.h          // Click DSP 宣言
 │   ├── DirectEngine.cpp       // Direct DSP 実装（入力パススルー / サンプル再生）
 │   ├── DirectEngine.h         // Direct DSP 宣言
@@ -60,6 +60,7 @@ BabySquatchは3つのモジュールで構成されています：
 │   ├── LevelDetector.h        // ロックフリーピーク検出（ヘッダオンリー）
 │   ├── SamplePlayer.cpp       // サンプル再生エンジン実装
 │   ├── SamplePlayer.h         // サンプル再生エンジン宣言
+│   ├── Saturator.h            // Drive + ClipType 共通 DSP ヘルパー（ヘッダオンリー、Sub/Click/Direct 共用）
 │   ├── SubEngine.cpp          // Sub DSP 実装（Wavetable OSC、LUT 駆動）
 │   ├── SubEngine.h            // Sub DSP 宣言
 │   ├── SubOscillator.cpp      // Sub用Wavetable OSC実装
@@ -144,28 +145,15 @@ BabySquatchは3つのモジュールで構成されています：
   - トリガー: ルックアヘッド型トランジェント検出を実装した際に必須となる（ルックアヘッド分だけ Wet が遅れるため）
   - 現状: 大きな遅延源がないため未着手で問題なし。トランジェント検出実装時に同時対応する
 
-- **Click BPF リファクタリング + Distortion 追加**
-  - **背景・決定事項**:
-    - BPF2（"Air"）は BPF1 の直列段であり、BPF1 から離れた周波数成分はすでに減衰済みのため独立した音域制御が不可能と判断 → **BPF2 削除**
-  - **Distortion 追加（空いた 2 スロットを活用）**:
-    - **Drive ノブ**: UI 表示 0〜24 dB（Sub の Saturate と完全統一。内部: `pow(10, dB/20)` → drive 係数 1.0〜15.85）。BPF 後段にプリゲインをかけてからクリッパーに入力。値が大きいほど歪みが強くなる
-    - **Clip Type ノブ/セレクター**: 歪み方式を選択
-      1. `Soft` — `tanh(drive × s)` （ウォーム・奇数倍音）← すでに部分実装済み
-      2. `Hard` — `jlimit(-1, 1, drive × s)` （ブライト・攻撃的）
-      3. `Bit` — ビットクラッシャー（サンプル値を `round(s × bits) / bits`）（デジタル感）
-    - 実装箇所: `ClickEngine::synthesizeSample()` の BPF 直後・HPF/LPF 手前に挿入
-    - 既存 `tanh` は HPF/LPF がかかっているときだけ適用されていたが、Distortion として独立させて常に選択可能にする
-    - UI: Noise の上段 4 スロット → `[BP Slope] [Q] [Drive] [ClipType]` に再配置
-      - `BP`: freq ノブ + 上部に Slope セレクター（SlopeSelector を再利用）
-      - `Q`: 0.1〜18 ノブ
-      - `Drive`: 0〜24 dB ノブ（Sub Saturate と同一マッピング）
-      - `ClipType`: Soft / Hard / Bit の 3 択セレクター（SlopeSelector 流用 or ComboBox）
-  - **Sample モードへの Saturator 適用（設計確定）**:
-    - A/D/R 3ノブを廃止 → Gain 1ノブに変更。振幅形状は EnvelopeCurveEditor のカーブで制御（Sub と同方式）
-    - 空いた 2 スロットに Drive / ClipType を配置 → Noise モードと同じ Saturator が Sample でも使用可能になる
+- **Click Sample モードへの Saturator 適用**（設計確定・未実装）
+  - 背景: Noise モードの Drive/ClipType は ✅ 実装済み（`Saturator::process()` 経由）。Sample モードにも同じ Saturator を適用したい
+  - 方針:
+    - A/Hold/R 3ノブを廃止 → Gain 1ノブに変更。振幅形状は EnvelopeCurveEditor のカーブで制御（Sub と同方式）
+    - 空いた 2 スロットに Drive / ClipType を配置 → Noise モードと同じ `SaturatorUI` 構造体を Sample モードでも使用
     - Sample モードの 4 スロット構成: `[Pitch] [Gain] [Drive] [ClipType]`
-    - **EnvelopeData の扱い**: Click amp 用に `EnvelopeData` インスタンスを別途追加（Sub の amp カーブとは独立したデータ）。ただし `EnvelopeData` クラス・`EnvelopeLutManager`・LUT 評価ロジックはすべて既存の共通コードを流用するため、コードの重複は一切なし
+    - **EnvelopeData の扱い**: Click amp 用に `EnvelopeData` インスタンスを別途追加（Sub の amp カーブとは独立）。クラス・LUT ロジックは既存の共通コードを流用
     - EnvelopeCurveEditor に Click amp カーブを EditTarget として追加する必要あり
+  - 実装箇所: `ClickEngine::synthesizeSample()` の mode==2 ブロック出口で `Saturator::process()` 呼び出し追加
 
 - **CI / CD パイプライン構築**
   - 目的: GitHub Actions でビルド・静的解析を自動化し、プッシュごとに品質を担保する

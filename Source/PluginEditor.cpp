@@ -57,7 +57,8 @@ void BabySquatchAudioProcessorEditor::onEnvelopeChanged() {
   // Amp
   const bool ampCtrl = ampEnvData.isEnvelopeControlled();
   subUI.knobs[0].setEnabled(!ampCtrl);
-  subUI.knobs[0].setTooltip(ampCtrl ? "Click on Amp label to edit envelope" : "");
+  subUI.knobs[0].setTooltip(ampCtrl ? "Click on Amp label to edit envelope"
+                                    : "");
   if (!ampCtrl && ampEnvData.hasPoints()) {
     const float v = ampEnvData.getPoints()[0].value;
     ampEnvData.setDefaultValue(v);
@@ -67,7 +68,8 @@ void BabySquatchAudioProcessorEditor::onEnvelopeChanged() {
   // Freq
   const bool pitchCtrl = pitchEnvData.isEnvelopeControlled();
   subUI.knobs[1].setEnabled(!pitchCtrl);
-  subUI.knobs[1].setTooltip(pitchCtrl ? "Click on Freq label to edit envelope" : "");
+  subUI.knobs[1].setTooltip(pitchCtrl ? "Click on Freq label to edit envelope"
+                                      : "");
   if (!pitchCtrl && pitchEnvData.hasPoints()) {
     const float hz = pitchEnvData.getPoints()[0].value;
     pitchEnvData.setDefaultValue(hz);
@@ -79,7 +81,8 @@ void BabySquatchAudioProcessorEditor::onEnvelopeChanged() {
   // Saturate
   const bool distCtrl = distEnvData.isEnvelopeControlled();
   subUI.knobs[3].setEnabled(!distCtrl);
-  subUI.knobs[3].setTooltip(distCtrl ? "Click on Saturate label to edit envelope" : "");
+  subUI.knobs[3].setTooltip(
+      distCtrl ? "Click on Saturate label to edit envelope" : "");
   if (!distCtrl && distEnvData.hasPoints()) {
     const float v = distEnvData.getPoints()[0].value;
     distEnvData.setDefaultValue(v);
@@ -89,7 +92,8 @@ void BabySquatchAudioProcessorEditor::onEnvelopeChanged() {
   // Mix
   const bool blendCtrl = blendEnvData.isEnvelopeControlled();
   subUI.knobs[2].setEnabled(!blendCtrl);
-  subUI.knobs[2].setTooltip(blendCtrl ? "Click on Mix label to edit envelope" : "");
+  subUI.knobs[2].setTooltip(blendCtrl ? "Click on Mix label to edit envelope"
+                                      : "");
   if (!blendCtrl && blendEnvData.hasPoints()) {
     const float v = blendEnvData.getPoints()[0].value;
     blendEnvData.setDefaultValue(v);

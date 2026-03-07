@@ -197,6 +197,48 @@ private:
   static constexpr std::array<int, 3> kSlopes = {12, 24, 48};
 };
 
+/// 3択テキストセレクター（ClipType 等に使用）。
+/// SlopeSelector の文字列版。コールバックは選択インデックス（0/1/2）を返す。
+class LabelSelector : public juce::Component {
+public:
+  using Labels = std::array<const char *, 3>;
+  explicit LabelSelector(Labels labels = {"Soft", "Hard", "Tube"},
+                         juce::Colour accentColour = Colours::clickArc)
+      : labels_(labels), accent_(accentColour) {}
+
+  void setOnChange(std::function<void(int)> cb) { onChange_ = std::move(cb); }
+  int getSelected() const noexcept { return selected_; }
+
+  void paint(juce::Graphics &g) override {
+    const auto font = juce::Font(juce::FontOptions(fontSizeSmall));
+    g.setFont(font);
+    const int h = getHeight();
+    const int slotW = getWidth() / 3;
+    for (int i = 0; i < 3; ++i) {
+      g.setColour(i == selected_ ? accent_ : juce::Colour(0x88BBBBBB));
+      g.drawText(labels_[static_cast<std::size_t>(i)], i * slotW, 0, slotW, h,
+                 juce::Justification::centred, false);
+    }
+  }
+
+  void mouseDown(const juce::MouseEvent &e) override {
+    const int slotW = getWidth() / 3;
+    const int idx = juce::jlimit(0, 2, e.x / slotW);
+    if (idx != selected_) {
+      selected_ = idx;
+      repaint();
+      if (onChange_)
+        onChange_(selected_);
+    }
+  }
+
+private:
+  std::function<void(int)> onChange_;
+  Labels labels_;
+  juce::Colour accent_;
+  int selected_ = 0;
+};
+
 /// ファイルをドラッグ＆ドロップまたはクリックで読み込むボタン。
 /// ドラッグ中はボーダーをハイライト表示し、対応拡張子のみ受け付ける。
 class SampleDropButton : public juce::TextButton,

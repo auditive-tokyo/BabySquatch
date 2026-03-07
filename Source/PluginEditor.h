@@ -121,14 +121,13 @@ private:
       juce::Label label;
       CustomSlider slider;
     };
+    /// Drive + ClipType 共通モジュール（Sub / Direct でも再利用可）
+    struct SaturatorUI {
+      KnobUI drive;
+      UIConstants::LabelSelector clipType;
+    };
     struct Bpf1Band {
       UIConstants::SlopeSelector slopeSelector{"BP"};
-      CustomSlider freqSlider;
-      juce::Label qLabel;
-      CustomSlider qSlider;
-    };
-    struct BpfBand {
-      juce::Label freqLabel;
       CustomSlider freqSlider;
       juce::Label qLabel;
       CustomSlider qSlider;
@@ -143,8 +142,8 @@ private:
     struct NoiseUI {
       juce::Label decayLabel;
       CustomSlider decaySlider;
-      Bpf1Band bpf1; ///< Slope / Focus
-      BpfBand  bpf2; ///< Air   / Focus
+      Bpf1Band bpf1; ///< BP Slope / Q
+      SaturatorUI saturator;
     };
     struct SampleUI {
       UIConstants::SampleDropButton loadButton{"Drop or Click to Load"};

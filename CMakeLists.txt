@@ -51,6 +51,7 @@ target_sources(BabySquatch
         Source/DSP/ChannelState.h
         Source/DSP/ClickEngine.h
         Source/DSP/ClickEngine.cpp
+        Source/DSP/Saturator.h
         Source/DSP/DirectEngine.h
         Source/DSP/DirectEngine.cpp
         Source/DSP/EnvelopeData.h

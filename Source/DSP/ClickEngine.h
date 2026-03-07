@@ -33,8 +33,6 @@ public:
   void setFreq1(float hz) { freq1_.store(hz); }
   /// Noise: BPF1 Q（高いほどリング）
   void setFocus1(float q) { focus1_.store(q); }
-  void setFreq2(float hz) { freq2_.store(hz); }
-  void setFocus2(float q) { focus2_.store(q); }
   /// HPF カットオフ周波数 (Q=0 でバイパス)
   void setHpfFreq(float hz) { hpfParams_.freq.store(hz); }
   void setHpfQ(float q) { hpfParams_.q.store(q); }
@@ -48,6 +46,10 @@ public:
       stages = 2;
     bpf1Stages_.store(stages);
   }
+  /// Drive 量（0〜24 dB; 内部: pow(10, dB/20)）
+  void setDriveDb(float db) { driveDb_.store(db); }
+  /// ClipType: 0=Soft(tanh), 1=Hard, 2=Tube
+  void setClipType(int t) { clipType_.store(t); }
   void setHpfSlope(int dboct) {
     int stages = 1;
     if (dboct >= 48)
@@ -94,7 +96,6 @@ private:
   // ── render() の分割ヘルパー ──
   struct FilterFlags {
     bool bpf1;
-    bool bpf2;
     bool hpf;
     bool lpf;
     int bpf1Stages; ///< 1=12dB/oct, 2=24dB/oct, 4=48dB/oct
@@ -105,8 +106,8 @@ private:
   float synthesizeSample(int mode, const FilterFlags &flags, double playRate);
 
   // ── BPF（bpf1 はカスケード最大4段） ──
-  std::array<juce::dsp::StateVariableTPTFilter<float>, kMaxCascade> bpf1s_; // freq1 / focus1
-  juce::dsp::StateVariableTPTFilter<float> bpf2_;                           // freq2 / focus2
+  std::array<juce::dsp::StateVariableTPTFilter<float>, kMaxCascade>
+      bpf1s_; // freq1 / focus1
   // ── ポスト HPF / LPF（カスケード最大4段）──
   std::array<juce::dsp::StateVariableTPTFilter<float>, kMaxCascade> hpfs_;
   std::array<juce::dsp::StateVariableTPTFilter<float>, kMaxCascade> lpfs_;
@@ -126,16 +127,16 @@ private:
   };
 
   std::atomic<int> bpf1Stages_{1}; // BPF1 cascade stages
-  std::atomic<int> mode_{1};        // 1=Noise, 2=Sample
+  std::atomic<int> mode_{1};       // 1=Noise, 2=Sample
   std::atomic<float> gainDb_{0.0f};
   std::atomic<float> decayMs_{50.0f};
   // Sample モード用パラメーター
   SampleModeParams sampleParams_;
   // Noise 用 BPF パラメーター
-  std::atomic<float> freq1_{5000.0f};  // BPF1 中心周波数
-  std::atomic<float> focus1_{0.71f};   // BPF1 Q
-  std::atomic<float> freq2_{10000.0f}; // BPF2 中心周波数
-  std::atomic<float> focus2_{0.0f};    // BPF2 Q (0=bypass)
+  std::atomic<float> freq1_{5000.0f}; // BPF1 中心周波数
+  std::atomic<float> focus1_{0.71f};  // BPF1 Q
+  std::atomic<float> driveDb_{0.0f};  // Drive (dB)
+  std::atomic<int> clipType_{0};      // 0=Soft, 1=Hard, 2=Bit
   FilterParams hpfParams_{200.0f, 0.0f, 1};
   FilterParams lpfParams_{8000.0f, 0.0f, 1};
 };
