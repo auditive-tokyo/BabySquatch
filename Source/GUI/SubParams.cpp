@@ -121,6 +121,7 @@ void BabySquatchAudioProcessorEditor::setupWaveShapeCombo() {
 // Freq ノブ（subUI.knobs[1]）
 // ────────────────────────────────────────────────────
 void BabySquatchAudioProcessorEditor::setupPitchKnob() {
+  subUI.knobs[1].setComponentID("subFreq");
   subUI.knobs[1].setRange(20.0, 20000.0);
   subUI.knobs[1].setSkewFactorFromMidPoint(200.0);
   subUI.knobs[1].setValue(200.0, juce::dontSendNotification);

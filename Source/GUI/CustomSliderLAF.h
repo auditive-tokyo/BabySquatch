@@ -1,7 +1,30 @@
 #pragma once
 
 #include "UIConstants.h"
+#include <array>
+#include <cmath>
+#include <optional>
 #include <juce_gui_basics/juce_gui_basics.h>
+
+// ── Hz → 音名変換ヘルパー（例: 440 → "A4", 88.45 → "F2(+22)"）──
+inline juce::String hzToNoteName(double hz) {
+  if (hz <= 0.0)
+    return {};
+  const double midi = 69.0 + 12.0 * std::log2(hz / 440.0);
+  const auto midiRound = static_cast<int>(std::round(midi));
+  const auto cents = static_cast<int>(std::round((midi - midiRound) * 100.0));
+  const int octave = midiRound / 12 - 1;
+  const int idx = ((midiRound % 12) + 12) % 12;
+  static constexpr std::array<const char *, 12> names = {
+      "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
+  juce::String s =
+      juce::String(names[static_cast<size_t>(idx)]) + juce::String(octave);
+  if (cents > 0)
+    s += "(+" + juce::String(cents) + ")";
+  else if (cents < 0)
+    s += "(" + juce::String(cents) + ")";
+  return s;
+}
 
 // ────────────────────────────────────────────────────
 // 色付きロータリースライダー用 LookAndFeel
@@ -22,10 +45,10 @@ public:
 
     // ── disabled 時はグレースケールで描画 ──
     const bool enabled = slider.isEnabled();
-    const juce::Colour effectiveArc   = enabled ? arcColour
-                                                 : juce::Colour(0xFF555555);
-    const juce::Colour effectiveThumb = enabled ? thumbColour
-                                                 : juce::Colour(0xFF777777);
+    const juce::Colour effectiveArc =
+        enabled ? arcColour : juce::Colour(0xFF555555);
+    const juce::Colour effectiveThumb =
+        enabled ? thumbColour : juce::Colour(0xFF777777);
 
     // ── 背景円 ──
     g.setColour(UIConstants::Colours::knobBg);
@@ -103,14 +126,41 @@ public:
                                    : juce::String(slider.getValue(), 1) +
                                          slider.getTextValueSuffix();
         const float fontSize = radius * 0.38f;
-        g.setFont(fontSize);
-        g.setColour(enabled ? UIConstants::Colours::text
-                            : UIConstants::Colours::text.withAlpha(0.4f));
+        const juce::Colour textCol =
+            enabled ? UIConstants::Colours::text
+                    : UIConstants::Colours::text.withAlpha(0.4f);
 
-        const auto textBounds = juce::Rectangle<float>(
-            centreX - radius * 0.7f, centreY - fontSize * 0.5f, radius * 1.4f,
-            fontSize);
-        g.drawText(valueText, textBounds, juce::Justification::centred, false);
+        // subFreq ノブは 2 段描画（周波数 + 音名）
+        const bool showNote = slider.getComponentID() == "subFreq";
+        if (showNote) {
+          const juce::String noteName = hzToNoteName(slider.getValue());
+          const float lineH = fontSize * 1.05f;
+          // 上段: 周波数値
+          g.setFont(fontSize);
+          g.setColour(textCol);
+          g.drawText(valueText,
+                     juce::Rectangle<float>(centreX - radius * 0.8f,
+                                            centreY - lineH, radius * 1.6f,
+                                            fontSize),
+                     juce::Justification::centred, false);
+          // 下段: 音名（同サイズ・subArc カラー）
+          g.setFont(fontSize);
+          g.setColour(enabled ? UIConstants::Colours::subArc
+                              : UIConstants::Colours::subArc.withAlpha(0.4f));
+          g.drawText(noteName,
+                     juce::Rectangle<float>(centreX - radius * 0.8f,
+                                            centreY + fontSize * 0.12f,
+                                            radius * 1.6f, fontSize),
+                     juce::Justification::centred, false);
+        } else {
+          g.setFont(fontSize);
+          g.setColour(textCol);
+          const auto textBounds = juce::Rectangle<float>(
+              centreX - radius * 0.7f, centreY - fontSize * 0.5f, radius * 1.4f,
+              fontSize);
+          g.drawText(valueText, textBounds, juce::Justification::centred,
+                     false);
+        }
       }
     }
   }
@@ -187,6 +237,96 @@ private:
 class CustomSlider : public juce::Slider {
 public:
   using juce::Slider::Slider;
+
+  // ── 音名文字列 → Hz 変換（例: "F1", "G#3", "Bb1"）──
+  static std::optional<double> parseNoteNameToHz(const juce::String &input) {
+    const auto s = input.trim();
+    if (s.isEmpty())
+      return {};
+    static constexpr std::array<int, 7> noteTable = {9, 11, 0, 2, 4, 5, 7}; // A B C D E F G
+    const auto first = static_cast<char>(std::toupper(s[0]));
+    if (first < 'A' || first > 'G')
+      return {};
+    int noteIdx = noteTable[static_cast<size_t>(first - 'A')];
+    int pos = 1;
+    int accidental = 0;
+    while (pos < s.length()) {
+      if (s[pos] == '#') {
+        ++accidental;
+        ++pos;
+      } else if (s[pos] == 'b' || s[pos] == 'B') {
+        --accidental;
+        ++pos;
+      } else
+        break;
+    }
+    if (pos >= s.length())
+      return {};
+    // りんのオクターブ（負値も許容: C-1 等）
+    const int octave = s.substring(pos).getIntValue();
+    const int midi = (octave + 1) * 12 + noteIdx + accidental;
+    if (midi < 0 || midi > 127)
+      return {};
+    return 440.0 * std::pow(2.0, (midi - 69) / 12.0);
+  }
+
+  // ── 音名入力UI（CallOutBox 内部コンポーネント）──
+  struct NoteEntryComponent : public juce::Component {
+    juce::TextEditor editor;
+    CustomSlider *owner;
+
+    explicit NoteEntryComponent(CustomSlider *s) : owner(s) {
+      editor.setFont(juce::Font(juce::FontOptions(15.0f)));
+      editor.setJustification(juce::Justification::centred);
+      editor.setColour(juce::TextEditor::backgroundColourId,
+                       UIConstants::Colours::knobBg);
+      editor.setColour(juce::TextEditor::textColourId,
+                       UIConstants::Colours::subArc);
+      editor.setColour(juce::TextEditor::outlineColourId,
+                       UIConstants::Colours::subArc.withAlpha(0.5f));
+      editor.setColour(juce::TextEditor::focusedOutlineColourId,
+                       UIConstants::Colours::subArc);
+      editor.setText(hzToNoteName(s->getValue()), false);
+      editor.selectAll();
+      addAndMakeVisible(editor);
+      setSize(120, 36);
+
+      editor.onReturnKey = [this] {
+        if (const auto hz = parseNoteNameToHz(editor.getText()); hz.has_value()) {
+          const double clamped =
+              juce::jlimit(owner->getMinimum(), owner->getMaximum(), hz.value());
+          owner->setValue(clamped, juce::sendNotificationSync);
+        }
+        if (auto *box = findParentComponentOfClass<juce::CallOutBox>())
+          box->dismiss();
+      };
+      editor.onEscapeKey = [this] {
+        if (auto *box = findParentComponentOfClass<juce::CallOutBox>())
+          box->dismiss();
+      };
+    }
+
+    void resized() override { editor.setBounds(getLocalBounds().reduced(4)); }
+
+    void visibilityChanged() override {
+      if (isVisible())
+        editor.grabKeyboardFocus();
+    }
+  };
+
+  void mouseDown(const juce::MouseEvent &e) override {
+    if (getComponentID() == "subFreq") {
+      // 音名エリア（ノブ下半）をクリックしたときにin目エディタ起動
+      const float cy = static_cast<float>(getHeight()) * 0.5f;
+      if (static_cast<float>(e.y) > cy && !e.mods.isAnyModifierKeyDown()) {
+        auto comp = std::make_unique<NoteEntryComponent>(this);
+        juce::CallOutBox::launchAsynchronously(std::move(comp),
+                                               getScreenBounds(), nullptr);
+        return;
+      }
+    }
+    juce::Slider::mouseDown(e);
+  }
 
   void mouseWheelMove(const juce::MouseEvent &e,
                       const juce::MouseWheelDetails &wheel) override {
