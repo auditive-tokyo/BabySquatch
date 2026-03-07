@@ -123,8 +123,9 @@ private:
     };
     /// Drive + ClipType 共通モジュール（Sub / Direct でも再利用可）
     struct SaturatorUI {
-      KnobUI drive;
-      UIConstants::LabelSelector clipType;
+      UIConstants::LabelSelector
+          clipType; ///< Soft/Hard/Tube セレクター（ノブ上部ラベルを兼ねる）
+      CustomSlider driveSlider;
     };
     struct Bpf1Band {
       UIConstants::SlopeSelector slopeSelector{"BP"};

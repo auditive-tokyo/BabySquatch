@@ -69,14 +69,12 @@ void BabySquatchAudioProcessorEditor::setupClickParams() {
   clickUI.noise.bpf1.slopeSelector.setOnChange(
       [this](int dboct) { processorRef.clickEngine().setBpf1Slope(dboct); });
   styleKnobLabel(clickUI.noise.bpf1.qLabel, "Q", tinyFont);
-  styleKnobLabel(clickUI.noise.saturator.drive.label, "Drive", tinyFont);
+  // ClipTypeセレクターはノブ上部ラベルを兼ねるため別途KnobLabel設定不要
   styleKnobLabel(clickUI.hpf.qLabel, "Q", tinyFont);
   styleKnobLabel(clickUI.lpf.qLabel, "Q", tinyFont);
   addAndMakeVisible(clickUI.noise.decayLabel);
   addAndMakeVisible(clickUI.noise.bpf1.slopeSelector);
   addAndMakeVisible(clickUI.noise.bpf1.qLabel);
-  addAndMakeVisible(clickUI.noise.saturator.drive.label);
-  addAndMakeVisible(clickUI.noise.saturator.clipType);
   addAndMakeVisible(clickUI.hpf.slope);
   addAndMakeVisible(clickUI.hpf.qLabel);
   addAndMakeVisible(clickUI.lpf.slope);
@@ -133,22 +131,23 @@ void BabySquatchAudioProcessorEditor::setupClickParams() {
   addAndMakeVisible(clickUI.noise.bpf1.qSlider);
 
   // Drive  0–24 dB
-  styleClickKnob(clickUI.noise.saturator.drive.slider, clickKnobLAF);
-  clickUI.noise.saturator.drive.slider.setRange(0.0, 24.0, 0.1);
-  clickUI.noise.saturator.drive.slider.setValue(0.0, juce::dontSendNotification);
-  clickUI.noise.saturator.drive.slider.setDoubleClickReturnValue(true, 0.0);
-  clickUI.noise.saturator.drive.slider.textFromValueFunction = [](double v) {
+  styleClickKnob(clickUI.noise.saturator.driveSlider, clickKnobLAF);
+  clickUI.noise.saturator.driveSlider.setRange(0.0, 24.0, 0.1);
+  clickUI.noise.saturator.driveSlider.setValue(0.0, juce::dontSendNotification);
+  clickUI.noise.saturator.driveSlider.setDoubleClickReturnValue(true, 0.0);
+  clickUI.noise.saturator.driveSlider.textFromValueFunction = [](double v) {
     return juce::String(v, 1) + " dB";
   };
-  clickUI.noise.saturator.drive.slider.onValueChange = [this] {
+  clickUI.noise.saturator.driveSlider.onValueChange = [this] {
     processorRef.clickEngine().setDriveDb(
-        static_cast<float>(clickUI.noise.saturator.drive.slider.getValue()));
+        static_cast<float>(clickUI.noise.saturator.driveSlider.getValue()));
   };
-  addAndMakeVisible(clickUI.noise.saturator.drive.slider);
+  addAndMakeVisible(clickUI.noise.saturator.driveSlider);
 
-  // ClipType セレクター（Soft / Hard / Tube）
+  // ClipType セレクター（Soft / Hard / Tube）— Drive ノブ上部ラベルを兼ねる
   clickUI.noise.saturator.clipType.setOnChange(
       [this](int t) { processorRef.clickEngine().setClipType(t); });
+  addAndMakeVisible(clickUI.noise.saturator.clipType);
 
   // HPF freq  20–20000 Hz  log
   styleClickKnob(clickUI.hpf.slider, clickKnobLAF);
@@ -183,7 +182,8 @@ void BabySquatchAudioProcessorEditor::setupClickParams() {
   clickUI.lpf.slider.setSkewFactorFromMidPoint(1000.0);
   clickUI.lpf.slider.setTextValueSuffix(" Hz");
   clickUI.lpf.slider.setValue(20000.0, juce::dontSendNotification);
-  clickUI.lpf.slider.setDoubleClickReturnValue(true, 20000.0); // 20000Hz = バイパス
+  clickUI.lpf.slider.setDoubleClickReturnValue(true,
+                                               20000.0); // 20000Hz = バイパス
   clickUI.lpf.slider.onValueChange = [this] {
     processorRef.clickEngine().setLpfFreq(
         static_cast<float>(clickUI.lpf.slider.getValue()));
@@ -290,7 +290,7 @@ void BabySquatchAudioProcessorEditor::setupClickParams() {
   processorRef.clickEngine().setFocus1(0.71f);
   processorRef.clickEngine().setDriveDb(0.0f);
   processorRef.clickEngine().setClipType(0);
-  processorRef.clickEngine().setHpfFreq(20.0f);    // バイパス
+  processorRef.clickEngine().setHpfFreq(20.0f); // バイパス
   processorRef.clickEngine().setHpfQ(0.71f);
   processorRef.clickEngine().setLpfFreq(20000.0f); // バイパス
   processorRef.clickEngine().setLpfQ(0.71f);
@@ -366,22 +366,21 @@ void BabySquatchAudioProcessorEditor::layoutClickParams(
       topKnobs[idx]->setBounds(slot);
     }
   } else {
-    // Noise: スロット 0-2 はノブ+ラベル、スロット 3 は ClipType フル幅
+    // Noise: スロット 0-2 はノブ+ラベル、スロット 3 は空き（将来拡張用）
     const std::array<juce::Slider *, 3> topKnobs = {
         {&clickUI.noise.bpf1.freqSlider, &clickUI.noise.bpf1.qSlider,
-         &clickUI.noise.saturator.drive.slider}};
+         &clickUI.noise.saturator.driveSlider}};
     const std::array<juce::Component *, 3> topLabels = {
         {&clickUI.noise.bpf1.slopeSelector, &clickUI.noise.bpf1.qLabel,
-         &clickUI.noise.saturator.drive.label}};
+         &clickUI.noise.saturator
+              .clipType}}; // clipType が Drive のラベルを兼ねる
     for (int col = 0; col < 3; ++col) {
       const auto idx = static_cast<size_t>(col);
       juce::Rectangle slot(area.getX() + col * slotW, area.getY(), slotW, rowH);
       topLabels[idx]->setBounds(slot.removeFromBottom(14));
       topKnobs[idx]->setBounds(slot);
     }
-    // スロット 3: ClipType（ノブなし、全高使用）
-    juce::Rectangle clipSlot(area.getX() + 3 * slotW, area.getY(), slotW, rowH);
-    clickUI.noise.saturator.clipType.setBounds(clipSlot);
+    // スロット 3: 空き（将来拡張ノブ用）
   }
 
   // 下段4ノブ: HP(slope) / HPQ / LP(slope) / LPQ（常時）
@@ -428,8 +427,7 @@ void BabySquatchAudioProcessorEditor::setClickModeVisible(bool isSample) {
         static_cast<juce::Component *>(&clickUI.noise.bpf1.freqSlider),
         static_cast<juce::Component *>(&clickUI.noise.bpf1.qLabel),
         static_cast<juce::Component *>(&clickUI.noise.bpf1.qSlider),
-        static_cast<juce::Component *>(&clickUI.noise.saturator.drive.label),
-        static_cast<juce::Component *>(&clickUI.noise.saturator.drive.slider),
+        static_cast<juce::Component *>(&clickUI.noise.saturator.driveSlider),
         static_cast<juce::Component *>(&clickUI.noise.saturator.clipType)})
     c->setVisible(!isSample);
 
