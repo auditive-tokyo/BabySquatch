@@ -1,5 +1,6 @@
 #pragma once
 
+#include "CustomSliderLAF.h"
 #include <array>
 #include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -48,7 +49,7 @@ private:
   std::array<std::function<float()>, 2> levelProvider;
 
   juce::Label label;
-  juce::Slider fader;
+  CustomSlider fader;
   juce::TextEditor gainEditor_;
   juce::Rectangle<int> gainClickArea_; // mouseDown 判定用
 

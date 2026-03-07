@@ -65,7 +65,7 @@ private:
 
   // ── マスターセクション（鍵盤右余白エリア） ──
   MasterFader masterSection;
-  juce::Label  infoBox;
+  juce::Label infoBox;
 
   // ── SUB展開パネル: LAF（subUI より先に宣言し、後に破棄されるようにする） ──
   ColouredSliderLAF subKnobLAF{UIConstants::Colours::subArc,
@@ -94,35 +94,48 @@ private:
   DarkComboLAF darkComboLAF;
   // ── SUB展開パネル: Oscノブ行 / 波形選択 / Length（まとめて管理） ──
   struct SubUI {
-    std::array<juce::Slider, 8> knobs;
-    std::array<juce::Label, 8>  knobLabels;
-    struct { juce::Label label; juce::ComboBox combo;  } wave;
-    struct { juce::Label label; juce::Slider   slider; } length;
+    std::array<CustomSlider, 8> knobs;
+    std::array<juce::Label, 8> knobLabels;
+    struct {
+      juce::Label label;
+      juce::ComboBox combo;
+    } wave;
+    struct {
+      juce::Label label;
+      CustomSlider slider;
+    } length;
   };
   SubUI subUI;
 
   // ── CLICK展開パネル: LAF（clickUI のスライダーより先に宣言） ──
   ColouredSliderLAF clickKnobLAF{UIConstants::Colours::clickArc,
-                                UIConstants::Colours::clickThumb};
+                                 UIConstants::Colours::clickThumb};
   // ── DIRECT展開パネル: LAF（directUI のスライダーより先に宣言） ──
   ColouredSliderLAF directKnobLAF{UIConstants::Colours::directArc,
-                                 UIConstants::Colours::directThumb};
+                                  UIConstants::Colours::directThumb};
   // ── CLICK展開パネル ──
   struct ClickUI {
     enum class Mode { Tone = 1, Noise, Sample };
-    struct KnobUI  { juce::Label label; juce::Slider slider; };
-    struct BpfBand { juce::Label freqLabel; juce::Slider freqSlider;
-                     juce::Label qLabel;   juce::Slider qSlider; };
+    struct KnobUI {
+      juce::Label label;
+      CustomSlider slider;
+    };
+    struct BpfBand {
+      juce::Label freqLabel;
+      CustomSlider freqSlider;
+      juce::Label qLabel;
+      CustomSlider qSlider;
+    };
     struct FilterBand {
       UIConstants::SlopeSelector slope;
-      juce::Slider slider;
-      juce::Label  qLabel;
-      juce::Slider qSlider;
+      CustomSlider slider;
+      juce::Label qLabel;
+      CustomSlider qSlider;
       explicit FilterBand(const char *tag) : slope{tag} {}
     };
     struct ToneNoiseUI {
-      juce::Label  decayLabel;
-      juce::Slider decaySlider;
+      juce::Label decayLabel;
+      CustomSlider decaySlider;
       BpfBand bpf1; ///< Freq / Focus
       BpfBand bpf2; ///< Air  / Focus
     };
@@ -139,12 +152,12 @@ private:
       KnobUI release;
     };
 
-    juce::Label    modeLabel;
+    juce::Label modeLabel;
     juce::ComboBox modeCombo;
-    ToneNoiseUI    toneNoise;
-    FilterBand     hpf{"HP"};
-    FilterBand     lpf{"LP"};
-    SampleUI       sample;
+    ToneNoiseUI toneNoise;
+    FilterBand hpf{"HP"};
+    FilterBand lpf{"LP"};
+    SampleUI sample;
     std::function<float(float)> toneProvider;
     std::function<float(float)> noiseProvider;
   };
@@ -153,30 +166,33 @@ private:
   // ── DIRECTパネル ──
   struct DirectUI {
     enum class Mode { Direct = 1, Sample };
-    juce::Label      modeLabel;
-    juce::ComboBox   modeCombo;
+    juce::Label modeLabel;
+    juce::ComboBox modeCombo;
     UIConstants::SampleDropButton sampleLoadButton{"Drop or Click to Load"};
-    juce::String     loadedFilePath;
+    juce::String loadedFilePath;
     std::unique_ptr<juce::FileChooser> fileChooser;
     // サムネイルデータ（Pitch プレビュー更新用）
     std::vector<float> thumbMin;
     std::vector<float> thumbMax;
     double thumbDurSec = 0.0;
     // ── Pitch / Envelope ノブ（上段） ──
-    struct KnobUI { juce::Label label; juce::Slider slider; };
+    struct KnobUI {
+      juce::Label label;
+      CustomSlider slider;
+    };
     KnobUI pitch;
     KnobUI attack;
     KnobUI decay;
     KnobUI release;
     // ── フィルター ノブ（下段） ──
     UIConstants::SlopeSelector hpfSlope{"HP", UIConstants::Colours::directArc};
-    juce::Slider hpfSlider;
-    juce::Label  hpfQLabel;
-    juce::Slider hpfQSlider;
+    CustomSlider hpfSlider;
+    juce::Label hpfQLabel;
+    CustomSlider hpfQSlider;
     UIConstants::SlopeSelector lpfSlope{"LP", UIConstants::Colours::directArc};
-    juce::Slider lpfSlider;
-    juce::Label  lpfQLabel;
-    juce::Slider lpfQSlider;
+    CustomSlider lpfSlider;
+    juce::Label lpfQLabel;
+    CustomSlider lpfQSlider;
   };
   DirectUI directUI;
 

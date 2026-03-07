@@ -170,3 +170,20 @@ private:
   juce::Colour arcColour;
   juce::Colour thumbColour;
 };
+
+// ────────────────────────────────────────────────────
+// macOS Natural Scrolling 対応 Slider
+// JUCE デフォルトは isReversed を反転してしまうため、
+// フラグをそのまま渡して OS の慣性スクロール方向に従わせる
+// ────────────────────────────────────────────────────
+class CustomSlider : public juce::Slider {
+public:
+  using juce::Slider::Slider;
+
+  void mouseWheelMove(const juce::MouseEvent &e,
+                      const juce::MouseWheelDetails &wheel) override {
+    auto w = wheel;
+    w.isReversed = !wheel.isReversed;
+    juce::Slider::mouseWheelMove(e, w);
+  }
+};

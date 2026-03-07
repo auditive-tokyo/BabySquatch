@@ -1,5 +1,6 @@
 #pragma once
 
+#include "CustomSliderLAF.h"
 #include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -61,7 +62,7 @@ private:
   void timerCallback() override;
 
   FaderLAF faderLAF;
-  juce::Slider fader;
+  CustomSlider fader;
 
   // ── メーター状態 ──
   std::function<float()> levelProvider;
