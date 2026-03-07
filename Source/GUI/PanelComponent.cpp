@@ -18,10 +18,7 @@ PanelComponent::PanelComponent(const juce::String &name,
 
   // ── Mute ボタン ──
   muteButton.setClickingTogglesState(true);
-  muteButton.setColour(juce::TextButton::buttonColourId,
-                       UIConstants::Colours::muteOff);
-  muteButton.setColour(juce::TextButton::buttonOnColourId,
-                       UIConstants::Colours::muteOn);
+  muteButton.setLookAndFeel(&muteButtonLAF_);
   muteButton.setColour(juce::TextButton::textColourOffId,
                        UIConstants::Colours::labelText);
   muteButton.setColour(juce::TextButton::textColourOnId, juce::Colours::white);
@@ -33,10 +30,7 @@ PanelComponent::PanelComponent(const juce::String &name,
 
   // ── Solo ボタン ──
   soloButton.setClickingTogglesState(true);
-  soloButton.setColour(juce::TextButton::buttonColourId,
-                       UIConstants::Colours::soloOff);
-  soloButton.setColour(juce::TextButton::buttonOnColourId,
-                       UIConstants::Colours::soloOn);
+  soloButton.setLookAndFeel(&soloButtonLAF_);
   soloButton.setColour(juce::TextButton::textColourOffId,
                        UIConstants::Colours::labelText);
   soloButton.setColour(juce::TextButton::textColourOnId, juce::Colours::white);
@@ -66,9 +60,10 @@ void PanelComponent::resized() {
   muteButton.setBounds(bottomRow.removeFromLeft(btnW));
   soloButton.setBounds(bottomRow);
 
-  // ChannelFader: メーターとフェーダーを内包（内部レイアウトは ChannelFader::resized が管理）
-  channelFader.setBounds(area.removeFromLeft(
-      UIConstants::meterWidth + ChannelFader::faderHandleWidth));
+  // ChannelFader: メーターとフェーダーを内包（内部レイアウトは
+  // ChannelFader::resized が管理）
+  channelFader.setBounds(area.removeFromLeft(UIConstants::meterWidth +
+                                             ChannelFader::faderHandleWidth));
 }
 
 // ────────────────────────────────────────────────

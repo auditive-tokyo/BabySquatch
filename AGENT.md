@@ -166,3 +166,28 @@ BabySquatchは3つのモジュールで構成されています：
     - C file suffixes: `.c`（`.h` を削除）
     - C++ file suffixes: `.cpp`, `.h`（`.h` を追加）
     - `sonar.cfamily.analysisMode=compileCommands`
+
+- **プリセット管理 + デフォルトプリセット**
+  - 目的: 全パラメーター（エンベロープ含む）の初期値をハードコードではなく設定ファイルとして管理。ユーザーリセット・将来のプリセット追加に対応
+  - 方式: **JUCE `BinaryData` 埋め込み**（外部ファイル依存なし、単一バイナリ配布を維持）
+  - ディレクトリ構成:
+    ```
+    Resources/presets/
+      default.xml       ← 出荷時デフォルト
+      // 将来: fat_kick.xml, punchy.xml ...
+    ```
+  - CMakeLists.txt に追加:
+    ```cmake
+    juce_add_binary_data(BabySquatchBinaryData
+        SOURCES Resources/presets/default.xml)
+    ```
+  - 実装手順:
+    1. 全パラメーターを望ましい初期値にしてプラグインを起動
+    2. `getStateInformation()` で XML をダンプして `Resources/presets/default.xml` として保存（フォーマット一致が保証される）
+    3. `BinaryData` に追加
+    4. `PluginProcessor` コンストラクタで `loadPresetFromXml(BinaryData::default_xml, ...)` を呼ぶ
+    5. `setStateInformation()` に fallback: DAW データがなければ default を読む
+  - 利点:
+    - プリセット読み込みと DAW セッション復元が単一コードパスで統一
+    - デフォルト値の変更がコード修正不要（XML 差し替えのみ）
+    - ユーザーが「Default」を選ぶだけで全パラメーターをリセット可能

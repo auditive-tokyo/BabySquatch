@@ -1,12 +1,13 @@
 #pragma once
 
 #include "ChannelFader.h"
+#include "UIConstants.h"
 #include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
 
 // ────────────────────────────────────────────────────
-// 1 つのパネル = タイトル + ChannelFader（メーター＋フェーダー一体）+ M/S ボタン
-// ────────────────────────────────────────────────────
+// 1 つのパネル = タイトル + ChannelFader（メーター＋フェーダー一体）+ M/S
+// ボタン ────────────────────────────────────────────────────
 class PanelComponent : public juce::Component {
 public:
   PanelComponent(const juce::String &name, juce::Colour accentColour);
@@ -30,6 +31,10 @@ public:
   void setLevelProvider(std::function<float()> provider);
 
 private:
+  UIConstants::GradientButtonLAF muteButtonLAF_{UIConstants::Colours::muteOff,
+                                                UIConstants::Colours::muteOn};
+  UIConstants::GradientButtonLAF soloButtonLAF_{UIConstants::Colours::soloOff,
+                                                UIConstants::Colours::soloOn};
   ChannelFader channelFader;
   juce::Label titleLabel;
   juce::TextButton muteButton{"M"};

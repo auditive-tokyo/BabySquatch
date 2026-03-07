@@ -20,6 +20,13 @@ public:
     const float centreY = (float)y + (float)height * 0.5f;
     const float stroke = UIConstants::knobStrokeWidth;
 
+    // ── disabled 時はグレースケールで描画 ──
+    const bool enabled = slider.isEnabled();
+    const juce::Colour effectiveArc   = enabled ? arcColour
+                                                 : juce::Colour(0xFF555555);
+    const juce::Colour effectiveThumb = enabled ? thumbColour
+                                                 : juce::Colour(0xFF777777);
+
     // ── 背景円 ──
     g.setColour(UIConstants::Colours::knobBg);
     g.fillEllipse(centreX - radius, centreY - radius, radius * 2.0f,
@@ -56,7 +63,7 @@ public:
             t0 * t0 * t0 * t0; // 四次曲線でよりexponentialに
         const float alpha = 0.08f + 0.92f * brightness; // 始点はほぼ透明
         const auto segColour =
-            arcColour.interpolatedWith(thumbColour, brightness)
+            effectiveArc.interpolatedWith(effectiveThumb, brightness)
                 .withAlpha(alpha);
 
         juce::Path seg;
@@ -74,7 +81,7 @@ public:
       juce::Path softGlow;
       softGlow.addCentredArc(centreX, centreY, radius, radius, 0.0f,
                              angle - glowSpan, angle, true);
-      g.setColour(thumbColour.withAlpha(0.25f));
+      g.setColour(effectiveThumb.withAlpha(0.25f));
       g.strokePath(softGlow, juce::PathStrokeType(
                                  stroke + 3.0f, juce::PathStrokeType::curved,
                                  juce::PathStrokeType::rounded));
@@ -97,7 +104,8 @@ public:
                                          slider.getTextValueSuffix();
         const float fontSize = radius * 0.38f;
         g.setFont(fontSize);
-        g.setColour(UIConstants::Colours::text);
+        g.setColour(enabled ? UIConstants::Colours::text
+                            : UIConstants::Colours::text.withAlpha(0.4f));
 
         const auto textBounds = juce::Rectangle<float>(
             centreX - radius * 0.7f, centreY - fontSize * 0.5f, radius * 1.4f,

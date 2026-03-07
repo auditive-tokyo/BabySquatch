@@ -80,10 +80,51 @@ inline const juce::Colour waveformBg{0xFF1E1E1E};
 
 // Mute/Solo ボタン
 inline const juce::Colour muteOff{0xFF444444};
-inline const juce::Colour muteOn{0xFFCC2222};
+inline const juce::Colour muteOn{0xFF8833CC};
 inline const juce::Colour soloOff{0xFF444444};
-inline const juce::Colour soloOn{0xFFCCAA00};
+inline const juce::Colour soloOn{0xFF22AA44};
 } // namespace Colours
+
+/// ON 時に上→下グラデーションを描画するボタン用 LookAndFeel。
+/// offColour = 非アクティブ色、onColour = アクティブ時のベース色。
+class GradientButtonLAF : public juce::LookAndFeel_V4 {
+public:
+  GradientButtonLAF(juce::Colour off, juce::Colour on)
+      : offColour_(off), onColour_(on) {}
+
+  void drawButtonBackground(juce::Graphics &g, juce::Button &button,
+                            const juce::Colour & /*bgColour*/,
+                            bool isHighlighted, bool isDown) override {
+    auto bounds = button.getLocalBounds().toFloat().reduced(0.5f);
+    const bool on = button.getToggleState();
+    const juce::Colour base = on ? onColour_ : offColour_;
+
+    if (on) {
+      // 上端: 明るい青白 → 下端: 深い青  で立体感を出す
+      const juce::Colour top =
+          base.withBrightness(juce::jmin(1.0f, base.getBrightness() * 1.55f))
+              .withSaturation(0.5f);
+      const juce::Colour bottom =
+          base.withBrightness(base.getBrightness() * 0.55f);
+      const juce::ColourGradient grad(top, 0.0f, bounds.getY(), bottom, 0.0f,
+                                      bounds.getBottom(), false);
+      g.setGradientFill(grad);
+    } else {
+      const juce::Colour fill = isHighlighted ? base.brighter(0.15f) : base;
+      g.setColour(isDown ? fill.darker(0.2f) : fill);
+    }
+    g.fillRoundedRectangle(bounds, 3.0f);
+
+    // ボーダー
+    g.setColour(on ? onColour_.brighter(0.4f).withAlpha(0.6f)
+                   : juce::Colours::black.withAlpha(0.3f));
+    g.drawRoundedRectangle(bounds, 3.0f, 0.8f);
+  }
+
+private:
+  juce::Colour offColour_;
+  juce::Colour onColour_;
+};
 
 /// HPF/LPF スロープ（12/24/48 dB/oct）をクリックで切り替えるミニセレクター。
 /// ラベル行（14px 程度）にそのまま配置できるサイズで設計。
