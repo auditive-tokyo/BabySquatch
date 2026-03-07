@@ -10,8 +10,8 @@
 #include <vector>
 
 /// Click チャンネルの DSP エンジン。
-///   mode=1 (Tone)  : インパルス → BPF1(freq1/focus1) → BPF2(freq2/focus2)
-///   mode=2 (Noise) : ホワイトノイズ → BPF 励起型（セルフレゾナント）
+///   mode=1 (Noise)  : ホワイトノイズ → BPF 励起型（セルフレゾナント）
+///   mode=2 (Sample) : SamplePlayer から読み出し
 ///   HPF/LPF は両モード共通のポスト EQ
 class ClickEngine {
 public:
@@ -29,9 +29,9 @@ public:
   void setMode(int m) { mode_.store(m); }
   void setGainDb(float db) { gainDb_.store(db); }
   void setDecayMs(float ms) { decayMs_.store(ms); }
-  /// Tone:  Osc 開始周波数 + BPF1 中心 /  Noise: BPF1 中心周波数
+  /// Noise: BPF1 中心周波数
   void setFreq1(float hz) { freq1_.store(hz); }
-  /// Tone:  BPF1 Q（0=バイパス）       /  Noise: BPF1 Q（高いほどリング）
+  /// Noise: BPF1 Q（高いほどリング）
   void setFocus1(float q) { focus1_.store(q); }
   void setFreq2(float hz) { freq2_.store(hz); }
   void setFocus2(float q) { focus2_.store(q); }
@@ -41,8 +41,10 @@ public:
   /// HPF スロープ選択（12/24/48 dB/oct → 1/2/4 カスケード段数）
   void setHpfSlope(int dboct) {
     int stages = 1;
-    if (dboct >= 48)      stages = 4;
-    else if (dboct >= 24) stages = 2;
+    if (dboct >= 48)
+      stages = 4;
+    else if (dboct >= 24)
+      stages = 2;
     hpfParams_.stages.store(stages);
   }
   /// LPF カットオフ周波数 (Q=0 でバイパス)
@@ -51,21 +53,23 @@ public:
   /// LPF スロープ選択（12/24/48 dB/oct → 1/2/4 カスケード段数）
   void setLpfSlope(int dboct) {
     int stages = 1;
-    if (dboct >= 48)      stages = 4;
-    else if (dboct >= 24) stages = 2;
+    if (dboct >= 48)
+      stages = 4;
+    else if (dboct >= 24)
+      stages = 2;
     lpfParams_.stages.store(stages);
   }
 
   // Sample モード用
   void setPitchSemitones(float st) { sampleParams_.pitchSemitones.store(st); }
-  void setAttackMs(float ms)       { sampleParams_.attackMs.store(ms); }
-  void setReleaseMs(float ms)      { sampleParams_.releaseMs.store(ms); }
+  void setAttackMs(float ms) { sampleParams_.attackMs.store(ms); }
+  void setReleaseMs(float ms) { sampleParams_.releaseMs.store(ms); }
 
   /// レベル計測用 scratchBuffer の先頭ポインタ
   const float *scratchData() const noexcept { return scratchBuffer_.data(); }
 
   /// 内部 SamplePlayer への参照（UI からのロード用）
-  SamplePlayer       &sampler()       noexcept { return sampler_; }
+  SamplePlayer &sampler() noexcept { return sampler_; }
   const SamplePlayer &sampler() const noexcept { return sampler_; }
 
 private:
@@ -75,7 +79,7 @@ private:
   struct FilterParams {
     std::atomic<float> freq{0.0f};
     std::atomic<float> q{0.0f};
-    std::atomic<int>   stages{1};
+    std::atomic<int> stages{1};
   };
 
   // ── render() の分割ヘルパー ──
@@ -84,8 +88,8 @@ private:
     bool bpf2;
     bool hpf;
     bool lpf;
-    int  hpfStages; ///< 1=12dB/oct, 2=24dB/oct, 4=48dB/oct
-    int  lpfStages;
+    int hpfStages; ///< 1=12dB/oct, 2=24dB/oct, 4=48dB/oct
+    int lpfStages;
   };
   FilterFlags setupFilters(float sr);
   float synthesizeSample(int mode, const FilterFlags &flags, double playRate);
@@ -97,7 +101,7 @@ private:
   std::array<juce::dsp::StateVariableTPTFilter<float>, kMaxCascade> hpfs_;
   std::array<juce::dsp::StateVariableTPTFilter<float>, kMaxCascade> lpfs_;
 
-  juce::Random random_; // Noise モード用 RNG
+  juce::Random random_;  // Noise モード用 RNG
   SamplePlayer sampler_; // Sample モード用
 
   std::vector<float> scratchBuffer_;
@@ -111,16 +115,16 @@ private:
     std::atomic<float> releaseMs{50.0f};
   };
 
-  std::atomic<int> mode_{1}; // 1=Tone, 2=Noise, 3=Sample
+  std::atomic<int> mode_{1}; // 1=Noise, 2=Sample
   std::atomic<float> gainDb_{0.0f};
   std::atomic<float> decayMs_{50.0f};
   // Sample モード用パラメーター
   SampleModeParams sampleParams_;
-  // Tone/Noise 用 BPF パラメーター
-  std::atomic<float> freq1_{5000.0f};   // BPF1 中心周波数
-  std::atomic<float> focus1_{0.71f};    // BPF1 Q
-  std::atomic<float> freq2_{10000.0f};  // BPF2 中心周波数
-  std::atomic<float> focus2_{0.0f};     // BPF2 Q (0=bypass)
+  // Noise 用 BPF パラメーター
+  std::atomic<float> freq1_{5000.0f};  // BPF1 中心周波数
+  std::atomic<float> focus1_{0.71f};   // BPF1 Q
+  std::atomic<float> freq2_{10000.0f}; // BPF2 中心周波数
+  std::atomic<float> focus2_{0.0f};    // BPF2 Q (0=bypass)
   FilterParams hpfParams_{200.0f, 0.0f, 1};
   FilterParams lpfParams_{8000.0f, 0.0f, 1};
 };

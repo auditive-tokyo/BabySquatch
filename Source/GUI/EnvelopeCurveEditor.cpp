@@ -263,7 +263,7 @@ void EnvelopeCurveEditor::paintClickWaveform(juce::Graphics &g, float w,
     return;
   }
 
-  // ── Tone モード: 減衰サイン波 ──
+  // ── Sample モード: 波形プレビュー ──
   if (!clickPreviewFn_)
     return;
 

@@ -89,20 +89,13 @@ float ClickEngine::synthesizeSample(int mode, const FilterFlags &flags,
                                     double playRate) {
   float s = 0.0f;
   if (mode == 1) {
-    // ── Tone: インパルス → BPF リング ──
-    s = (noteTimeSamples_ < 1.0f) ? 1.0f : 0.0f;
-    if (flags.bpf1)
-      s = bpf1_.processSample(0, s);
-    if (flags.bpf2)
-      s = bpf2_.processSample(0, s);
-  } else if (mode == 2) {
     // ── Noise: ホワイトノイズ → BPF 励起 ──
     s = random_.nextFloat() * 2.0f - 1.0f;
     if (flags.bpf1)
       s = bpf1_.processSample(0, s);
     if (flags.bpf2)
       s = bpf2_.processSample(0, s);
-  } else if (mode == 3) {
+  } else if (mode == 2) {
     // ── Sample: SamplePlayer から読み出し ──
     bool finished = false;
     s = sampler_.readNext(playRate, finished);
@@ -143,14 +136,14 @@ void ClickEngine::render(juce::AudioBuffer<float> &buffer, int numSamples,
   const double srRatio  = (fileSr > 0) ? fileSr / sampleRate : 1.0;
 
   double playRate;
-  if (mode == 3)
+  if (mode == 2)
     playRate = std::pow(2.0, sampleParams_.pitchSemitones.load() / 12.0) * srRatio;
   else
     playRate = 1.0;
 
   // 全体再生時間（停止判定用）
   float maxTimeSamples;
-  if (mode == 3)
+  if (mode == 2)
     maxTimeSamples = (attackMs + decayMs + releaseMs) * sr / 1000.0f;
   else
     maxTimeSamples = decayMs * sr / 1000.0f;
@@ -166,7 +159,7 @@ void ClickEngine::render(juce::AudioBuffer<float> &buffer, int numSamples,
     }
 
     float amp;
-    if (mode == 3) {
+    if (mode == 2) {
       const float t = noteTimeSamples_ / sr;
       amp = computeSampleAmp(t, attackMs / 1000.0f, decayMs / 1000.0f,
                              releaseMs / 1000.0f);

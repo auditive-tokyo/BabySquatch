@@ -122,7 +122,7 @@ private:
   float dragCurveStartVal{0.0f}; // ドラッグ開始時の curve 値
   std::function<void()> onChange;
   std::function<void(EditTarget)> onEditTargetChanged;
-  std::function<float(float)> clickPreviewFn_; // Click Tone 波形プロバイダー
+  std::function<float(float)> clickPreviewFn_; // Click Sample 波形プロバイダー
   std::function<float(float)> clickNoiseEnvFn_; // Click Noise 帯プロバイダー
   std::function<std::pair<float, float>(float)>
       directPreviewFn_; // Direct 波形 {min,max} プロバイダー

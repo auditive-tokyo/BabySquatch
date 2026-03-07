@@ -54,30 +54,29 @@ void BabySquatchAudioProcessorEditor::setupClickParams() {
   addAndMakeVisible(clickUI.modeLabel);
 
   // ── Mode combo ──
-  clickUI.modeCombo.addItem("Tone", static_cast<int>(ClickUI::Mode::Tone));
   clickUI.modeCombo.addItem("Noise", static_cast<int>(ClickUI::Mode::Noise));
   clickUI.modeCombo.addItem("Sample", static_cast<int>(ClickUI::Mode::Sample));
-  clickUI.modeCombo.setSelectedId(static_cast<int>(ClickUI::Mode::Tone),
+  clickUI.modeCombo.setSelectedId(static_cast<int>(ClickUI::Mode::Noise),
                                   juce::dontSendNotification);
   clickUI.modeCombo.setLookAndFeel(&darkComboLAF);
-  processorRef.clickEngine().setMode(static_cast<int>(ClickUI::Mode::Tone));
+  processorRef.clickEngine().setMode(static_cast<int>(ClickUI::Mode::Noise));
   addAndMakeVisible(clickUI.modeCombo);
 
   // ── Filter param labels ──
   const auto tinyFont =
       juce::Font(juce::FontOptions(UIConstants::fontSizeSmall));
-  styleFilterLabel(clickUI.toneNoise.decayLabel, "Decay:", tinyFont);
-  styleKnobLabel(clickUI.toneNoise.bpf1.freqLabel, "Freq", tinyFont);
-  styleKnobLabel(clickUI.toneNoise.bpf1.qLabel, "Focus", tinyFont);
-  styleKnobLabel(clickUI.toneNoise.bpf2.freqLabel, "Air", tinyFont);
-  styleKnobLabel(clickUI.toneNoise.bpf2.qLabel, "Focus", tinyFont);
+  styleFilterLabel(clickUI.noise.decayLabel, "Decay:", tinyFont);
+  styleKnobLabel(clickUI.noise.bpf1.freqLabel, "Freq", tinyFont);
+  styleKnobLabel(clickUI.noise.bpf1.qLabel, "Focus", tinyFont);
+  styleKnobLabel(clickUI.noise.bpf2.freqLabel, "Air", tinyFont);
+  styleKnobLabel(clickUI.noise.bpf2.qLabel, "Focus", tinyFont);
   styleKnobLabel(clickUI.hpf.qLabel, "Reso", tinyFont);
   styleKnobLabel(clickUI.lpf.qLabel, "Reso", tinyFont);
-  addAndMakeVisible(clickUI.toneNoise.decayLabel);
-  addAndMakeVisible(clickUI.toneNoise.bpf1.freqLabel);
-  addAndMakeVisible(clickUI.toneNoise.bpf1.qLabel);
-  addAndMakeVisible(clickUI.toneNoise.bpf2.freqLabel);
-  addAndMakeVisible(clickUI.toneNoise.bpf2.qLabel);
+  addAndMakeVisible(clickUI.noise.decayLabel);
+  addAndMakeVisible(clickUI.noise.bpf1.freqLabel);
+  addAndMakeVisible(clickUI.noise.bpf1.qLabel);
+  addAndMakeVisible(clickUI.noise.bpf2.freqLabel);
+  addAndMakeVisible(clickUI.noise.bpf2.qLabel);
   addAndMakeVisible(clickUI.hpf.slope);
   addAndMakeVisible(clickUI.hpf.qLabel);
   addAndMakeVisible(clickUI.lpf.slope);
@@ -92,69 +91,67 @@ void BabySquatchAudioProcessorEditor::setupClickParams() {
 
   // ── Sliders ──
   // Decay  1–2000 ms
-  styleFilterSlider(clickUI.toneNoise.decaySlider);
-  clickUI.toneNoise.decaySlider.setRange(1.0, 2000.0, 1.0);
-  clickUI.toneNoise.decaySlider.setTextValueSuffix(" ms");
-  clickUI.toneNoise.decaySlider.setDoubleClickReturnValue(true, 50.0);
-  clickUI.toneNoise.decaySlider.setValue(50.0, juce::dontSendNotification);
-  clickUI.toneNoise.decaySlider.onValueChange = [this] {
+  styleFilterSlider(clickUI.noise.decaySlider);
+  clickUI.noise.decaySlider.setRange(1.0, 2000.0, 1.0);
+  clickUI.noise.decaySlider.setTextValueSuffix(" ms");
+  clickUI.noise.decaySlider.setDoubleClickReturnValue(true, 50.0);
+  clickUI.noise.decaySlider.setValue(50.0, juce::dontSendNotification);
+  clickUI.noise.decaySlider.onValueChange = [this] {
     processorRef.clickEngine().setDecayMs(
-        static_cast<float>(clickUI.toneNoise.decaySlider.getValue()));
+        static_cast<float>(clickUI.noise.decaySlider.getValue()));
     envelopeCurveEditor.repaint();
   };
-  addAndMakeVisible(clickUI.toneNoise.decaySlider);
+  addAndMakeVisible(clickUI.noise.decaySlider);
 
   // Note (BPF1 freq)  20–20000 Hz  log
-  styleClickKnob(clickUI.toneNoise.bpf1.freqSlider, clickKnobLAF);
-  clickUI.toneNoise.bpf1.freqSlider.setRange(20.0, 20000.0, 1.0);
-  clickUI.toneNoise.bpf1.freqSlider.setSkewFactorFromMidPoint(1000.0);
-  clickUI.toneNoise.bpf1.freqSlider.setTextValueSuffix(" Hz");
-  clickUI.toneNoise.bpf1.freqSlider.setValue(5000.0,
-                                             juce::dontSendNotification);
-  clickUI.toneNoise.bpf1.freqSlider.setDoubleClickReturnValue(true, 5000.0);
-  clickUI.toneNoise.bpf1.freqSlider.onValueChange = [this] {
+  styleClickKnob(clickUI.noise.bpf1.freqSlider, clickKnobLAF);
+  clickUI.noise.bpf1.freqSlider.setRange(20.0, 20000.0, 1.0);
+  clickUI.noise.bpf1.freqSlider.setSkewFactorFromMidPoint(1000.0);
+  clickUI.noise.bpf1.freqSlider.setTextValueSuffix(" Hz");
+  clickUI.noise.bpf1.freqSlider.setValue(5000.0, juce::dontSendNotification);
+  clickUI.noise.bpf1.freqSlider.setDoubleClickReturnValue(true, 5000.0);
+  clickUI.noise.bpf1.freqSlider.onValueChange = [this] {
     processorRef.clickEngine().setFreq1(
-        static_cast<float>(clickUI.toneNoise.bpf1.freqSlider.getValue()));
+        static_cast<float>(clickUI.noise.bpf1.freqSlider.getValue()));
     envelopeCurveEditor.repaint();
   };
-  addAndMakeVisible(clickUI.toneNoise.bpf1.freqSlider);
+  addAndMakeVisible(clickUI.noise.bpf1.freqSlider);
 
   // Focus (BPF1 Q)  0–12
-  styleClickKnob(clickUI.toneNoise.bpf1.qSlider, clickKnobLAF);
-  clickUI.toneNoise.bpf1.qSlider.setRange(0.0, 12.0, 0.01);
-  clickUI.toneNoise.bpf1.qSlider.setValue(0.71, juce::dontSendNotification);
-  clickUI.toneNoise.bpf1.qSlider.setDoubleClickReturnValue(true, 0.71);
-  clickUI.toneNoise.bpf1.qSlider.onValueChange = [this] {
+  styleClickKnob(clickUI.noise.bpf1.qSlider, clickKnobLAF);
+  clickUI.noise.bpf1.qSlider.setRange(0.0, 12.0, 0.01);
+  clickUI.noise.bpf1.qSlider.setValue(0.71, juce::dontSendNotification);
+  clickUI.noise.bpf1.qSlider.setDoubleClickReturnValue(true, 0.71);
+  clickUI.noise.bpf1.qSlider.onValueChange = [this] {
     processorRef.clickEngine().setFocus1(
-        static_cast<float>(clickUI.toneNoise.bpf1.qSlider.getValue()));
+        static_cast<float>(clickUI.noise.bpf1.qSlider.getValue()));
     envelopeCurveEditor.repaint();
   };
-  addAndMakeVisible(clickUI.toneNoise.bpf1.qSlider);
+  addAndMakeVisible(clickUI.noise.bpf1.qSlider);
 
   // Air (BPF2 freq)  20–20000 Hz  log
-  styleClickKnob(clickUI.toneNoise.bpf2.freqSlider, clickKnobLAF);
-  clickUI.toneNoise.bpf2.freqSlider.setRange(20.0, 20000.0, 1.0);
-  clickUI.toneNoise.bpf2.freqSlider.setSkewFactorFromMidPoint(1000.0);
-  clickUI.toneNoise.bpf2.freqSlider.setTextValueSuffix(" Hz");
-  clickUI.toneNoise.bpf2.freqSlider.setValue(10000.0,
-                                             juce::dontSendNotification);
-  clickUI.toneNoise.bpf2.freqSlider.setDoubleClickReturnValue(true, 10000.0);
-  clickUI.toneNoise.bpf2.freqSlider.onValueChange = [this] {
+  styleClickKnob(clickUI.noise.bpf2.freqSlider, clickKnobLAF);
+  clickUI.noise.bpf2.freqSlider.setRange(20.0, 20000.0, 1.0);
+  clickUI.noise.bpf2.freqSlider.setSkewFactorFromMidPoint(1000.0);
+  clickUI.noise.bpf2.freqSlider.setTextValueSuffix(" Hz");
+  clickUI.noise.bpf2.freqSlider.setValue(10000.0, juce::dontSendNotification);
+  clickUI.noise.bpf2.freqSlider.setDoubleClickReturnValue(true, 10000.0);
+  clickUI.noise.bpf2.freqSlider.onValueChange = [this] {
     processorRef.clickEngine().setFreq2(
-        static_cast<float>(clickUI.toneNoise.bpf2.freqSlider.getValue()));
+        static_cast<float>(clickUI.noise.bpf2.freqSlider.getValue()));
   };
-  addAndMakeVisible(clickUI.toneNoise.bpf2.freqSlider);
+  addAndMakeVisible(clickUI.noise.bpf2.freqSlider);
 
   // Focus (BPF2 Q)  0–12
-  styleClickKnob(clickUI.toneNoise.bpf2.qSlider, clickKnobLAF);
-  clickUI.toneNoise.bpf2.qSlider.setRange(0.0, 12.0, 0.01);
-  clickUI.toneNoise.bpf2.qSlider.setValue(0.0, juce::dontSendNotification);
-  clickUI.toneNoise.bpf2.qSlider.setDoubleClickReturnValue(true, 0.0);
-  clickUI.toneNoise.bpf2.qSlider.onValueChange = [this] {
+  styleClickKnob(clickUI.noise.bpf2.qSlider, clickKnobLAF);
+  clickUI.noise.bpf2.qSlider.setRange(0.0, 12.0, 0.01);
+  clickUI.noise.bpf2.qSlider.setValue(0.0, juce::dontSendNotification);
+  clickUI.noise.bpf2.qSlider.setDoubleClickReturnValue(true, 0.0);
+  clickUI.noise.bpf2.qSlider.onValueChange = [this] {
     processorRef.clickEngine().setFocus2(
-        static_cast<float>(clickUI.toneNoise.bpf2.qSlider.getValue()));
+        static_cast<float>(clickUI.noise.bpf2.qSlider.getValue()));
   };
-  addAndMakeVisible(clickUI.toneNoise.bpf2.qSlider);
+  addAndMakeVisible(clickUI.noise.bpf2.qSlider);
 
   // HPF freq  20–20000 Hz  log
   styleClickKnob(clickUI.hpf.slider, clickKnobLAF);
@@ -300,26 +297,9 @@ void BabySquatchAudioProcessorEditor::setupClickParams() {
 
   // プレビュープロバイダーを clickUI に保持
   // DSP = BPFインパルス応答 × Decayエンベロープ なので両方の積を使う
-  clickUI.toneProvider = [this](float timeSec) {
-    const auto freq1 =
-        static_cast<float>(clickUI.toneNoise.bpf1.freqSlider.getValue());
-    const auto q1 =
-        static_cast<float>(clickUI.toneNoise.bpf1.qSlider.getValue());
-    const auto decayMs =
-        static_cast<float>(clickUI.toneNoise.decaySlider.getValue());
-    // BPFインパルス応答: exp(-π·f/Q·t)
-    const float bpfEnv =
-        (q1 > 0.01f)
-            ? std::exp(-juce::MathConstants<float>::pi * freq1 / q1 * timeSec)
-            : 0.0f;
-    // Decayエンベロープ: exp(-t·5000/decayMs)  ── DSPと同一式
-    const float decayEnv = std::exp(-timeSec * 5000.0f / (decayMs + 1e-6f));
-    return std::sin(juce::MathConstants<float>::twoPi * freq1 * timeSec) *
-           bpfEnv * decayEnv;
-  };
   clickUI.noiseProvider = [this](float timeSec) {
     const auto decayMs =
-        static_cast<float>(clickUI.toneNoise.decaySlider.getValue());
+        static_cast<float>(clickUI.noise.decaySlider.getValue());
     return (timeSec * 1000.0f < decayMs)
                ? std::exp(-timeSec * 5000.0f / (decayMs + 1e-6f))
                : 0.0f;
@@ -332,12 +312,12 @@ void BabySquatchAudioProcessorEditor::setupClickParams() {
     if (m == static_cast<int>(ClickUI::Mode::Sample))
       applyClickSampleMode();
     else
-      applyClickToneNoiseMode(m);
+      applyClickNoiseMode(m);
     resized();
   };
 
-  // 起動時は Tone モード
-  envelopeCurveEditor.setClickPreviewProvider(clickUI.toneProvider);
+  // 起動時は Noise モード
+  envelopeCurveEditor.setClickNoiseEnvProvider(clickUI.noiseProvider);
 }
 
 void BabySquatchAudioProcessorEditor::layoutClickParams(
@@ -361,34 +341,32 @@ void BabySquatchAudioProcessorEditor::layoutClickParams(
   if (isSample) {
     clickUI.sample.loadButton.setBounds(topRow);
   } else {
-    clickUI.toneNoise.decayLabel.setBounds(topRow.removeFromLeft(labelW));
-    clickUI.toneNoise.decaySlider.setBounds(topRow);
+    clickUI.noise.decayLabel.setBounds(topRow.removeFromLeft(labelW));
+    clickUI.noise.decaySlider.setBounds(topRow);
   }
 
   const int slotW = area.getWidth() / 4;
   const int rowH = area.getHeight() / 2;
 
-  // 上段4ノブ: Sample → Pitch/A/D/R, Tone/Noise → Freq/Focus/Air/Focus
+  // 上段4ノブ: Sample → Pitch/A/D/R, Noise → Freq/Focus/Air/Focus
   const std::array<juce::Slider *, 4> topKnobs =
       isSample
           ? std::array<juce::Slider *, 4>{{&clickUI.sample.pitch.slider,
                                            &clickUI.sample.attack.slider,
                                            &clickUI.sample.hold.slider,
                                            &clickUI.sample.release.slider}}
-          : std::array<juce::Slider *, 4>{{&clickUI.toneNoise.bpf1.freqSlider,
-                                           &clickUI.toneNoise.bpf1.qSlider,
-                                           &clickUI.toneNoise.bpf2.freqSlider,
-                                           &clickUI.toneNoise.bpf2.qSlider}};
+          : std::array<juce::Slider *, 4>{
+                {&clickUI.noise.bpf1.freqSlider, &clickUI.noise.bpf1.qSlider,
+                 &clickUI.noise.bpf2.freqSlider, &clickUI.noise.bpf2.qSlider}};
   const std::array<juce::Component *, 4> topLabels =
       isSample
           ? std::array<juce::Component *, 4>{{&clickUI.sample.pitch.label,
                                               &clickUI.sample.attack.label,
                                               &clickUI.sample.hold.label,
                                               &clickUI.sample.release.label}}
-          : std::array<juce::Component *, 4>{{&clickUI.toneNoise.bpf1.freqLabel,
-                                              &clickUI.toneNoise.bpf1.qLabel,
-                                              &clickUI.toneNoise.bpf2.freqLabel,
-                                              &clickUI.toneNoise.bpf2.qLabel}};
+          : std::array<juce::Component *, 4>{
+                {&clickUI.noise.bpf1.freqLabel, &clickUI.noise.bpf1.qLabel,
+                 &clickUI.noise.bpf2.freqLabel, &clickUI.noise.bpf2.qLabel}};
   for (int col = 0; col < 4; ++col) {
     const auto idx = static_cast<size_t>(col);
     juce::Rectangle slot(area.getX() + col * slotW, area.getY(), slotW, rowH);
@@ -434,16 +412,16 @@ void BabySquatchAudioProcessorEditor::onClickSampleLoadClicked() {
 
 void BabySquatchAudioProcessorEditor::setClickModeVisible(bool isSample) {
   for (juce::Component *c :
-       {static_cast<juce::Component *>(&clickUI.toneNoise.decayLabel),
-        static_cast<juce::Component *>(&clickUI.toneNoise.decaySlider),
-        static_cast<juce::Component *>(&clickUI.toneNoise.bpf1.freqLabel),
-        static_cast<juce::Component *>(&clickUI.toneNoise.bpf1.freqSlider),
-        static_cast<juce::Component *>(&clickUI.toneNoise.bpf1.qLabel),
-        static_cast<juce::Component *>(&clickUI.toneNoise.bpf1.qSlider),
-        static_cast<juce::Component *>(&clickUI.toneNoise.bpf2.freqLabel),
-        static_cast<juce::Component *>(&clickUI.toneNoise.bpf2.freqSlider),
-        static_cast<juce::Component *>(&clickUI.toneNoise.bpf2.qLabel),
-        static_cast<juce::Component *>(&clickUI.toneNoise.bpf2.qSlider)})
+       {static_cast<juce::Component *>(&clickUI.noise.decayLabel),
+        static_cast<juce::Component *>(&clickUI.noise.decaySlider),
+        static_cast<juce::Component *>(&clickUI.noise.bpf1.freqLabel),
+        static_cast<juce::Component *>(&clickUI.noise.bpf1.freqSlider),
+        static_cast<juce::Component *>(&clickUI.noise.bpf1.qLabel),
+        static_cast<juce::Component *>(&clickUI.noise.bpf1.qSlider),
+        static_cast<juce::Component *>(&clickUI.noise.bpf2.freqLabel),
+        static_cast<juce::Component *>(&clickUI.noise.bpf2.freqSlider),
+        static_cast<juce::Component *>(&clickUI.noise.bpf2.qLabel),
+        static_cast<juce::Component *>(&clickUI.noise.bpf2.qSlider)})
     c->setVisible(!isSample);
 
   for (juce::Component *c :
@@ -502,7 +480,7 @@ void BabySquatchAudioProcessorEditor::applyClickSampleMode() {
   refreshClickSampleProvider();
 }
 
-void BabySquatchAudioProcessorEditor::applyClickToneNoiseMode(int m) {
+void BabySquatchAudioProcessorEditor::applyClickNoiseMode(int m) {
   setClickModeVisible(false);
 
   // HPF/LPF Q を "Reso" / 0–12 に戻す
@@ -521,7 +499,7 @@ void BabySquatchAudioProcessorEditor::applyClickToneNoiseMode(int m) {
   clickUI.lpf.qSlider.textFromValueFunction = nullptr;
   clickUI.lpf.qLabel.setText("Reso", juce::dontSendNotification);
 
-  // Tone/Noise モードの HPF/LPF 初期値へ戻す（Sample からの遷移時のみ）
+  // Noise モードの HPF/LPF 初期値へ戻す（Sample からの遷移時のみ）
   if (fromSample) {
     clickUI.hpf.slider.setValue(1100.0, juce::dontSendNotification);
     clickUI.lpf.slider.setValue(8000.0, juce::dontSendNotification);
@@ -535,14 +513,12 @@ void BabySquatchAudioProcessorEditor::applyClickToneNoiseMode(int m) {
     processorRef.clickEngine().setLpfQ(0.0f);
   }
 
-  // Tone/Noise の Decay を DSP へ戻す
+  // Noise の Decay を DSP へ戻す
   processorRef.clickEngine().setDecayMs(
-      static_cast<float>(clickUI.toneNoise.decaySlider.getValue()));
+      static_cast<float>(clickUI.noise.decaySlider.getValue()));
 
   if (m == static_cast<int>(ClickUI::Mode::Noise))
     envelopeCurveEditor.setClickNoiseEnvProvider(clickUI.noiseProvider);
-  else
-    envelopeCurveEditor.setClickPreviewProvider(clickUI.toneProvider);
 }
 
 void BabySquatchAudioProcessorEditor::onClickSampleFileChosen(

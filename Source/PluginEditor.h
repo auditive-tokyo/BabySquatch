@@ -38,7 +38,7 @@ private:
   void refreshClickSampleProvider();
   void setClickModeVisible(bool isSample);
   void applyClickSampleMode();
-  void applyClickToneNoiseMode(int m);
+  void applyClickNoiseMode(int m);
   void layoutLengthBox(juce::Rectangle<int> btnRow);
   void setupLengthBox();
   void setupWaveShapeCombo();
@@ -116,7 +116,7 @@ private:
                                   UIConstants::Colours::directThumb};
   // ── CLICK展開パネル ──
   struct ClickUI {
-    enum class Mode { Tone = 1, Noise, Sample };
+    enum class Mode { Noise = 1, Sample };
     struct KnobUI {
       juce::Label label;
       CustomSlider slider;
@@ -134,7 +134,7 @@ private:
       CustomSlider qSlider;
       explicit FilterBand(const char *tag) : slope{tag} {}
     };
-    struct ToneNoiseUI {
+    struct NoiseUI {
       juce::Label decayLabel;
       CustomSlider decaySlider;
       BpfBand bpf1; ///< Freq / Focus
@@ -155,11 +155,10 @@ private:
 
     juce::Label modeLabel;
     juce::ComboBox modeCombo;
-    ToneNoiseUI toneNoise;
+    NoiseUI noise;
     FilterBand hpf{"HP"};
     FilterBand lpf{"LP"};
     SampleUI sample;
-    std::function<float(float)> toneProvider;
     std::function<float(float)> noiseProvider;
   };
   ClickUI clickUI;
