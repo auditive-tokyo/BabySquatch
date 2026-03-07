@@ -39,6 +39,15 @@ public:
   void setHpfFreq(float hz) { hpfParams_.freq.store(hz); }
   void setHpfQ(float q) { hpfParams_.q.store(q); }
   /// HPF スロープ選択（12/24/48 dB/oct → 1/2/4 カスケード段数）
+  /// BPF1 スロープ選択（12/24/48 dB/oct → 1/2/4 カスケード段数）
+  void setBpf1Slope(int dboct) {
+    int stages = 1;
+    if (dboct >= 48)
+      stages = 4;
+    else if (dboct >= 24)
+      stages = 2;
+    bpf1Stages_.store(stages);
+  }
   void setHpfSlope(int dboct) {
     int stages = 1;
     if (dboct >= 48)
@@ -88,15 +97,16 @@ private:
     bool bpf2;
     bool hpf;
     bool lpf;
-    int hpfStages; ///< 1=12dB/oct, 2=24dB/oct, 4=48dB/oct
+    int bpf1Stages; ///< 1=12dB/oct, 2=24dB/oct, 4=48dB/oct
+    int hpfStages;
     int lpfStages;
   };
   FilterFlags setupFilters(float sr);
   float synthesizeSample(int mode, const FilterFlags &flags, double playRate);
 
-  // ── 2 段 BPF ──
-  juce::dsp::StateVariableTPTFilter<float> bpf1_; // freq1 / focus1
-  juce::dsp::StateVariableTPTFilter<float> bpf2_; // freq2 / focus2
+  // ── BPF（bpf1 はカスケード最大4段） ──
+  std::array<juce::dsp::StateVariableTPTFilter<float>, kMaxCascade> bpf1s_; // freq1 / focus1
+  juce::dsp::StateVariableTPTFilter<float> bpf2_;                           // freq2 / focus2
   // ── ポスト HPF / LPF（カスケード最大4段）──
   std::array<juce::dsp::StateVariableTPTFilter<float>, kMaxCascade> hpfs_;
   std::array<juce::dsp::StateVariableTPTFilter<float>, kMaxCascade> lpfs_;
@@ -115,7 +125,8 @@ private:
     std::atomic<float> releaseMs{50.0f};
   };
 
-  std::atomic<int> mode_{1}; // 1=Noise, 2=Sample
+  std::atomic<int> bpf1Stages_{1}; // BPF1 cascade stages
+  std::atomic<int> mode_{1};        // 1=Noise, 2=Sample
   std::atomic<float> gainDb_{0.0f};
   std::atomic<float> decayMs_{50.0f};
   // Sample モード用パラメーター

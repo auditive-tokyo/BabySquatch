@@ -66,14 +66,15 @@ void BabySquatchAudioProcessorEditor::setupClickParams() {
   const auto tinyFont =
       juce::Font(juce::FontOptions(UIConstants::fontSizeSmall));
   styleFilterLabel(clickUI.noise.decayLabel, "Decay:", tinyFont);
-  styleKnobLabel(clickUI.noise.bpf1.freqLabel, "Freq", tinyFont);
+  clickUI.noise.bpf1.slopeSelector.setOnChange(
+      [this](int dboct) { processorRef.clickEngine().setBpf1Slope(dboct); });
   styleKnobLabel(clickUI.noise.bpf1.qLabel, "Focus", tinyFont);
   styleKnobLabel(clickUI.noise.bpf2.freqLabel, "Air", tinyFont);
   styleKnobLabel(clickUI.noise.bpf2.qLabel, "Focus", tinyFont);
   styleKnobLabel(clickUI.hpf.qLabel, "Reso", tinyFont);
   styleKnobLabel(clickUI.lpf.qLabel, "Reso", tinyFont);
   addAndMakeVisible(clickUI.noise.decayLabel);
-  addAndMakeVisible(clickUI.noise.bpf1.freqLabel);
+  addAndMakeVisible(clickUI.noise.bpf1.slopeSelector);
   addAndMakeVisible(clickUI.noise.bpf1.qLabel);
   addAndMakeVisible(clickUI.noise.bpf2.freqLabel);
   addAndMakeVisible(clickUI.noise.bpf2.qLabel);
@@ -365,7 +366,7 @@ void BabySquatchAudioProcessorEditor::layoutClickParams(
                                               &clickUI.sample.hold.label,
                                               &clickUI.sample.release.label}}
           : std::array<juce::Component *, 4>{
-                {&clickUI.noise.bpf1.freqLabel, &clickUI.noise.bpf1.qLabel,
+                {&clickUI.noise.bpf1.slopeSelector, &clickUI.noise.bpf1.qLabel,
                  &clickUI.noise.bpf2.freqLabel, &clickUI.noise.bpf2.qLabel}};
   for (int col = 0; col < 4; ++col) {
     const auto idx = static_cast<size_t>(col);
@@ -414,7 +415,7 @@ void BabySquatchAudioProcessorEditor::setClickModeVisible(bool isSample) {
   for (juce::Component *c :
        {static_cast<juce::Component *>(&clickUI.noise.decayLabel),
         static_cast<juce::Component *>(&clickUI.noise.decaySlider),
-        static_cast<juce::Component *>(&clickUI.noise.bpf1.freqLabel),
+        static_cast<juce::Component *>(&clickUI.noise.bpf1.slopeSelector),
         static_cast<juce::Component *>(&clickUI.noise.bpf1.freqSlider),
         static_cast<juce::Component *>(&clickUI.noise.bpf1.qLabel),
         static_cast<juce::Component *>(&clickUI.noise.bpf1.qSlider),

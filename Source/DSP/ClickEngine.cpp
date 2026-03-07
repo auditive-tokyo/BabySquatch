@@ -15,8 +15,10 @@ static float computeSampleAmp(float t, float aT, float dT,
 void ClickEngine::prepareToPlay(double /*sampleRate*/, int samplesPerBlock) {
   // ── BPF / HPF / LPF 初期化 ──
   using enum juce::dsp::StateVariableTPTFilterType;
-  bpf1_.reset();
-  bpf1_.setType(bandpass);
+  for (auto &f : bpf1s_) {
+    f.reset();
+    f.setType(bandpass);
+  }
   bpf2_.reset();
   bpf2_.setType(bandpass);
   for (auto &f : hpfs_) {
@@ -36,7 +38,8 @@ void ClickEngine::prepareToPlay(double /*sampleRate*/, int samplesPerBlock) {
 
 void ClickEngine::triggerNote() {
   active_.store(true);
-  bpf1_.reset();
+  for (auto &f : bpf1s_)
+    f.reset();
   bpf2_.reset();
   for (auto &f : hpfs_)
     f.reset();
@@ -55,14 +58,17 @@ auto ClickEngine::setupFilters(float sr) -> FilterFlags {
   const float hpfQv = hpfParams_.q.load();
   const float lpfF = juce::jlimit(20.0f, sr * 0.49f, lpfParams_.freq.load());
   const float lpfQv = lpfParams_.q.load();
+  const int bpf1Stg = bpf1Stages_.load();
   const int hpfStg = hpfParams_.stages.load();
   const int lpfStg = lpfParams_.stages.load();
 
-  const FilterFlags flags{q1 > 0.001f,    q2 > 0.001f, hpfQv > 0.001f,
-                          lpfQv > 0.001f, hpfStg,      lpfStg};
+  const FilterFlags flags{q1 > 0.001f, q2 > 0.001f, hpfQv > 0.001f,
+                          lpfQv > 0.001f, bpf1Stg, hpfStg, lpfStg};
   if (flags.bpf1) {
-    bpf1_.setCutoffFrequency(f1);
-    bpf1_.setResonance(juce::jlimit(0.01f, 30.0f, q1));
+    for (int i = 0; i < bpf1Stg; ++i) {
+      bpf1s_[static_cast<std::size_t>(i)].setCutoffFrequency(f1);
+      bpf1s_[static_cast<std::size_t>(i)].setResonance(juce::jlimit(0.01f, 30.0f, q1));
+    }
   }
   if (flags.bpf2) {
     bpf2_.setCutoffFrequency(f2);
@@ -92,7 +98,8 @@ float ClickEngine::synthesizeSample(int mode, const FilterFlags &flags,
     // ── Noise: ホワイトノイズ → BPF 励起 ──
     s = random_.nextFloat() * 2.0f - 1.0f;
     if (flags.bpf1)
-      s = bpf1_.processSample(0, s);
+      for (int i = 0; i < flags.bpf1Stages; ++i)
+        s = bpf1s_[static_cast<std::size_t>(i)].processSample(0, s);
     if (flags.bpf2)
       s = bpf2_.processSample(0, s);
   } else if (mode == 2) {
