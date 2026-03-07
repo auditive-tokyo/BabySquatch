@@ -41,12 +41,16 @@ public:
 
 private:
   void timerCallback() override;
+  void showGainEditor();
+  void commitGainEditor();
 
   std::function<void(float)> onValueChange;
   std::array<std::function<float()>, 2> levelProvider;
 
   juce::Label label;
   juce::Slider fader;
+  juce::TextEditor gainEditor_;
+  juce::Rectangle<int> gainClickArea_; // mouseDown 判定用
 
   // ── L/R メーター状態 ──
   struct MeterState {

@@ -34,6 +34,23 @@ MasterFader::MasterFader() {
   };
   addAndMakeVisible(fader);
 
+  // ── ゲイン値エディター ──
+  gainEditor_.setInputRestrictions(8, "-0123456789.");
+  gainEditor_.setJustification(juce::Justification::centred);
+  gainEditor_.setFont(
+      juce::Font(juce::FontOptions(UIConstants::masterGainFontSize)));
+  gainEditor_.setColour(juce::TextEditor::backgroundColourId,
+                        juce::Colour(0xFF2A2A2A));
+  gainEditor_.setColour(juce::TextEditor::textColourId,
+                        UIConstants::Colours::text);
+  gainEditor_.setColour(juce::TextEditor::outlineColourId,
+                        UIConstants::Colours::text.withAlpha(0.5f));
+  gainEditor_.onReturnKey = [this] { commitGainEditor(); };
+  gainEditor_.onEscapeKey = [this] { gainEditor_.setVisible(false); };
+  gainEditor_.onFocusLost = [this] { gainEditor_.setVisible(false); };
+  gainEditor_.setVisible(false);
+  addChildComponent(gainEditor_);
+
   startTimerHz(timerHz);
 }
 
@@ -51,10 +68,34 @@ void MasterFader::setLevelProvider(int ch, std::function<float()> provider) {
 }
 
 // ────────────────────────────────────────────────────
+// gainEditor ヘルパー
+// ────────────────────────────────────────────────────
+void MasterFader::showGainEditor() {
+  const auto db = static_cast<float>(fader.getValue());
+  gainEditor_.setText(juce::String(db, 1), false);
+  gainEditor_.setBounds(gainClickArea_);
+  gainEditor_.setVisible(true);
+  gainEditor_.grabKeyboardFocus();
+  gainEditor_.selectAll();
+}
+
+void MasterFader::commitGainEditor() {
+  const float val = gainEditor_.getText().getFloatValue();
+  const float clamped = juce::jlimit(minDb, maxDb, val);
+  fader.setValue(clamped, juce::sendNotification);
+  gainEditor_.setVisible(false);
+}
+
+// ────────────────────────────────────────────────────
 // mouseDown: ピークラベルクリックでリセット
 // ────────────────────────────────────────────────────
 void MasterFader::mouseDown(const juce::MouseEvent &e) {
-  // メーター下半分（ピークテキスト・▲周辺）クリックでピークリセット
+  // gainRect クリック → テキスト入力モード
+  if (gainClickArea_.contains(e.getPosition())) {
+    showGainEditor();
+    return;
+  }
+  // メーター下半分クリック → ピークリセット
   if (e.y > getHeight() / 2) {
     for (auto &m : meter) {
       m.peakDb = minDb;
@@ -178,8 +219,7 @@ void MasterFader::paint(juce::Graphics &g) {
   // ── ゲイン設定値（メーター右側） ──
   {
     const auto db = static_cast<float>(fader.getValue());
-    const juce::String gainText =
-        (db >= 0.0f ? "+" : "") + juce::String(db, 1) + "dB";
+    const juce::String gainText = juce::String(db, 1) + "dB";
     g.setFont(juce::Font(juce::FontOptions(UIConstants::masterGainFontSize)));
     g.setColour(UIConstants::Colours::text);
     g.drawText(gainText, gainRect, juce::Justification::centred, false);
@@ -189,8 +229,8 @@ void MasterFader::paint(juce::Graphics &g) {
   {
     // 0dB ラインと同じ meterArea 座標系で位置を計算
     const float faderNorm = juce::jmap(
-        juce::jlimit(minDb, maxDb, static_cast<float>(fader.getValue())),
-        minDb, maxDb, 0.0f, 1.0f);
+        juce::jlimit(minDb, maxDb, static_cast<float>(fader.getValue())), minDb,
+        maxDb, 0.0f, 1.0f);
     const float thumbX = meterArea.getX() + meterArea.getWidth() * faderNorm;
 
     // L/R のピーク最大値
@@ -199,8 +239,7 @@ void MasterFader::paint(juce::Graphics &g) {
       maxPeak = juce::jmax(maxPeak, m.peakDb);
 
     if (maxPeak > minDb) {
-      const juce::String peakText =
-          (maxPeak >= 0.0f ? "+" : "") + juce::String(maxPeak, 1) + "dB";
+      const juce::String peakText = juce::String(maxPeak, 1) + "dB";
       static constexpr float peakTextW = 56.0f;
       const float minX = meterArea.getX();
       const float maxX = static_cast<float>(getWidth()) - 4.0f - peakTextW;
@@ -231,6 +270,13 @@ void MasterFader::paint(juce::Graphics &g) {
 void MasterFader::resized() {
   auto area = getLocalBounds();
   label.setBounds(area.removeFromTop(labelHeight));
+  // gainClickArea を paint() と同じ計算で保存
+  static constexpr int peakTextSpace = 14;
+  static constexpr int triSpace = 9;
+  auto meterRect = area.reduced(4, 4);
+  meterRect.removeFromBottom(triSpace);
+  meterRect.removeFromBottom(peakTextSpace);
+  gainClickArea_ = meterRect.removeFromRight(UIConstants::masterGainLabelWidth);
   // fader はメーターバーと同じ幅に縮める（右の gainRect 分を除外）
   fader.setBounds(area.withTrimmedRight(UIConstants::masterGainLabelWidth));
 }
