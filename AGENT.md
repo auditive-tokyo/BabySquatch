@@ -152,6 +152,27 @@ BabySquatchは3つのモジュールで構成されています：
   - トリガー: ルックアヘッド型トランジェント検出を実装した際に必須となる（ルックアヘッド分だけ Wet が遅れるため）
   - 現状: 大きな遅延源がないため未着手で問題なし。トランジェント検出実装時に同時対応する
 
+- **Click BPF リファクタリング + Distortion 追加**
+  - **背景・決定事項**:
+    - BPF2（"Air"）は BPF1 の直列段であり、BPF1 から離れた周波数成分はすでに減衰済みのため独立した音域制御が不可能と判断 → **BPF2 削除**
+    - BPF1 に Slope（12/24/48 dB/oct）を追加して音の幅を確保
+    - ラベルを「Freq/Focus」→「BP/Q」に変更、Q レンジを 0〜18 に拡張
+    - Q=0 バイパスを廃止し Q=0.1〜18 の range に統一（突然の無音を防ぐ）
+  - **Distortion 追加（空いた 2 スロットを活用）**:
+    - **Drive ノブ**: BPF 後段にプリゲイン（0〜24 dB）をかけてからクリッパーに入力。値が大きいほど歪みが強くなる
+    - **Clip Type ノブ/セレクター**: 歪み方式を選択
+      1. `Soft`  — `tanh(drive × s)` （ウォーム・奇数倍音）← すでに部分実装済み
+      2. `Hard`  — `jlimit(-1, 1, drive × s)` （ブライト・攻撃的）
+      3. `Bit`   — ビットクラッシャー（サンプル値を `round(s × bits) / bits`）（デジタル感）
+    - 実装箇所: `ClickEngine::synthesizeSample()` の BPF 直後・HPF/LPF 手前に挿入
+    - 既存 `tanh` は HPF/LPF がかかっているときだけ適用されていたが、Distortion として独立させて常に選択可能にする
+    - UI: ToneNoise の上段 4 スロット → `[BP Slope] [Q] [Drive] [ClipType]` に再配置
+      - `BP`: freq ノブ + 上部に Slope セレクター（SlopeSelector を再利用）
+      - `Q`: 0.1〜18 ノブ
+      - `Drive`: 0〜24 dB ノブ
+      - `ClipType`: Soft / Hard / Bit の 3 択セレクター（SlopeSelector 流用 or ComboBox）
+  - **Sample モードへの適用**: スペース不足のため保留。別途検討
+
 - **CI / CD パイプライン構築**
   - 目的: GitHub Actions でビルド・静的解析を自動化し、プッシュごとに品質を担保する
   - 優先タスク:
