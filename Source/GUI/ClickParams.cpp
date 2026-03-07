@@ -68,7 +68,7 @@ void BabySquatchAudioProcessorEditor::setupClickParams() {
   styleFilterLabel(clickUI.noise.decayLabel, "Decay:", tinyFont);
   clickUI.noise.bpf1.slopeSelector.setOnChange(
       [this](int dboct) { processorRef.clickEngine().setBpf1Slope(dboct); });
-  styleKnobLabel(clickUI.noise.bpf1.qLabel, "Focus", tinyFont);
+  styleKnobLabel(clickUI.noise.bpf1.qLabel, "Q", tinyFont);
   styleKnobLabel(clickUI.noise.bpf2.freqLabel, "Air", tinyFont);
   styleKnobLabel(clickUI.noise.bpf2.qLabel, "Focus", tinyFont);
   styleKnobLabel(clickUI.hpf.qLabel, "Reso", tinyFont);
@@ -118,11 +118,14 @@ void BabySquatchAudioProcessorEditor::setupClickParams() {
   };
   addAndMakeVisible(clickUI.noise.bpf1.freqSlider);
 
-  // Focus (BPF1 Q)  0–12
+  // Q (BPF1 Q)  0.1–18
   styleClickKnob(clickUI.noise.bpf1.qSlider, clickKnobLAF);
-  clickUI.noise.bpf1.qSlider.setRange(0.0, 12.0, 0.01);
+  clickUI.noise.bpf1.qSlider.setRange(0.1, 18.0, 0.01);
   clickUI.noise.bpf1.qSlider.setValue(0.71, juce::dontSendNotification);
   clickUI.noise.bpf1.qSlider.setDoubleClickReturnValue(true, 0.71);
+  clickUI.noise.bpf1.qSlider.textFromValueFunction = [](double v) {
+    return juce::String(v, 2);
+  };
   clickUI.noise.bpf1.qSlider.onValueChange = [this] {
     processorRef.clickEngine().setFocus1(
         static_cast<float>(clickUI.noise.bpf1.qSlider.getValue()));
