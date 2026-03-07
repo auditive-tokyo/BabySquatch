@@ -70,8 +70,8 @@ void BabySquatchAudioProcessorEditor::setupClickParams() {
       [this](int dboct) { processorRef.clickEngine().setBpf1Slope(dboct); });
   styleKnobLabel(clickUI.noise.bpf1.qLabel, "Q", tinyFont);
   styleKnobLabel(clickUI.noise.saturator.drive.label, "Drive", tinyFont);
-  styleKnobLabel(clickUI.hpf.qLabel, "Reso", tinyFont);
-  styleKnobLabel(clickUI.lpf.qLabel, "Reso", tinyFont);
+  styleKnobLabel(clickUI.hpf.qLabel, "Q", tinyFont);
+  styleKnobLabel(clickUI.lpf.qLabel, "Q", tinyFont);
   addAndMakeVisible(clickUI.noise.decayLabel);
   addAndMakeVisible(clickUI.noise.bpf1.slopeSelector);
   addAndMakeVisible(clickUI.noise.bpf1.qLabel);
@@ -155,19 +155,22 @@ void BabySquatchAudioProcessorEditor::setupClickParams() {
   clickUI.hpf.slider.setRange(20.0, 20000.0, 1.0);
   clickUI.hpf.slider.setSkewFactorFromMidPoint(1000.0);
   clickUI.hpf.slider.setTextValueSuffix(" Hz");
-  clickUI.hpf.slider.setValue(1100.0, juce::dontSendNotification);
-  clickUI.hpf.slider.setDoubleClickReturnValue(true, 1100.0);
+  clickUI.hpf.slider.setValue(20.0, juce::dontSendNotification);
+  clickUI.hpf.slider.setDoubleClickReturnValue(true, 20.0); // 20Hz = バイパス
   clickUI.hpf.slider.onValueChange = [this] {
     processorRef.clickEngine().setHpfFreq(
         static_cast<float>(clickUI.hpf.slider.getValue()));
   };
   addAndMakeVisible(clickUI.hpf.slider);
 
-  // HPF Reso  0–12
+  // HPF Q  0.1–18
   styleClickKnob(clickUI.hpf.qSlider, clickKnobLAF);
-  clickUI.hpf.qSlider.setRange(0.0, 12.0, 0.01);
-  clickUI.hpf.qSlider.setValue(0.0, juce::dontSendNotification);
-  clickUI.hpf.qSlider.setDoubleClickReturnValue(true, 0.0);
+  clickUI.hpf.qSlider.setRange(0.1, 18.0, 0.01);
+  clickUI.hpf.qSlider.setValue(0.71, juce::dontSendNotification);
+  clickUI.hpf.qSlider.setDoubleClickReturnValue(true, 0.71);
+  clickUI.hpf.qSlider.textFromValueFunction = [](double v) {
+    return juce::String(v, 2);
+  };
   clickUI.hpf.qSlider.onValueChange = [this] {
     processorRef.clickEngine().setHpfQ(
         static_cast<float>(clickUI.hpf.qSlider.getValue()));
@@ -179,19 +182,22 @@ void BabySquatchAudioProcessorEditor::setupClickParams() {
   clickUI.lpf.slider.setRange(20.0, 20000.0, 1.0);
   clickUI.lpf.slider.setSkewFactorFromMidPoint(1000.0);
   clickUI.lpf.slider.setTextValueSuffix(" Hz");
-  clickUI.lpf.slider.setValue(8000.0, juce::dontSendNotification);
-  clickUI.lpf.slider.setDoubleClickReturnValue(true, 8000.0);
+  clickUI.lpf.slider.setValue(20000.0, juce::dontSendNotification);
+  clickUI.lpf.slider.setDoubleClickReturnValue(true, 20000.0); // 20000Hz = バイパス
   clickUI.lpf.slider.onValueChange = [this] {
     processorRef.clickEngine().setLpfFreq(
         static_cast<float>(clickUI.lpf.slider.getValue()));
   };
   addAndMakeVisible(clickUI.lpf.slider);
 
-  // LPF Reso  0–12
+  // LPF Q  0.1–18
   styleClickKnob(clickUI.lpf.qSlider, clickKnobLAF);
-  clickUI.lpf.qSlider.setRange(0.0, 12.0, 0.01);
-  clickUI.lpf.qSlider.setValue(0.0, juce::dontSendNotification);
-  clickUI.lpf.qSlider.setDoubleClickReturnValue(true, 0.0);
+  clickUI.lpf.qSlider.setRange(0.1, 18.0, 0.01);
+  clickUI.lpf.qSlider.setValue(0.71, juce::dontSendNotification);
+  clickUI.lpf.qSlider.setDoubleClickReturnValue(true, 0.71);
+  clickUI.lpf.qSlider.textFromValueFunction = [](double v) {
+    return juce::String(v, 2);
+  };
   clickUI.lpf.qSlider.onValueChange = [this] {
     processorRef.clickEngine().setLpfQ(
         static_cast<float>(clickUI.lpf.qSlider.getValue()));
@@ -284,10 +290,10 @@ void BabySquatchAudioProcessorEditor::setupClickParams() {
   processorRef.clickEngine().setFocus1(0.71f);
   processorRef.clickEngine().setDriveDb(0.0f);
   processorRef.clickEngine().setClipType(0);
-  processorRef.clickEngine().setHpfFreq(200.0f);
-  processorRef.clickEngine().setHpfQ(0.0f);
-  processorRef.clickEngine().setLpfFreq(8000.0f);
-  processorRef.clickEngine().setLpfQ(0.0f);
+  processorRef.clickEngine().setHpfFreq(20.0f);    // バイパス
+  processorRef.clickEngine().setHpfQ(0.71f);
+  processorRef.clickEngine().setLpfFreq(20000.0f); // バイパス
+  processorRef.clickEngine().setLpfQ(0.71f);
   processorRef.clickEngine().setPitchSemitones(0.0f);
   processorRef.clickEngine().setAttackMs(1.0f);
   processorRef.clickEngine().setReleaseMs(50.0f);
@@ -443,31 +449,17 @@ void BabySquatchAudioProcessorEditor::setClickModeVisible(bool isSample) {
 void BabySquatchAudioProcessorEditor::applyClickSampleMode() {
   setClickModeVisible(true);
 
-  // HPF/LPF Q を "Q" / 0.1–6.0 に変更
-  clickUI.hpf.qSlider.setRange(0.1, 6.0, 0.01);
-  clickUI.hpf.qSlider.setValue(0.707, juce::dontSendNotification);
-  clickUI.hpf.qSlider.setDoubleClickReturnValue(true, 0.707);
-  clickUI.hpf.qSlider.textFromValueFunction = [](double v) {
-    return juce::String(v, 2);
-  };
-  clickUI.hpf.qLabel.setText("Q", juce::dontSendNotification);
-  clickUI.lpf.qSlider.setRange(0.1, 6.0, 0.01);
-  clickUI.lpf.qSlider.setValue(0.707, juce::dontSendNotification);
-  clickUI.lpf.qSlider.setDoubleClickReturnValue(true, 0.707);
-  clickUI.lpf.qSlider.textFromValueFunction = [](double v) {
-    return juce::String(v, 2);
-  };
-  clickUI.lpf.qLabel.setText("Q", juce::dontSendNotification);
-
-  // HPF/LPF 周波数を Direct Sample モードの初期値へ
+  // HPF/LPF 周波数をバイパス位置へ（モード切替時リセット）
   clickUI.hpf.slider.setValue(20.0, juce::dontSendNotification);
   clickUI.hpf.slider.setDoubleClickReturnValue(true, 20.0);
   clickUI.lpf.slider.setValue(20000.0, juce::dontSendNotification);
   clickUI.lpf.slider.setDoubleClickReturnValue(true, 20000.0);
   processorRef.clickEngine().setHpfFreq(20.0f);
-  processorRef.clickEngine().setHpfQ(0.707f);
+  processorRef.clickEngine().setHpfQ(
+      static_cast<float>(clickUI.hpf.qSlider.getValue()));
   processorRef.clickEngine().setLpfFreq(20000.0f);
-  processorRef.clickEngine().setLpfQ(0.707f);
+  processorRef.clickEngine().setLpfQ(
+      static_cast<float>(clickUI.lpf.qSlider.getValue()));
 
   // Sample モードの A/D/R + Pitch を DSP へ
   processorRef.clickEngine().setAttackMs(
@@ -486,35 +478,8 @@ void BabySquatchAudioProcessorEditor::applyClickSampleMode() {
 void BabySquatchAudioProcessorEditor::applyClickNoiseMode(int m) {
   setClickModeVisible(false);
 
-  // HPF/LPF Q を "Reso" / 0–12 に戻す
-  // Sample モードから来た場合（range下限が0.1）のみ値もリセットする
-  const bool fromSample = (clickUI.hpf.qSlider.getRange().getStart() > 0.0);
-  clickUI.hpf.qSlider.setRange(0.0, 12.0, 0.01);
-  if (fromSample)
-    clickUI.hpf.qSlider.setValue(0.0, juce::dontSendNotification);
-  clickUI.hpf.qSlider.setDoubleClickReturnValue(true, 0.0);
-  clickUI.hpf.qSlider.textFromValueFunction = nullptr;
-  clickUI.hpf.qLabel.setText("Reso", juce::dontSendNotification);
-  clickUI.lpf.qSlider.setRange(0.0, 12.0, 0.01);
-  if (fromSample)
-    clickUI.lpf.qSlider.setValue(0.0, juce::dontSendNotification);
-  clickUI.lpf.qSlider.setDoubleClickReturnValue(true, 0.0);
-  clickUI.lpf.qSlider.textFromValueFunction = nullptr;
-  clickUI.lpf.qLabel.setText("Reso", juce::dontSendNotification);
-
-  // Noise モードの HPF/LPF 初期値へ戻す（Sample からの遷移時のみ）
-  if (fromSample) {
-    clickUI.hpf.slider.setValue(1100.0, juce::dontSendNotification);
-    clickUI.lpf.slider.setValue(8000.0, juce::dontSendNotification);
-  }
-  clickUI.hpf.slider.setDoubleClickReturnValue(true, 1100.0);
-  clickUI.lpf.slider.setDoubleClickReturnValue(true, 8000.0);
-  if (fromSample) {
-    processorRef.clickEngine().setHpfFreq(200.0f);
-    processorRef.clickEngine().setHpfQ(0.0f);
-    processorRef.clickEngine().setLpfFreq(8000.0f);
-    processorRef.clickEngine().setLpfQ(0.0f);
-  }
+  // HPF/LPF: Q range/label は両モード共通（0.1–18 / "Q"）なので変更不要
+  // フィルター周波数の現在値はそのまま維持する
 
   // Noise の Decay を DSP へ戻す
   processorRef.clickEngine().setDecayMs(

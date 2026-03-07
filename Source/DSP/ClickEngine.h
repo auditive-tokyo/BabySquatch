@@ -33,7 +33,7 @@ public:
   void setFreq1(float hz) { freq1_.store(hz); }
   /// Noise: BPF1 Q（高いほどリング）
   void setFocus1(float q) { focus1_.store(q); }
-  /// HPF カットオフ周波数 (Q=0 でバイパス)
+  /// HPF カットオフ周波数 (20Hz 以下でバイパス)
   void setHpfFreq(float hz) { hpfParams_.freq.store(hz); }
   void setHpfQ(float q) { hpfParams_.q.store(q); }
   /// HPF スロープ選択（12/24/48 dB/oct → 1/2/4 カスケード段数）
@@ -58,7 +58,7 @@ public:
       stages = 2;
     hpfParams_.stages.store(stages);
   }
-  /// LPF カットオフ周波数 (Q=0 でバイパス)
+  /// LPF カットオフ周波数 (20000Hz 以上でバイパス)
   void setLpfFreq(float hz) { lpfParams_.freq.store(hz); }
   void setLpfQ(float q) { lpfParams_.q.store(q); }
   /// LPF スロープ選択（12/24/48 dB/oct → 1/2/4 カスケード段数）
@@ -137,6 +137,7 @@ private:
   std::atomic<float> focus1_{0.71f};  // BPF1 Q
   std::atomic<float> driveDb_{0.0f};  // Drive (dB)
   std::atomic<int> clipType_{0};      // 0=Soft, 1=Hard, 2=Bit
-  FilterParams hpfParams_{200.0f, 0.0f, 1};
-  FilterParams lpfParams_{8000.0f, 0.0f, 1};
+  FilterParams hpfParams_{20.0f, 0.71f, 1}; // デフォルト: バイパス(20Hz), Q=0.71
+  FilterParams lpfParams_{20000.0f, 0.71f,
+                          1}; // デフォルト: バイパス(20kHz), Q=0.71
 };

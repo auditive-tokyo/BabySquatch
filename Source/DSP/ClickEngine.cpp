@@ -58,8 +58,9 @@ auto ClickEngine::setupFilters(float sr) -> FilterFlags {
   const int hpfStg = hpfParams_.stages.load();
   const int lpfStg = lpfParams_.stages.load();
 
-  const FilterFlags flags{q1 > 0.001f, hpfQv > 0.001f, lpfQv > 0.001f,
-                          bpf1Stg,     hpfStg,         lpfStg};
+  // HPF: 20Hz より高ければ有効, LPF: 20000Hz より低ければ有効
+  const FilterFlags flags{q1 > 0.001f, hpfF > 20.5f, lpfF < 19999.5f,
+                          bpf1Stg,     hpfStg,        lpfStg};
   if (flags.bpf1) {
     for (int i = 0; i < bpf1Stg; ++i) {
       bpf1s_[static_cast<std::size_t>(i)].setCutoffFrequency(f1);
@@ -112,7 +113,7 @@ float ClickEngine::synthesizeSample(int mode, const FilterFlags &flags,
       s = lpfs_[static_cast<std::size_t>(i)].processSample(0, s);
   }
   if (flags.hpf || flags.lpf)
-    s = std::tanh(s); // 共振ピークのソフトクリップ
+    s = Saturator::process(s, 0.0f, clipType_.load()); // 共振ピークを ClipType で整形
   return s;
 }
 
