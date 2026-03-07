@@ -75,6 +75,8 @@ BabySquatchは3つのモジュールで構成されています：
 │   ├── KeyboardComponent.cpp  // 鍵盤UI実装
 │   ├── KeyboardComponent.h    // 鍵盤UI宣言
 │   ├── LutBaker.h             // Sub波形 LUT ベイク処理（ヘッダオンリー）
+│   ├── MasterFader.cpp        // マスターフェーダー実装（横向きフェーダー＋L/Rメーター）
+│   ├── MasterFader.h          // マスターフェーダー宣言
 │   ├── PanelComponent.cpp     // SUB/CLICK/DIRECT共通パネル実装
 │   ├── PanelComponent.h       // 共通パネル宣言（ChannelFader・M/S ボタン）
 │   ├── SubParams.cpp          // Sub パネル UI セットアップ / レイアウト
@@ -86,6 +88,16 @@ BabySquatchは3つのモジュールで構成されています：
 ```
 
 ## TODO
+
+- **マスターリミッター（検討中）**
+  - 目的: マスター出力段にブリックウォールリミッターを挿入し、クリッピングを防止
+  - 候補方式:
+    1. **ソフトニー方式（推奨）**: Attack/Release エンベロープフォロワーでゲインリダクション計算。CPU 負荷ほぼゼロ、~80行。`LevelDetector` を流用可能
+    2. **ハードクリップ**: `jlimit()` で振幅を制限。5行で実装可能だが歪みが出る
+    3. **Look-ahead 方式**: 高品質だが遅延補正が必要になり複雑度が上がる
+  - しきい値: -0.1 dBFS 固定か、MasterFader に Ceiling ノブを追加するか要検討
+  - 実装箇所: `PluginProcessor::processBlock()` の `applyGain()` 直後
+  - GUI: MasterFader のメーターにゲインリダクション量（GR）表示を追加できる
 
 - **Sub/Click 共通トリガー（トランジェント検出）**
   - 目的: 入力信号の立ち上がり過渡成分を検出して Sub/Click を瞬時に発音（VST/AU の Kick トラック挿入を想定）
