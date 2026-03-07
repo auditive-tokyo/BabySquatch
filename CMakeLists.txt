@@ -47,6 +47,7 @@ target_sources(BabySquatch
         Source/GUI/ChannelFader.cpp
         Source/GUI/MasterFader.h
         Source/GUI/MasterFader.cpp
+        Source/GUI/WaveformUtils.h
         Source/DSP/ChannelState.h
         Source/DSP/ClickEngine.h
         Source/DSP/ClickEngine.cpp
