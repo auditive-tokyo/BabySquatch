@@ -3,8 +3,8 @@
 #include "UIConstants.h"
 #include <array>
 #include <cmath>
-#include <optional>
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <optional>
 
 // ── Hz → 音名変換ヘルパー（例: 440 → "A4", 88.45 → "F2(+22)"）──
 inline juce::String hzToNoteName(double hz) {
@@ -243,7 +243,8 @@ public:
     const auto s = input.trim();
     if (s.isEmpty())
       return {};
-    static constexpr std::array<int, 7> noteTable = {9, 11, 0, 2, 4, 5, 7}; // A B C D E F G
+    static constexpr std::array<int, 7> noteTable = {9, 11, 0, 2,
+                                                     4, 5,  7}; // A B C D E F G
     const auto first = static_cast<char>(std::toupper(s[0]));
     if (first < 'A' || first > 'G')
       return {};
@@ -270,58 +271,93 @@ public:
     return 440.0 * std::pow(2.0, (midi - 69) / 12.0);
   }
 
-  // ── 音名入力UI（CallOutBox 内部コンポーネント）──
-  struct NoteEntryComponent : public juce::Component {
+  // ── 音名インラインエディタ（ノブ上に直接オーバーレイ）──
+  struct NoteEditorOverlay : public juce::Component {
     juce::TextEditor editor;
     CustomSlider *owner;
 
-    explicit NoteEntryComponent(CustomSlider *s) : owner(s) {
-      editor.setFont(juce::Font(juce::FontOptions(15.0f)));
+    NoteEditorOverlay(CustomSlider *s, juce::Rectangle<int> bounds) : owner(s) {
+      const auto side =
+          static_cast<float>(juce::jmin(s->getWidth(), s->getHeight()));
+      const float fontSize = side * 0.40f * 0.38f;
+
+      editor.setFont(
+          juce::Font(juce::FontOptions(juce::jmax(fontSize, 11.0f))));
       editor.setJustification(juce::Justification::centred);
       editor.setColour(juce::TextEditor::backgroundColourId,
                        UIConstants::Colours::knobBg);
       editor.setColour(juce::TextEditor::textColourId,
                        UIConstants::Colours::subArc);
       editor.setColour(juce::TextEditor::outlineColourId,
-                       UIConstants::Colours::subArc.withAlpha(0.5f));
+                       UIConstants::Colours::subArc.withAlpha(0.6f));
       editor.setColour(juce::TextEditor::focusedOutlineColourId,
                        UIConstants::Colours::subArc);
+      editor.setColour(juce::TextEditor::highlightColourId,
+                       UIConstants::Colours::subArc.withAlpha(0.35f));
       editor.setText(hzToNoteName(s->getValue()), false);
       editor.selectAll();
       addAndMakeVisible(editor);
-      setSize(120, 36);
 
-      editor.onReturnKey = [this] {
-        if (const auto hz = parseNoteNameToHz(editor.getText()); hz.has_value()) {
-          const double clamped =
-              juce::jlimit(owner->getMinimum(), owner->getMaximum(), hz.value());
-          owner->setValue(clamped, juce::sendNotificationSync);
-        }
-        if (auto *box = findParentComponentOfClass<juce::CallOutBox>())
-          box->dismiss();
-      };
-      editor.onEscapeKey = [this] {
-        if (auto *box = findParentComponentOfClass<juce::CallOutBox>())
-          box->dismiss();
-      };
+      setBounds(bounds);
+      s->addAndMakeVisible(this);
+      editor.grabKeyboardFocus();
+
+      editor.onReturnKey = [this] { commit(); };
+      editor.onEscapeKey = [this] { dismiss(); };
     }
 
-    void resized() override { editor.setBounds(getLocalBounds().reduced(4)); }
+    void resized() override { editor.setBounds(getLocalBounds()); }
 
-    void visibilityChanged() override {
-      if (isVisible())
-        editor.grabKeyboardFocus();
+    // フォーカスが外れたらコミットして閉じる
+    void focusOfChildComponentChanged(FocusChangeType) override {
+      if (!hasKeyboardFocus(true))
+        commit();
+    }
+
+    void commit() {
+      if (const auto hz = parseNoteNameToHz(editor.getText()); hz.has_value()) {
+        const double clamped =
+            juce::jlimit(owner->getMinimum(), owner->getMaximum(), hz.value());
+        owner->setValue(clamped, juce::sendNotificationSync);
+      }
+      dismiss();
+    }
+
+    void dismiss() {
+      // owner の unique_ptr を reset することで安全に自身を破棄
+      // callAsync で現在のコールスタックを抜けてから実行
+      juce::Component::SafePointer<NoteEditorOverlay> self(this);
+      juce::MessageManager::callAsync([self] {
+        if (auto *p = self.getComponent())
+          p->owner->noteOverlay_.reset(); // unique_ptr が delete + 親から除去
+      });
     }
   };
 
+  std::unique_ptr<NoteEditorOverlay> noteOverlay_;
+
   void mouseDown(const juce::MouseEvent &e) override {
     if (getComponentID() == "subFreq") {
-      // 音名エリア（ノブ下半）をクリックしたときにin目エディタ起動
+      // 音名テキストエリア（ノブ下半）をクリックしたときにインラインエディタ起動
       const float cy = static_cast<float>(getHeight()) * 0.5f;
       if (static_cast<float>(e.y) > cy && !e.mods.isAnyModifierKeyDown()) {
-        auto comp = std::make_unique<NoteEntryComponent>(this);
-        juce::CallOutBox::launchAsynchronously(std::move(comp),
-                                               getScreenBounds(), nullptr);
+        // 既存エディタがあれば何もしない
+        if (noteOverlay_ != nullptr)
+          return;
+
+        // ノブ描画と同じ座標計算でオーバーレイ位置を決める
+        const auto side =
+            static_cast<float>(juce::jmin(getWidth(), getHeight()));
+        const float rad = side * 0.40f;
+        const float cx = static_cast<float>(getWidth()) * 0.5f;
+        const float fontSize = rad * 0.38f;
+        const auto edW = static_cast<int>(rad * 1.6f);
+        const int edH = juce::jmax(static_cast<int>(fontSize * 1.3f), 18);
+        const auto edX = static_cast<int>(cx - static_cast<float>(edW) * 0.5f);
+        const auto edY = static_cast<int>(cy + fontSize * 0.08f);
+
+        noteOverlay_ = std::make_unique<NoteEditorOverlay>(
+            this, juce::Rectangle<int>{edX, edY, edW, edH});
         return;
       }
     }
