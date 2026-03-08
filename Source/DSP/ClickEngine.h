@@ -31,9 +31,9 @@ public:
   void setGainDb(float db) { gainDb_.store(db); }
   void setDecayMs(float ms) { decayMs_.store(ms); }
   /// Noise: BPF1 中心周波数
-  void setFreq1(float hz) { freq1_.store(hz); }
+  void setFreq1(float hz) { bpf1Params_.freq.store(hz); }
   /// Noise: BPF1 Q（高いほどリング）
-  void setFocus1(float q) { focus1_.store(q); }
+  void setFocus1(float q) { bpf1Params_.q.store(q); }
   /// HPF カットオフ周波数 (20Hz 以下でバイパス)
   void setHpfFreq(float hz) { hpfParams_.freq.store(hz); }
   void setHpfQ(float q) { hpfParams_.q.store(q); }
@@ -45,7 +45,7 @@ public:
       stages = 4;
     else if (dboct >= 24)
       stages = 2;
-    bpf1Stages_.store(stages);
+    bpf1Params_.stages.store(stages);
   }
   /// Drive 量（0〜24 dB; 内部: pow(10, dB/20)）
   void setDriveDb(float db) { driveDb_.store(db); }
@@ -108,6 +108,10 @@ private:
   };
   FilterFlags setupFilters(float sr);
   float synthesizeSample(int mode, const FilterFlags &flags, double playRate);
+  /// Sampleモードの停止判定用時間（サンプル数）を計算
+  float computeMaxTimeSamples(float sr, int mode, double playRate) const;
+  /// Sampleモードのエンベロープ振幅（LUT + 末尾フェード）を計算
+  float computeSampleAmp(float noteTimeMs) const;
 
   // ── BPF（bpf1 はカスケード最大4段） ──
   std::array<juce::dsp::StateVariableTPTFilter<float>, kMaxCascade>
@@ -128,19 +132,17 @@ private:
     std::atomic<float> pitchSemitones{0.0f};
   };
 
-  std::atomic<int> bpf1Stages_{1}; // BPF1 cascade stages
-  std::atomic<int> mode_{1};       // 1=Noise, 2=Sample
+  std::atomic<int> mode_{1}; // 1=Noise, 2=Sample
   std::atomic<float> gainDb_{0.0f};
   std::atomic<float> decayMs_{30.0f};
   // Sample モード用パラメーター
   SampleModeParams sampleParams_;
-  // Noise 用 BPF パラメーター
-  std::atomic<float> freq1_{5000.0f};       // BPF1 中心周波数
-  std::atomic<float> focus1_{0.71f};        // BPF1 Q
   std::atomic<float> driveDb_{0.0f};        // Drive (dB)
-  std::atomic<int> clipType_{0};            // 0=Soft, 1=Hard, 2=Bit
-  std::atomic<float> sampleAmpLevel_{1.0f}; // Sample Amp (0〜2)
-  EnvelopeLutManager clickAmpLut_;           // Click Amp エンベロープ LUT
+  std::atomic<int> clipType_{0};            // 0=Soft, 1=Hard, 2=Tube
+  std::atomic<float> sampleAmpLevel_{1.0f}; // Sample Amp (0。2)
+  EnvelopeLutManager clickAmpLut_;          // Click Amp エンベロープ LUT
+  FilterParams bpf1Params_{5000.0f, 0.71f,
+                           1}; // BPF1: freq=5kHz, Q=0.71, 12dB/oct
   FilterParams hpfParams_{20.0f, 0.71f,
                           1}; // デフォルト: バイパス(20Hz), Q=0.71
   FilterParams lpfParams_{20000.0f, 0.71f,

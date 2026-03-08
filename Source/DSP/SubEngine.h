@@ -19,8 +19,8 @@ public:
 
   /// 1 ブロック分をレンダリングし、buffer に加算する。
   /// @param subPass  false のときは scratchBuffer のみ書き込み（Mute 時）
-  void render(juce::AudioBuffer<float> &buffer, int numSamples,
-              bool subPass, double sampleRate);
+  void render(juce::AudioBuffer<float> &buffer, int numSamples, bool subPass,
+              double sampleRate);
 
   // ── UI→DSP setter（スレッドセーフ） ──
   void setGainDb(float db) { gainDb_.store(db); }
@@ -28,9 +28,9 @@ public:
 
   // ── 委譲先アクセサ ──
   EnvelopeLutManager &envLut() noexcept { return envLut_; }
-  EnvelopeLutManager &pitchLut() noexcept { return pitchLut_; }
+  EnvelopeLutManager &freqLut() noexcept { return freqLut_; }
   EnvelopeLutManager &distLut() noexcept { return distLut_; }
-  EnvelopeLutManager &blendLut() noexcept { return blendLut_; }
+  EnvelopeLutManager &mixLut() noexcept { return mixLut_; }
   SubOscillator &oscillator() noexcept { return osc_; }
 
   /// レベル計測用 scratchBuffer の先頭ポインタ
@@ -39,9 +39,9 @@ public:
 private:
   SubOscillator osc_;
   EnvelopeLutManager envLut_;
-  EnvelopeLutManager pitchLut_;
+  EnvelopeLutManager freqLut_;
   EnvelopeLutManager distLut_;
-  EnvelopeLutManager blendLut_;
+  EnvelopeLutManager mixLut_;
 
   std::vector<float> scratchBuffer_;
   float noteTimeSamples_{0.0f};

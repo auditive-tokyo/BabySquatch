@@ -44,13 +44,13 @@ void BabySquatchAudioProcessorEditor::setupLengthBox() {
     const auto v = static_cast<float>(subUI.length.slider.getValue());
     envelopeCurveEditor.setDisplayDurationMs(v);
     processorRef.subEngine().setLengthMs(v);
-    bakeLut(ampEnvData, processorRef.subEngine().envLut(), v);
-    bakeLut(pitchEnvData, processorRef.subEngine().pitchLut(), v);
-    bakeLut(distEnvData, processorRef.subEngine().distLut(), v);
-    bakeLut(blendEnvData, processorRef.subEngine().blendLut(), v);
+    bakeLut(envDatas.amp, processorRef.subEngine().envLut(), v);
+    bakeLut(envDatas.freq, processorRef.subEngine().freqLut(), v);
+    bakeLut(envDatas.dist, processorRef.subEngine().distLut(), v);
+    bakeLut(envDatas.mix, processorRef.subEngine().mixLut(), v);
     // Sample Decay のダブルクリックリターン値を Sub length と連動させる
-    clickUI.sample.decay.slider.setDoubleClickReturnValue(true,
-                                                         static_cast<double>(v));
+    clickUI.sample.decay.slider.setDoubleClickReturnValue(
+        true, static_cast<double>(v));
   };
   // Sample Decay の初期値と初回のバコオフを Sub lengthに合わせる
   const auto initLen =
@@ -59,7 +59,7 @@ void BabySquatchAudioProcessorEditor::setupLengthBox() {
                                        juce::dontSendNotification);
   clickUI.sample.decay.slider.setDoubleClickReturnValue(
       true, static_cast<double>(initLen));
-  bakeLut(clickAmpEnvData, processorRef.clickEngine().clickAmpLut(), initLen);
+  bakeLut(envDatas.clickAmp, processorRef.clickEngine().clickAmpLut(), initLen);
   envelopeCurveEditor.setClickDecayMs(initLen);
   addAndMakeVisible(subUI.length.slider);
 }
@@ -88,6 +88,124 @@ void BabySquatchAudioProcessorEditor::setupSubKnobsRow() {
     // を切り替えられるよう登録
     if (i < 4)
       label.addMouseListener(this, false);
+  }
+
+  // ── Freq ノブ（subUI.knobs[1]） ──
+  subUI.knobs[1].setComponentID("subFreq");
+  subUI.knobs[1].setRange(20.0, 20000.0);
+  subUI.knobs[1].setSkewFactorFromMidPoint(200.0);
+  subUI.knobs[1].setValue(200.0, juce::dontSendNotification);
+  subUI.knobs[1].setDoubleClickReturnValue(true, 200.0);
+  subUI.knobs[1].onDragStart = [this] {
+    switchEditTarget(EnvelopeCurveEditor::EditTarget::freq);
+  };
+  subUI.knobs[1].onValueChange = [this] {
+    const auto hz = static_cast<float>(subUI.knobs[1].getValue());
+    envDatas.freq.setDefaultValue(hz);
+    if (!envDatas.freq.isEnvelopeControlled())
+      envDatas.freq.setPointValue(0, hz);
+    bakeLut(envDatas.freq, processorRef.subEngine().freqLut(),
+            envelopeCurveEditor.getDisplayDurationMs());
+    const float cycles =
+        hz * envelopeCurveEditor.getDisplayDurationMs() / 1000.0f;
+    envelopeCurveEditor.setDisplayCycles(cycles);
+    envelopeCurveEditor.repaint();
+  };
+  constexpr float initHz = 200.0f;
+  envelopeCurveEditor.setDisplayCycles(
+      initHz * envelopeCurveEditor.getDisplayDurationMs() / 1000.0f);
+  bakeLut(envDatas.freq, processorRef.subEngine().freqLut(),
+          envelopeCurveEditor.getDisplayDurationMs());
+  envDatas.freq.addPoint(0.0f, initHz);
+
+  // ── Amp ノブ（subUI.knobs[0]） ──
+  subUI.knobs[0].setRange(0.0, 200.0);
+  subUI.knobs[0].setValue(envDatas.amp.getDefaultValue() * 100.0,
+                          juce::dontSendNotification);
+  subUI.knobs[0].setDoubleClickReturnValue(true, 100.0);
+  subUI.knobs[0].onDragStart = [this] {
+    switchEditTarget(EnvelopeCurveEditor::EditTarget::amp);
+  };
+  subUI.knobs[0].onValueChange = [this] {
+    const float v = static_cast<float>(subUI.knobs[0].getValue()) / 100.0f;
+    envDatas.amp.setDefaultValue(v);
+    if (!envDatas.amp.isEnvelopeControlled())
+      envDatas.amp.setPointValue(0, v);
+    bakeLut(envDatas.amp, processorRef.subEngine().envLut(),
+            envelopeCurveEditor.getDisplayDurationMs());
+    envelopeCurveEditor.repaint();
+  };
+  envDatas.amp.addPoint(0.0f, envDatas.amp.getDefaultValue());
+  {
+    const bool controlled = envDatas.amp.isEnvelopeControlled();
+    subUI.knobs[0].setEnabled(!controlled);
+    subUI.knobs[0].setTooltip(controlled ? "Click on Amp label to edit envelope"
+                                         : "");
+  }
+
+  // ── Mix ノブ（subUI.knobs[2]） ──
+  subUI.knobs[2].setRange(-100.0, 100.0, 1.0);
+  subUI.knobs[2].setValue(0.0, juce::dontSendNotification);
+  subUI.knobs[2].setDoubleClickReturnValue(true, 0.0);
+  subUI.knobs[2].onDragStart = [this] {
+    switchEditTarget(EnvelopeCurveEditor::EditTarget::mix);
+  };
+  subUI.knobs[2].onValueChange = [this] {
+    const float v = static_cast<float>(subUI.knobs[2].getValue()) / 100.0f;
+    envDatas.mix.setDefaultValue(v);
+    if (!envDatas.mix.isEnvelopeControlled())
+      envDatas.mix.setPointValue(0, v);
+    bakeLut(envDatas.mix, processorRef.subEngine().mixLut(),
+            envelopeCurveEditor.getDisplayDurationMs());
+    envelopeCurveEditor.setPreviewMix(v);
+  };
+  envDatas.mix.setDefaultValue(0.0f);
+  bakeLut(envDatas.mix, processorRef.subEngine().mixLut(),
+          envelopeCurveEditor.getDisplayDurationMs());
+  envDatas.mix.addPoint(0.0f, 0.0f);
+
+  // ── Saturate ノブ（subUI.knobs[3]） ──
+  subUI.knobs[3].setRange(0.0, 24.0, 0.1);
+  subUI.knobs[3].setValue(0.0, juce::dontSendNotification);
+  subUI.knobs[3].setDoubleClickReturnValue(true, 0.0);
+  subUI.knobs[3].onDragStart = [this] {
+    switchEditTarget(EnvelopeCurveEditor::EditTarget::saturate);
+  };
+  subUI.knobs[3].onValueChange = [this] {
+    const float v = static_cast<float>(subUI.knobs[3].getValue()) / 24.0f;
+    envDatas.dist.setDefaultValue(v);
+    if (!envDatas.dist.isEnvelopeControlled())
+      envDatas.dist.setPointValue(0, v);
+    bakeLut(envDatas.dist, processorRef.subEngine().distLut(),
+            envelopeCurveEditor.getDisplayDurationMs());
+    envelopeCurveEditor.repaint();
+  };
+  envDatas.dist.setDefaultValue(0.0f);
+  bakeLut(envDatas.dist, processorRef.subEngine().distLut(),
+          envelopeCurveEditor.getDisplayDurationMs());
+  envDatas.dist.addPoint(0.0f, 0.0f);
+
+  // ClipType セレクター（Soft / Hard / Tube）— Saturate ノブ上部ラベルを兼ねる
+  subUI.saturateClipType.setOnChange([this](int t) {
+    processorRef.subEngine().oscillator().setClipType(t);
+  });
+  addAndMakeVisible(subUI.saturateClipType);
+
+  // ── Tone1〜Tone4 ノブ（subUI.knobs[4〜7]） ──
+  for (int i = 0; i < 4; ++i) {
+    const auto idx = static_cast<size_t>(i + 4);
+    subUI.knobs[idx].setRange(0.0, 100.0, 0.1);
+    subUI.knobs[idx].setValue(25.0, juce::dontSendNotification);
+    subUI.knobs[idx].setDoubleClickReturnValue(true, 25.0);
+    const int harmonicNum = i + 1;
+    subUI.knobs[idx].onValueChange = [this, idx, harmonicNum] {
+      const auto gain =
+          static_cast<float>(subUI.knobs[idx].getValue()) / 100.0f;
+      processorRef.subEngine().oscillator().setHarmonicGain(harmonicNum, gain);
+      envelopeCurveEditor.setPreviewHarmonicGain(harmonicNum, gain);
+    };
+    processorRef.subEngine().oscillator().setHarmonicGain(harmonicNum, 0.25f);
+    envelopeCurveEditor.setPreviewHarmonicGain(harmonicNum, 0.25f);
   }
 }
 
@@ -129,145 +247,6 @@ void BabySquatchAudioProcessorEditor::setupWaveShapeCombo() {
   addAndMakeVisible(subUI.wave.combo);
 }
 
-// ────────────────────────────────────────────────────
-// Freq ノブ（subUI.knobs[1]）
-// ────────────────────────────────────────────────────
-void BabySquatchAudioProcessorEditor::setupPitchKnob() {
-  subUI.knobs[1].setComponentID("subFreq");
-  subUI.knobs[1].setRange(20.0, 20000.0);
-  subUI.knobs[1].setSkewFactorFromMidPoint(200.0);
-  subUI.knobs[1].setValue(200.0, juce::dontSendNotification);
-  subUI.knobs[1].setDoubleClickReturnValue(true, 200.0);
-  subUI.knobs[1].onDragStart = [this] {
-    switchEditTarget(EnvelopeCurveEditor::EditTarget::freq);
-  };
-  subUI.knobs[1].onValueChange = [this] {
-    const auto hz = static_cast<float>(subUI.knobs[1].getValue());
-    pitchEnvData.setDefaultValue(hz);
-    if (!pitchEnvData.isEnvelopeControlled())
-      pitchEnvData.setPointValue(0, hz);
-    bakeLut(pitchEnvData, processorRef.subEngine().pitchLut(),
-            envelopeCurveEditor.getDisplayDurationMs());
-    const float cycles =
-        hz * envelopeCurveEditor.getDisplayDurationMs() / 1000.0f;
-    envelopeCurveEditor.setDisplayCycles(cycles);
-    envelopeCurveEditor.repaint();
-  };
-  // 初期サイクル数 + Pitch LUT 初期ベイク
-  constexpr float initHz = 200.0f;
-  envelopeCurveEditor.setDisplayCycles(
-      initHz * envelopeCurveEditor.getDisplayDurationMs() / 1000.0f);
-  bakeLut(pitchEnvData, processorRef.subEngine().pitchLut(),
-          envelopeCurveEditor.getDisplayDurationMs());
-  // 初期デフォルトポイント（1点：ノブ制御状態）
-  pitchEnvData.addPoint(0.0f, initHz);
-}
-
-// ────────────────────────────────────────────────────
-// Amp ノブ（subUI.knobs[0]）
-// ────────────────────────────────────────────────────
-void BabySquatchAudioProcessorEditor::setupAmpKnob() {
-  subUI.knobs[0].setRange(0.0, 200.0);
-  subUI.knobs[0].setValue(ampEnvData.getDefaultValue() * 100.0,
-                          juce::dontSendNotification);
-  subUI.knobs[0].setDoubleClickReturnValue(true, 100.0);
-  subUI.knobs[0].onDragStart = [this] {
-    switchEditTarget(EnvelopeCurveEditor::EditTarget::amp);
-  };
-  subUI.knobs[0].onValueChange = [this] {
-    const float v = static_cast<float>(subUI.knobs[0].getValue()) / 100.0f;
-    ampEnvData.setDefaultValue(v);
-    if (!ampEnvData.isEnvelopeControlled())
-      ampEnvData.setPointValue(0, v);
-    bakeLut(ampEnvData, processorRef.subEngine().envLut(),
-            envelopeCurveEditor.getDisplayDurationMs());
-    envelopeCurveEditor.repaint();
-  };
-  // 初期デフォルトポイント（1点：ノブ制御状態）
-  ampEnvData.addPoint(0.0f, ampEnvData.getDefaultValue());
-  const bool controlled = ampEnvData.isEnvelopeControlled();
-  subUI.knobs[0].setEnabled(!controlled);
-  subUI.knobs[0].setTooltip(controlled ? "Click on Amp label to edit envelope"
-                                       : "");
-}
-
-// ────────────────────────────────────────────────────
-// Mix ノブ（subUI.knobs[2]）
-// ────────────────────────────────────────────────────
-void BabySquatchAudioProcessorEditor::setupBlendKnob() {
-  subUI.knobs[2].setRange(-100.0, 100.0, 1.0);
-  subUI.knobs[2].setValue(0.0, juce::dontSendNotification);
-  subUI.knobs[2].setDoubleClickReturnValue(true, 0.0);
-  subUI.knobs[2].onDragStart = [this] {
-    switchEditTarget(EnvelopeCurveEditor::EditTarget::mix);
-  };
-  subUI.knobs[2].onValueChange = [this] {
-    const float v = static_cast<float>(subUI.knobs[2].getValue()) / 100.0f;
-    blendEnvData.setDefaultValue(v);
-    if (!blendEnvData.isEnvelopeControlled())
-      blendEnvData.setPointValue(0, v);
-    bakeLut(blendEnvData, processorRef.subEngine().blendLut(),
-            envelopeCurveEditor.getDisplayDurationMs());
-    envelopeCurveEditor.setPreviewBlend(v);
-  };
-  blendEnvData.setDefaultValue(0.0f);
-  bakeLut(blendEnvData, processorRef.subEngine().blendLut(),
-          envelopeCurveEditor.getDisplayDurationMs());
-  // 初期デフォルトポイント（1点：ノブ制御状態）
-  blendEnvData.addPoint(0.0f, 0.0f);
-}
-
-// ────────────────────────────────────────────────────
-// Saturate ノブ（subUI.knobs[3]）
-// ────────────────────────────────────────────────────
-void BabySquatchAudioProcessorEditor::setupDistKnob() {
-  subUI.knobs[3].setRange(0.0, 24.0, 0.1);
-  subUI.knobs[3].setValue(0.0, juce::dontSendNotification);
-  subUI.knobs[3].setDoubleClickReturnValue(true, 0.0);
-  subUI.knobs[3].onDragStart = [this] {
-    switchEditTarget(EnvelopeCurveEditor::EditTarget::saturate);
-  };
-  subUI.knobs[3].onValueChange = [this] {
-    const float v = static_cast<float>(subUI.knobs[3].getValue()) / 24.0f;
-    distEnvData.setDefaultValue(v);
-    if (!distEnvData.isEnvelopeControlled())
-      distEnvData.setPointValue(0, v);
-    bakeLut(distEnvData, processorRef.subEngine().distLut(),
-            envelopeCurveEditor.getDisplayDurationMs());
-    envelopeCurveEditor.repaint();
-  };
-  distEnvData.setDefaultValue(0.0f);
-  bakeLut(distEnvData, processorRef.subEngine().distLut(),
-          envelopeCurveEditor.getDisplayDurationMs());
-  // 初期デフォルトポイント（1点：ノブ制御状態）
-  distEnvData.addPoint(0.0f, 0.0f);
-}
-
-// ────────────────────────────────────────────────────
-// Tone1〜Tone4 ノブ（subUI.knobs[4〜7]）
-// ────────────────────────────────────────────────────
-void BabySquatchAudioProcessorEditor::setupHarmonicKnobs() {
-  for (int i = 0; i < 4; ++i) {
-    const auto idx = static_cast<size_t>(i + 4);
-    subUI.knobs[idx].setRange(0.0, 100.0, 0.1);
-    subUI.knobs[idx].setValue(25.0, juce::dontSendNotification);
-    subUI.knobs[idx].setDoubleClickReturnValue(true, 25.0);
-    const int harmonicNum = i + 1;
-    subUI.knobs[idx].onValueChange = [this, idx, harmonicNum] {
-      const auto gain =
-          static_cast<float>(subUI.knobs[idx].getValue()) / 100.0f;
-      processorRef.subEngine().oscillator().setHarmonicGain(harmonicNum, gain);
-      envelopeCurveEditor.setPreviewHarmonicGain(harmonicNum, gain);
-    };
-    // 起動時デフォルト値を DSP へ反映
-    processorRef.subEngine().oscillator().setHarmonicGain(harmonicNum, 0.25f);
-    envelopeCurveEditor.setPreviewHarmonicGain(harmonicNum, 0.25f);
-  }
-}
-
-// ────────────────────────────────────────────────────
-// レイアウトヘルパー
-// ────────────────────────────────────────────────────
 void BabySquatchAudioProcessorEditor::layoutSubKnobsRow(
     juce::Rectangle<int> area) {
   // 上段ノブ: Amp, Freq, Mix, Saturate
@@ -279,15 +258,14 @@ void BabySquatchAudioProcessorEditor::layoutSubKnobsRow(
       const auto idx = static_cast<size_t>(row * 4 + col);
       juce::Rectangle slot(area.getX() + col * slotW, area.getY() + row * rowH,
                            slotW, rowH);
-      subUI.knobLabels[idx].setBounds(slot.removeFromBottom(16));
+      // Saturate (idx==3): LabelSelector をラベル代わりに使う
+      if (idx == 3) {
+        subUI.saturateClipType.setBounds(slot.removeFromBottom(16));
+        subUI.knobLabels[idx].setVisible(false);
+      } else {
+        subUI.knobLabels[idx].setBounds(slot.removeFromBottom(16));
+      }
       subUI.knobs[idx].setBounds(slot);
     }
   }
-}
-
-void BabySquatchAudioProcessorEditor::layoutLengthBox(
-    juce::Rectangle<int> area) {
-  constexpr int labelW = 36;
-  subUI.length.label.setBounds(area.removeFromLeft(labelW));
-  subUI.length.slider.setBounds(area);
 }

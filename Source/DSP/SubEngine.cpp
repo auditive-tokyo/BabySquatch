@@ -24,12 +24,12 @@ void SubEngine::render(juce::AudioBuffer<float> &buffer, int numSamples,
   const int numChannels = buffer.getNumChannels();
   const auto &ampLut = envLut_.getActiveLut();
   const float ampDurMs = envLut_.getDurationMs();
-  const auto &pLut = pitchLut_.getActiveLut();
-  const float pitchDurMs = pitchLut_.getDurationMs();
+  const auto &pLut = freqLut_.getActiveLut();
+  const float freqDurMs = freqLut_.getDurationMs();
   const auto &dLut = distLut_.getActiveLut();
   const float distDurMs = distLut_.getDurationMs();
-  const auto &bLut = blendLut_.getActiveLut();
-  const float blendDurMs = blendLut_.getDurationMs();
+  const auto &bLut = mixLut_.getActiveLut();
+  const float mixDurMs = mixLut_.getDurationMs();
   const auto sr = static_cast<float>(sampleRate);
 
   const float lengthMs = lengthMs_.load();
@@ -55,15 +55,15 @@ void SubEngine::render(juce::AudioBuffer<float> &buffer, int numSamples,
     }
 
     // Freq LUT → Hz
-    const float pitchLutPos =
-        (pitchDurMs > 0.0f)
-            ? (noteTimeMs / pitchDurMs) *
+    const float freqLutPos =
+        (freqDurMs > 0.0f)
+            ? (noteTimeMs / freqDurMs) *
                   static_cast<float>(EnvelopeLutManager::lutSize - 1)
             : 0.0f;
-    const auto pitchLutIdx =
-        std::min(static_cast<int>(pitchLutPos), EnvelopeLutManager::lutSize - 1);
-    const float pitchHz = pLut[static_cast<size_t>(pitchLutIdx)];
-    osc_.setFrequencyHz(pitchHz);
+    const auto freqLutIdx = std::min(static_cast<int>(freqLutPos),
+                                     EnvelopeLutManager::lutSize - 1);
+    const float freqHz = pLut[static_cast<size_t>(freqLutIdx)];
+    osc_.setFrequencyHz(freqHz);
 
     // Saturate LUT → drive01
     const float distLutPos =
@@ -75,15 +75,15 @@ void SubEngine::render(juce::AudioBuffer<float> &buffer, int numSamples,
         std::min(static_cast<int>(distLutPos), EnvelopeLutManager::lutSize - 1);
     osc_.setDist(dLut[static_cast<size_t>(distLutIdx)]);
 
-    // Mix LUT → blend
-    const float blendLutPos =
-        (blendDurMs > 0.0f)
-            ? (noteTimeMs / blendDurMs) *
+    // Mix LUT → mix
+    const float mixLutPos =
+        (mixDurMs > 0.0f)
+            ? (noteTimeMs / mixDurMs) *
                   static_cast<float>(EnvelopeLutManager::lutSize - 1)
             : 0.0f;
-    const auto blendLutIdx =
-        std::min(static_cast<int>(blendLutPos), EnvelopeLutManager::lutSize - 1);
-    osc_.setBlend(bLut[static_cast<size_t>(blendLutIdx)]);
+    const auto mixLutIdx =
+        std::min(static_cast<int>(mixLutPos), EnvelopeLutManager::lutSize - 1);
+    osc_.setMix(bLut[static_cast<size_t>(mixLutIdx)]);
 
     // Gain LUT → エンベロープゲイン
     const float lutPos =

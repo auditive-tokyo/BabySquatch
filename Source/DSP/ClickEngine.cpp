@@ -39,13 +39,13 @@ void ClickEngine::triggerNote() {
 }
 
 auto ClickEngine::setupFilters(float sr) -> FilterFlags {
-  const float f1 = juce::jlimit(20.0f, sr * 0.49f, freq1_.load());
-  const float q1 = focus1_.load();
+  const float f1 = juce::jlimit(20.0f, sr * 0.49f, bpf1Params_.freq.load());
+  const float q1 = bpf1Params_.q.load();
   const float hpfF = juce::jlimit(20.0f, sr * 0.49f, hpfParams_.freq.load());
   const float hpfQv = hpfParams_.q.load();
   const float lpfF = juce::jlimit(20.0f, sr * 0.49f, lpfParams_.freq.load());
   const float lpfQv = lpfParams_.q.load();
-  const int bpf1Stg = bpf1Stages_.load();
+  const int bpf1Stg = bpf1Params_.stages.load();
   const int hpfStg = hpfParams_.stages.load();
   const int lpfStg = lpfParams_.stages.load();
 
@@ -109,6 +109,43 @@ float ClickEngine::synthesizeSample(int mode, const FilterFlags &flags,
   return s;
 }
 
+float ClickEngine::computeMaxTimeSamples(float sr, int mode,
+                                         double playRate) const {
+  if (mode != 2)
+    return decayMs_.load() * sr / 1000.0f;
+
+  const float ampDurMs = clickAmpLut_.getDurationMs();
+  const float ampDurSamples = ampDurMs * sr / 1000.0f;
+  const double dur = sampler_.durationSec();
+  const float samplerDurSamples =
+      (dur > 0.0 && playRate > 0.0)
+          ? static_cast<float>(dur / playRate * static_cast<double>(sr))
+          : 1e9f;
+  return std::min(ampDurSamples, samplerDurSamples);
+}
+
+float ClickEngine::computeSampleAmp(float noteTimeMs) const {
+  const auto &ampLut = clickAmpLut_.getActiveLut();
+  const float ampDurMs = clickAmpLut_.getDurationMs();
+  const float lutPos =
+      (ampDurMs > 0.0f)
+          ? (noteTimeMs / ampDurMs) *
+                static_cast<float>(EnvelopeLutManager::lutSize - 1)
+          : 0.0f;
+  const auto lutIdx =
+      std::min(static_cast<int>(lutPos), EnvelopeLutManager::lutSize - 1);
+  float amp = ampLut[static_cast<size_t>(lutIdx)];
+
+  // 末尾 5ms half-cosine フェードアウト
+  constexpr float fadeOutMs = 5.0f;
+  if (const float fadeStartMs = std::max(0.0f, ampDurMs - fadeOutMs);
+      noteTimeMs > fadeStartMs) {
+    const float t = (noteTimeMs - fadeStartMs) / fadeOutMs;
+    amp *= 0.5f * (1.0f + std::cos(t * juce::MathConstants<float>::pi));
+  }
+  return amp;
+}
+
 void ClickEngine::render(juce::AudioBuffer<float> &buffer, int numSamples,
                          bool clickPass, double sampleRate) {
   if (!active_.load()) {
@@ -133,19 +170,7 @@ void ClickEngine::render(juce::AudioBuffer<float> &buffer, int numSamples,
     playRate = 1.0;
 
   // 全体再生時間（停止判定用）
-  float maxTimeSamples;
-  if (mode == 2) {
-    const float ampDurMs = clickAmpLut_.getDurationMs();
-    const float ampDurSamples = ampDurMs * sr / 1000.0f;
-    const double dur = sampler_.durationSec();
-    const float samplerDurSamples = (dur > 0.0 && playRate > 0.0)
-                                        ? static_cast<float>(dur / playRate * sampleRate)
-                                        : 1e9f;
-    // Decay 期間とサンプル長の短い方で停止
-    maxTimeSamples = std::min(ampDurSamples, samplerDurSamples);
-  } else {
-    maxTimeSamples = decayMs * sr / 1000.0f;
-  }
+  const float maxTimeSamples = computeMaxTimeSamples(sr, mode, playRate);
 
   const FilterFlags flags = setupFilters(sr);
 
@@ -159,26 +184,8 @@ void ClickEngine::render(juce::AudioBuffer<float> &buffer, int numSamples,
 
     float amp;
     if (mode == 2) {
-      // LUT からエンベロープ値を読み出し
-      const auto &ampLut = clickAmpLut_.getActiveLut();
-      const float ampDurMs = clickAmpLut_.getDurationMs();
       const float noteTimeMs = noteTimeSamples_ * 1000.0f / sr;
-      const float lutPos =
-          (ampDurMs > 0.0f)
-              ? (noteTimeMs / ampDurMs) *
-                    static_cast<float>(EnvelopeLutManager::lutSize - 1)
-              : 0.0f;
-      const auto lutIdx = std::min(static_cast<int>(lutPos),
-                                   EnvelopeLutManager::lutSize - 1);
-      amp = ampLut[static_cast<size_t>(lutIdx)];
-
-      // 末尾 5ms half-cosine フェードアウト（Sub の lengthMs と同じ処理）
-      constexpr float fadeOutMs = 5.0f;
-      const float fadeStartMs = std::max(0.0f, ampDurMs - fadeOutMs);
-      if (noteTimeMs > fadeStartMs && fadeOutMs > 0.0f) {
-        const float t = (noteTimeMs - fadeStartMs) / fadeOutMs;
-        amp *= 0.5f * (1.0f + std::cos(t * juce::MathConstants<float>::pi));
-      }
+      amp = computeSampleAmp(noteTimeMs);
     } else {
       amp = std::exp(-noteTimeSamples_ * 5000.0f / (decayMs * sr + 1e-6f));
     }

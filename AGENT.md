@@ -150,6 +150,20 @@ BabySquatchは3つのモジュールで構成されています：
     - C++ file suffixes: `.cpp`, `.h`（`.h` を追加）
     - `sonar.cfamily.analysisMode=compileCommands`
 
+- **Click Drive エンベロープ制御（検討中）**
+  - 目的: Click の Drive 量を Sub の Saturate と同様にエンベロープ LUT で時間変化させる
+  - 現状の実装差異:
+    - **Sub**: `dist_`（`float` 0〜1 正規化）で保持 → DSP 内で `× 24` して dB 変換 → `Saturator::process()`。エンベロープ LUT (`distLut_`) あり
+    - **Click**: `driveDb_`（`float` 0〜24 dB 直値）で保持 → そのまま `Saturator::process()`。エンベロープ LUT なし
+    - `clipType_`（`int` 0/1/2）は両者同一
+  - 実装方針（Click 側を Sub 側の命名規則に合わせる）:
+    1. `ClickEngine` に `EnvelopeLutManager driveLut_` を追加
+    2. `driveDb_`（直値）→ `drive_`（0〜1 正規化）に変更し、DSP 内で `× 24` して dB 変換
+    3. `setDriveDb(float db)` → `setDrive(float drive01)` に変更
+    4. GUI 側: `driveSlider` の `onValueChange` で `v / 24.0f` を渡すよう修正
+    5. `EnvelopeDatas` に `clickDrive` を追加し、`EnvelopeCurveEditor` に接続
+  - 注意: Click の Drive は **UI ウィジェットは1個（共用）だが、値は `noiseState.drive` / `sampleState.drive` でモード別に独立保存・復元**されている。LUT を追加する場合も同様に Noise 用・Sample 用の2系統が必要（`ModeState` に `EnvelopeData` または LUT インデックスを追加してモード切り替え時に swap する形になる）
+
 - **プリセット管理 + デフォルトプリセット**
   - 目的: 全パラメーター（エンベロープ含む）の初期値をハードコードではなく設定ファイルとして管理。ユーザーリセット・将来のプリセット追加に対応
   - 方式: **JUCE `BinaryData` 埋め込み**（外部ファイル依存なし、単一バイナリ配布を維持）

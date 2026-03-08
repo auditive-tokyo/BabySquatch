@@ -15,13 +15,14 @@ class EnvelopeData;
 /// Mix）のカーブ＋制御点
 class EnvelopeCurveEditor : public juce::Component {
 public:
-  EnvelopeCurveEditor(EnvelopeData &ampData, EnvelopeData &pitchData,
-                      EnvelopeData &distData, EnvelopeData &blendData,
+  EnvelopeCurveEditor(EnvelopeData &ampData, EnvelopeData &freqData,
+                      EnvelopeData &distData, EnvelopeData &mixData,
                       EnvelopeData &clickAmpData);
 
   void paint(juce::Graphics &g) override;
 
-  /// 編集対象のエンベロープを切り替え（Amp / Freq / Saturate / Mix / Click Amp）
+  /// 編集対象のエンベロープを切り替え（Amp / Freq / Saturate / Mix / Click
+  /// Amp）
   enum class EditTarget { amp, freq, saturate, mix, clickAmp };
   void setEditTarget(EditTarget target);
 
@@ -29,7 +30,7 @@ public:
   void setWaveShape(WaveShape shape);
 
   /// 波形プレビュー用: Mix 値を設定（-1.0〜+1.0）
-  void setPreviewBlend(float blend);
+  void setPreviewMix(float mix);
 
   /// Direct チャンネル波形オーバーレイ用プロバイダーを設定。
   /// fn(timeSec) → {min, max}（-1、1）の波形値を返すラムダ。
@@ -78,9 +79,6 @@ private:
   float xToTimeMs(float x) const;
   float yToValue(float y) const;
 
-  /// 現在の編集対象に応じた値の {min, max}
-  std::pair<float, float> editValueRange() const;
-
   /// ピクセル空間でのヒット判定（-1: なし）
   int findPointAtPixel(float px, float py) const;
 
@@ -89,9 +87,10 @@ private:
 
   // ── paint() 分割ヘルパー ──
   void paintWaveform(juce::Graphics &g, float w, float h, float centreY) const;
-  void paintClickWaveform(juce::Graphics &g, float w, float h,
-                          float centreY) const;
-  void paintDirectWaveform(juce::Graphics &g, float w, float h,
+  void paintClickNoiseBand(juce::Graphics &g, float w, float h,
+                           float centreY) const;
+  void paintClickSampleWave(juce::Graphics &g, float w, float h,
+                            float centreY) const;  void paintDirectWaveform(juce::Graphics &g, float w, float h,
                            float centreY) const;
   void paintEnvelopeOverlay(juce::Graphics &g, float w) const;
   void paintTimeline(juce::Graphics &g, float w, float h, float totalH) const;
@@ -102,36 +101,34 @@ private:
   /// プロット領域の高さ（タイムライン分を差し引いた値）
   float plotHeight() const;
 
-  /// 位相から波形サンプル値を返す（プレビュー用算術式）
-  static float shapeOscValue(WaveShape shape, float phase);
-
   /// Mix + 波形選択に応じた1サンプルを返す（paintWaveform から委譲）
-  float computePreviewWaveValue(float sinVal, float blend, float phase) const;
+  float computePreviewWaveValue(float sinVal, float mix, float phase) const;
 
-  EnvelopeData &ampEnvData;
-  EnvelopeData &pitchEnvData;
-  EnvelopeData &distEnvData;
-  EnvelopeData &blendEnvData;
-  EnvelopeData &clickAmpEnvData;
-  EnvelopeData
-      *editEnvData; // 編集中のエンベロープ（Amp / Freq / Saturate / Mix / Click Amp）
+  // [0]=amp, [1]=freq, [2]=dist, [3]=mix, [4]=clickAmp
+  std::array<EnvelopeData *, 5> envDatas_;
+  EnvelopeData *editEnvData; // 編集中のエンベロープ
+
   EditTarget editTarget = EditTarget::amp;
   float displayDurationMs = 300.0f;
   float displayCycles = 4.0f;
   WaveShape previewShape = WaveShape::Sine;
-  float previewBlend = 0.0f; // Mix 値 -1.0〜+1.0
+  float previewMix = 0.0f;
   std::array<float, 4> previewHarmonicGains = {0.0f, 0.0f, 0.0f, 0.0f};
-  int dragPointIndex{-1};
-  int dragCurveSegment{-1}; // Shift+ドラッグ中のセグメント（-1: なし）
-  float dragCurveStartY{0.0f};   // ドラッグ開始 Y 座標
-  float dragCurveStartVal{0.0f}; // ドラッグ開始時の curve 値
+
+  struct DragState {
+    int pointIndex{-1};
+    int curveSegment{-1};
+    float startY{0.0f};
+    float startVal{0.0f};
+  };
+  DragState drag_;
+
   std::function<void()> onChange;
   std::function<void(EditTarget)> onEditTargetChanged;
-  std::function<float(float)> clickPreviewFn_; // Click Sample 波形プロバイダー
-  float clickDecayMs_ = 300.0f; // Click Sample Decay 期間（ms）
-  std::function<float(float)> clickNoiseEnvFn_; // Click Noise 帯プロバイダー
-  std::function<std::pair<float, float>(float)>
-      directPreviewFn_; // Direct 波形 {min,max} プロバイダー
+  std::function<float(float)> clickPreviewFn_;
+  float clickDecayMs_ = 300.0f;
+  std::function<float(float)> clickNoiseEnvFn_;
+  std::function<std::pair<float, float>(float)> directPreviewFn_;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(EnvelopeCurveEditor)
 };

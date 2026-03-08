@@ -48,68 +48,69 @@ void BabySquatchAudioProcessorEditor::setupPanelRouting(
 // ────────────────────────────────────────────────────
 void BabySquatchAudioProcessorEditor::onEnvelopeChanged() {
   const float durationMs = envelopeCurveEditor.getDisplayDurationMs();
-  bakeLut(ampEnvData, processorRef.subEngine().envLut(), durationMs);
-  bakeLut(pitchEnvData, processorRef.subEngine().pitchLut(), durationMs);
-  bakeLut(distEnvData, processorRef.subEngine().distLut(), durationMs);
-  bakeLut(blendEnvData, processorRef.subEngine().blendLut(), durationMs);
-  bakeLut(clickAmpEnvData, processorRef.clickEngine().clickAmpLut(), durationMs);
+  bakeLut(envDatas.amp, processorRef.subEngine().envLut(), durationMs);
+  bakeLut(envDatas.freq, processorRef.subEngine().freqLut(), durationMs);
+  bakeLut(envDatas.dist, processorRef.subEngine().distLut(), durationMs);
+  bakeLut(envDatas.mix, processorRef.subEngine().mixLut(), durationMs);
+  bakeLut(envDatas.clickAmp, processorRef.clickEngine().clickAmpLut(),
+          durationMs);
   // 1点=ノブ制御（有効化＋ポイント値をノブに反映）、2点以上=エンベロープ制御（無効化）
 
   // Amp
-  const bool ampCtrl = ampEnvData.isEnvelopeControlled();
+  const bool ampCtrl = envDatas.amp.isEnvelopeControlled();
   subUI.knobs[0].setEnabled(!ampCtrl);
   subUI.knobs[0].setTooltip(ampCtrl ? "Click on Amp label to edit envelope"
                                     : "");
-  if (!ampCtrl && ampEnvData.hasPoints()) {
-    const float v = ampEnvData.getPoints()[0].value;
-    ampEnvData.setDefaultValue(v);
+  if (!ampCtrl && envDatas.amp.hasPoints()) {
+    const float v = envDatas.amp.getPoints()[0].value;
+    envDatas.amp.setDefaultValue(v);
     subUI.knobs[0].setValue(v * 100.0, juce::dontSendNotification);
   }
 
   // Freq
-  const bool pitchCtrl = pitchEnvData.isEnvelopeControlled();
-  subUI.knobs[1].setEnabled(!pitchCtrl);
-  subUI.knobs[1].setTooltip(pitchCtrl ? "Click on Freq label to edit envelope"
-                                      : "");
-  if (!pitchCtrl && pitchEnvData.hasPoints()) {
-    const float hz = pitchEnvData.getPoints()[0].value;
-    pitchEnvData.setDefaultValue(hz);
+  const bool freqCtrl = envDatas.freq.isEnvelopeControlled();
+  subUI.knobs[1].setEnabled(!freqCtrl);
+  subUI.knobs[1].setTooltip(freqCtrl ? "Click on Freq label to edit envelope"
+                                     : "");
+  if (!freqCtrl && envDatas.freq.hasPoints()) {
+    const float hz = envDatas.freq.getPoints()[0].value;
+    envDatas.freq.setDefaultValue(hz);
     subUI.knobs[1].setValue(hz, juce::dontSendNotification);
     envelopeCurveEditor.setDisplayCycles(
         hz * envelopeCurveEditor.getDisplayDurationMs() / 1000.0f);
   }
 
   // Saturate
-  const bool distCtrl = distEnvData.isEnvelopeControlled();
+  const bool distCtrl = envDatas.dist.isEnvelopeControlled();
   subUI.knobs[3].setEnabled(!distCtrl);
   subUI.knobs[3].setTooltip(
       distCtrl ? "Click on Saturate label to edit envelope" : "");
-  if (!distCtrl && distEnvData.hasPoints()) {
-    const float v = distEnvData.getPoints()[0].value;
-    distEnvData.setDefaultValue(v);
+  if (!distCtrl && envDatas.dist.hasPoints()) {
+    const float v = envDatas.dist.getPoints()[0].value;
+    envDatas.dist.setDefaultValue(v);
     subUI.knobs[3].setValue(v * 24.0, juce::dontSendNotification);
   }
 
   // Mix
-  const bool blendCtrl = blendEnvData.isEnvelopeControlled();
-  subUI.knobs[2].setEnabled(!blendCtrl);
-  subUI.knobs[2].setTooltip(blendCtrl ? "Click on Mix label to edit envelope"
-                                      : "");
-  if (!blendCtrl && blendEnvData.hasPoints()) {
-    const float v = blendEnvData.getPoints()[0].value;
-    blendEnvData.setDefaultValue(v);
+  const bool mixCtrl = envDatas.mix.isEnvelopeControlled();
+  subUI.knobs[2].setEnabled(!mixCtrl);
+  subUI.knobs[2].setTooltip(mixCtrl ? "Click on Mix label to edit envelope"
+                                    : "");
+  if (!mixCtrl && envDatas.mix.hasPoints()) {
+    const float v = envDatas.mix.getPoints()[0].value;
+    envDatas.mix.setDefaultValue(v);
     subUI.knobs[2].setValue(v * 100.0, juce::dontSendNotification);
-    envelopeCurveEditor.setPreviewBlend(v);
+    envelopeCurveEditor.setPreviewMix(v);
   }
 
   // Click Amp
-  const bool clickAmpCtrl = clickAmpEnvData.isEnvelopeControlled();
+  const bool clickAmpCtrl = envDatas.clickAmp.isEnvelopeControlled();
   clickUI.sample.amp.slider.setEnabled(!clickAmpCtrl);
   clickUI.sample.amp.slider.setTooltip(
       clickAmpCtrl ? "Click on Amp label to edit envelope" : "");
-  if (!clickAmpCtrl && clickAmpEnvData.hasPoints()) {
-    const float v = clickAmpEnvData.getPoints()[0].value;
-    clickAmpEnvData.setDefaultValue(v);
+  if (!clickAmpCtrl && envDatas.clickAmp.hasPoints()) {
+    const float v = envDatas.clickAmp.getPoints()[0].value;
+    envDatas.clickAmp.setDefaultValue(v);
     clickUI.sample.amp.slider.setValue(v * 100.0, juce::dontSendNotification);
   }
 }
@@ -181,7 +182,7 @@ BabySquatchAudioProcessorEditor::BabySquatchAudioProcessorEditor(
                     UIConstants::Colours::panelBg.withAlpha(0.0f));
   infoBox.setJustificationType(juce::Justification::centredLeft);
 
-  pitchEnvData.setDefaultValue(200.0f);
+  envDatas.freq.setDefaultValue(200.0f);
 
   setupPanelRouting(p);
   setupEnvelopeCurveEditor();
@@ -190,11 +191,6 @@ BabySquatchAudioProcessorEditor::BabySquatchAudioProcessorEditor(
   setupSubKnobsRow();
   setupWaveShapeCombo();
   setupLengthBox();
-  setupPitchKnob();
-  setupAmpKnob();
-  setupBlendKnob();
-  setupDistKnob();
-  setupHarmonicKnobs();
 
   // マスターフェーダー配線
   masterSection.setOnValueChange(
@@ -281,7 +277,12 @@ void BabySquatchAudioProcessorEditor::resized() {
     auto bottomRow = contentArea.removeFromBottom(22);
     contentArea.removeFromBottom(4); // ギャップ
     const int lengthPartW = bottomRow.getWidth() / 2;
-    layoutLengthBox(bottomRow.removeFromLeft(lengthPartW));
+    {
+      auto lengthArea = bottomRow.removeFromLeft(lengthPartW);
+      constexpr int labelW = 36;
+      subUI.length.label.setBounds(lengthArea.removeFromLeft(labelW));
+      subUI.length.slider.setBounds(lengthArea);
+    }
     constexpr int waveLabelW = 36;
     subUI.wave.label.setBounds(bottomRow.removeFromLeft(waveLabelW));
     subUI.wave.combo.setBounds(bottomRow);

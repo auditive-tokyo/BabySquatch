@@ -214,17 +214,17 @@ void BabySquatchAudioProcessorEditor::setupClickParams() {
   clickUI.sample.amp.slider.onValueChange = [this] {
     const float v =
         static_cast<float>(clickUI.sample.amp.slider.getValue()) / 100.0f;
-    clickAmpEnvData.setDefaultValue(v);
-    if (!clickAmpEnvData.isEnvelopeControlled())
-      clickAmpEnvData.setPointValue(0, v);
-    bakeLut(clickAmpEnvData, processorRef.clickEngine().clickAmpLut(),
+    envDatas.clickAmp.setDefaultValue(v);
+    if (!envDatas.clickAmp.isEnvelopeControlled())
+      envDatas.clickAmp.setPointValue(0, v);
+    bakeLut(envDatas.clickAmp, processorRef.clickEngine().clickAmpLut(),
             envelopeCurveEditor.getDisplayDurationMs());
     envelopeCurveEditor.repaint();
   };
   // 初期デフォルトポイント（1点：ノブ制御状態）
-  clickAmpEnvData.addPoint(0.0f, clickAmpEnvData.getDefaultValue());
+  envDatas.clickAmp.addPoint(0.0f, envDatas.clickAmp.getDefaultValue());
   {
-    const bool controlled = clickAmpEnvData.isEnvelopeControlled();
+    const bool controlled = envDatas.clickAmp.isEnvelopeControlled();
     clickUI.sample.amp.slider.setEnabled(!controlled);
     clickUI.sample.amp.slider.setTooltip(
         controlled ? "Click on Amp label to edit envelope" : "");
@@ -250,11 +250,11 @@ void BabySquatchAudioProcessorEditor::setupClickParams() {
   clickUI.sample.decay.slider.onValueChange = [this] {
     const auto durMs =
         static_cast<float>(clickUI.sample.decay.slider.getValue());
-    bakeLut(clickAmpEnvData, processorRef.clickEngine().clickAmpLut(), durMs);
+    bakeLut(envDatas.clickAmp, processorRef.clickEngine().clickAmpLut(), durMs);
     envelopeCurveEditor.setClickDecayMs(durMs);
   };
   // 起動時に LUT 期間を初期値へ反映（setupLengthBox 実行後に上書きされる）
-  bakeLut(clickAmpEnvData, processorRef.clickEngine().clickAmpLut(), 300.0f);
+  bakeLut(envDatas.clickAmp, processorRef.clickEngine().clickAmpLut(), 300.0f);
   styleKnobLabel(clickUI.sample.decay.label, "Decay", tinyFont);
   clickUI.sample.decay.slider.setVisible(false);
   clickUI.sample.decay.label.setVisible(false);
@@ -336,7 +336,7 @@ void BabySquatchAudioProcessorEditor::layoutClickParams(
   const int slotW = area.getWidth() / 4;
   const int rowH = area.getHeight() / 2;
 
-  // 上段4ノブ: Sample → Pitch/A/D/R, Noise → BP/Q/Drive/ClipType
+  // 上段4ノブ: Sample → Pitch/Amp/Drive/Decay, Noise → BP/Q/Drive/ClipType
   if (isSample) {
     // スロット 0=Pitch, 1=Amp, 2=Drive/ClipType（Noiseと共用）, 3=Decay
     const std::array<juce::Slider *, 4> topKnobs = {
@@ -430,32 +430,30 @@ void BabySquatchAudioProcessorEditor::setClickModeVisible(bool isSample) {
 }
 
 // ── モード切替: 共有ウィジェットの状態を保存 ──
-void BabySquatchAudioProcessorEditor::saveClickModeState(
-    ClickUI::ModeState &dst) {
-  dst.hpfFreq = clickUI.hpf.slider.getValue();
-  dst.hpfQ = clickUI.hpf.qSlider.getValue();
-  dst.hpfSlope = clickUI.hpf.slope.getSlope();
-  dst.lpfFreq = clickUI.lpf.slider.getValue();
-  dst.lpfQ = clickUI.lpf.qSlider.getValue();
-  dst.lpfSlope = clickUI.lpf.slope.getSlope();
-  dst.drive = clickUI.noise.saturator.driveSlider.getValue();
-  dst.clipType = clickUI.noise.saturator.clipType.getSelected();
+void BabySquatchAudioProcessorEditor::ClickUI::saveModeState(
+    ModeState &dst) const {
+  dst.hpfFreq = hpf.slider.getValue();
+  dst.hpfQ = hpf.qSlider.getValue();
+  dst.hpfSlope = hpf.slope.getSlope();
+  dst.lpfFreq = lpf.slider.getValue();
+  dst.lpfQ = lpf.qSlider.getValue();
+  dst.lpfSlope = lpf.slope.getSlope();
+  dst.drive = noise.saturator.driveSlider.getValue();
+  dst.clipType = noise.saturator.clipType.getSelected();
 }
 
 // ── モード切替: 共有ウィジェットへ状態を復元し DSP へ反映 ──
-void BabySquatchAudioProcessorEditor::restoreClickModeState(
-    const ClickUI::ModeState &src) {
-  clickUI.hpf.slider.setValue(src.hpfFreq, juce::dontSendNotification);
-  clickUI.hpf.qSlider.setValue(src.hpfQ, juce::dontSendNotification);
-  clickUI.hpf.slope.setSlope(src.hpfSlope);
-  clickUI.lpf.slider.setValue(src.lpfFreq, juce::dontSendNotification);
-  clickUI.lpf.qSlider.setValue(src.lpfQ, juce::dontSendNotification);
-  clickUI.lpf.slope.setSlope(src.lpfSlope);
-  clickUI.noise.saturator.driveSlider.setValue(src.drive,
-                                               juce::dontSendNotification);
-  clickUI.noise.saturator.clipType.setSelected(src.clipType);
+void BabySquatchAudioProcessorEditor::ClickUI::restoreModeState(
+    const ModeState &src, ClickEngine &eng) {
+  hpf.slider.setValue(src.hpfFreq, juce::dontSendNotification);
+  hpf.qSlider.setValue(src.hpfQ, juce::dontSendNotification);
+  hpf.slope.setSlope(src.hpfSlope);
+  lpf.slider.setValue(src.lpfFreq, juce::dontSendNotification);
+  lpf.qSlider.setValue(src.lpfQ, juce::dontSendNotification);
+  lpf.slope.setSlope(src.lpfSlope);
+  noise.saturator.driveSlider.setValue(src.drive, juce::dontSendNotification);
+  noise.saturator.clipType.setSelected(src.clipType);
 
-  auto &eng = processorRef.clickEngine();
   eng.setHpfFreq(static_cast<float>(src.hpfFreq));
   eng.setHpfQ(static_cast<float>(src.hpfQ));
   eng.setHpfSlope(src.hpfSlope);
@@ -468,12 +466,12 @@ void BabySquatchAudioProcessorEditor::restoreClickModeState(
 
 void BabySquatchAudioProcessorEditor::applyClickSampleMode() {
   // 旧モード（Noise）の共有パラメーターを保存
-  saveClickModeState(clickUI.noiseState);
+  clickUI.saveModeState(clickUI.noiseState);
 
   setClickModeVisible(true);
 
   // Sample モードの保存値を復元
-  restoreClickModeState(clickUI.sampleState);
+  clickUI.restoreModeState(clickUI.sampleState, processorRef.clickEngine());
 
   // Sample 専用パラメーターを DSP へ
   processorRef.clickEngine().setPitchSemitones(
@@ -487,12 +485,12 @@ void BabySquatchAudioProcessorEditor::applyClickSampleMode() {
 
 void BabySquatchAudioProcessorEditor::applyClickNoiseMode(int m) {
   // 旧モード（Sample）の共有パラメーターを保存
-  saveClickModeState(clickUI.sampleState);
+  clickUI.saveModeState(clickUI.sampleState);
 
   setClickModeVisible(false);
 
   // Noise モードの保存値を復元
-  restoreClickModeState(clickUI.noiseState);
+  clickUI.restoreModeState(clickUI.noiseState, processorRef.clickEngine());
 
   // Noise 専用パラメーターを DSP へ
   processorRef.clickEngine().setDecayMs(

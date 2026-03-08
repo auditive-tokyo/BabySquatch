@@ -39,14 +39,8 @@ private:
   void setClickModeVisible(bool isSample);
   void applyClickSampleMode();
   void applyClickNoiseMode(int m);
-  void layoutLengthBox(juce::Rectangle<int> btnRow);
   void setupLengthBox();
   void setupWaveShapeCombo();
-  void setupPitchKnob();
-  void setupAmpKnob();
-  void setupBlendKnob();
-  void setupDistKnob();
-  void setupHarmonicKnobs();
   void layoutSubKnobsRow(juce::Rectangle<int> knobRow);
   void setupSubKnobsRow();
 
@@ -57,13 +51,17 @@ private:
   // ── 共有展開エリア（常時表示） ──
   BabySquatchAudioProcessor &processorRef;
   KeyboardComponent keyboard;
-  EnvelopeData ampEnvData;
-  EnvelopeData pitchEnvData;
-  EnvelopeData distEnvData;
-  EnvelopeData blendEnvData;
-  EnvelopeData clickAmpEnvData;
-  EnvelopeCurveEditor envelopeCurveEditor{ampEnvData, pitchEnvData, distEnvData,
-                                          blendEnvData, clickAmpEnvData};
+  struct EnvelopeDatas {
+    EnvelopeData amp;
+    EnvelopeData freq;
+    EnvelopeData dist;
+    EnvelopeData mix;
+    EnvelopeData clickAmp;
+  };
+  EnvelopeDatas envDatas;
+  EnvelopeCurveEditor envelopeCurveEditor{envDatas.amp, envDatas.freq,
+                                          envDatas.dist, envDatas.mix,
+                                          envDatas.clickAmp};
 
   // ── マスターセクション（鍵盤右余白エリア） ──
   MasterFader masterSection;
@@ -98,6 +96,8 @@ private:
   struct SubUI {
     std::array<CustomSlider, 8> knobs;
     std::array<juce::Label, 8> knobLabels;
+    UIConstants::LabelSelector saturateClipType{
+        {"Soft", "Hard", "Tube"}, UIConstants::Colours::subArc};
     struct {
       juce::Label label;
       juce::ComboBox combo;
@@ -180,10 +180,13 @@ private:
     ModeState noiseState;  ///< Noise モード保存値
     ModeState sampleState; ///< Sample モード保存値
     std::function<float(float)> noiseProvider;
+
+    /// 共有ウィジェットの状態を ModeState へ保存
+    void saveModeState(ModeState &dst) const;
+    /// ModeState から共有ウィジェット＋DSP へ復元
+    void restoreModeState(const ModeState &src, ClickEngine &eng);
   };
   ClickUI clickUI;
-  void saveClickModeState(ClickUI::ModeState &dst);
-  void restoreClickModeState(const ClickUI::ModeState &src);
 
   // ── DIRECTパネル ──
   struct DirectUI {

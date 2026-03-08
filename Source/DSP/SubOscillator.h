@@ -41,8 +41,8 @@ public:
   WaveShape getWaveShape() const;
 
   /// Mix 値を設定（UIスレッドから呼び出し可）
-  /// @param blend -1.0〜+1.0（0=Sine, -1=Wavetable, +1=Additive）
-  void setBlend(float blend);
+  /// @param mix -1.0〜+1.0（0=Sine, -1=Wavetable, +1=Additive）
+  void setMix(float mix);
 
   /// Tone1〜Tone4 倍音ゲイン設定（UIスレッドから呼び出し可）
   /// @param n 倍音番号 1〜4（Tone1=基底音×1, Tone2=×2, Tone3=×3, Tone4=×4）
@@ -53,13 +53,15 @@ public:
   /// @param drive01 0.0〜1.0（0=クリーン、1=フルドライブ）
   void setDist(float drive01);
 
+  /// ClipType を設定: 0=Soft(tanh), 1=Hard, 2=Tube
+  void setClipType(int t);
+
   // ── 定数（外部から参照可能にするため public）──
-  static constexpr int tableSize  = 2048;
-  static constexpr int numBands   = 10;   // 20Hz〜20480Hz を 10 オクターブ分割
-  static constexpr int numShapes  = 4;    // Sine / Tri / Square / Saw
+  static constexpr int tableSize = 2048;
+  static constexpr int numBands = 10; // 20Hz〜20480Hz を 10 オクターブ分割
+  static constexpr int numShapes = 4; // Sine / Tri / Square / Saw
 
 private:
-
   /// [shape][band] → tableSize+1 要素（wrap用に +1）
   std::array<std::array<std::vector<float>, numBands>, numShapes> tables;
 
@@ -67,21 +69,22 @@ private:
   bool active = false;
   double sampleRate = 44100.0;
   float currentIndex = 0.0f;
-  float tableDelta   = 0.0f;  // phaseIncrement に相当
+  float tableDelta = 0.0f; // phaseIncrement に相当
 
   /// setFrequencyHz() が算出した帯域テーブルへのポインタ（Sine 用）
-  const float* activeSineTable = nullptr;
+  const float *activeSineTable = nullptr;
   /// setFrequencyHz() が算出した帯域テーブルへのポインタ（選択波形用）
-  const float* activeShapeTable = nullptr;
+  const float *activeShapeTable = nullptr;
 
-  std::atomic<int> currentShape{0};  // WaveShape の int 値
+  std::atomic<int> currentShape{0}; // WaveShape の int 値
   int activeBand = 0;
 
   // ── Mix ──
-  std::atomic<float> blend_{0.0f};  // -1.0〜+1.0
+  std::atomic<float> mix_{0.0f}; // -1.0〜+1.0
 
   // ── Saturate ──
-  std::atomic<float> dist_{0.0f};  // 0.0〜1.0（UI値そのまま）
+  std::atomic<float> dist_{0.0f}; // 0.0〜1.0（UI値そのまま）
+  std::atomic<int> clipType_{0};  // 0=Soft, 1=Hard, 2=Tube
 
   // ── Tone1〜Tone4 加算合成 ──
   static constexpr int numHarmonics = 4;
@@ -89,12 +92,13 @@ private:
     float phase = 0.0f;
   };
   std::array<HarmonicOsc, numHarmonics> harmonics{};
-  std::array<std::atomic<float>, numHarmonics> harmonicGains{0.0f, 0.0f, 0.0f, 0.0f};
+  std::array<std::atomic<float>, numHarmonics> harmonicGains{0.0f, 0.0f, 0.0f,
+                                                             0.0f};
 
   // ── テーブル構築 ──
   void buildAllTables();
   static int bandIndexForFreq(float hz);
 
   /// テーブルから線形補間で1サンプル読み出す
-  float readTable(const float* table) const;
+  float readTable(const float *table) const;
 };

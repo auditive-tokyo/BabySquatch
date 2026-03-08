@@ -1,4 +1,5 @@
 #include "SubOscillator.h"
+#include "Saturator.h"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -59,11 +60,19 @@ static void buildShapeBandTable(std::vector<float> &tbl, WaveShape ws,
     const double phase = twoPi * i / SubOscillator::tableSize;
     double sample = 0.0;
     switch (ws) {
-    using enum WaveShape;
-    case Sine:   sample = std::sin(phase); break;
-    case Tri:    sample = computeTriSample(phase, maxHarmonic); break;
-    case Square: sample = computeSquareSample(phase, maxHarmonic); break;
-    case Saw:    sample = computeSawSample(phase, maxHarmonic); break;
+      using enum WaveShape;
+    case Sine:
+      sample = std::sin(phase);
+      break;
+    case Tri:
+      sample = computeTriSample(phase, maxHarmonic);
+      break;
+    case Square:
+      sample = computeSquareSample(phase, maxHarmonic);
+      break;
+    case Saw:
+      sample = computeSawSample(phase, maxHarmonic);
+      break;
     }
     tbl[static_cast<size_t>(i)] = static_cast<float>(sample);
   }
@@ -110,7 +119,7 @@ void SubOscillator::triggerNote() {
   active = true;
   currentIndex = 0.0f;
   // Tone1〜Tone4 位相リセット
-  for (auto& h : harmonics)
+  for (auto &h : harmonics)
     h.phase = 0.0f;
 }
 
@@ -149,10 +158,10 @@ WaveShape SubOscillator::getWaveShape() const {
 }
 
 // ────────────────────────────────────────────────────
-// setBlend — Mix 値設定（-1.0〜+1.0）
+// setMix — Mix 値設定（-1.0〜+1.0）
 // ────────────────────────────────────────────────────
-void SubOscillator::setBlend(float blend) {
-  blend_.store(std::clamp(blend, -1.0f, 1.0f));
+void SubOscillator::setMix(float mix) {
+  mix_.store(std::clamp(mix, -1.0f, 1.0f));
 }
 
 // ────────────────────────────────────────────────────
@@ -161,6 +170,11 @@ void SubOscillator::setBlend(float blend) {
 void SubOscillator::setDist(float drive01) {
   dist_.store(std::clamp(drive01, 0.0f, 1.0f));
 }
+
+// ────────────────────────────────────────────────────
+// setClipType — ClipType 設定（0=Soft, 1=Hard, 2=Tube）
+// ────────────────────────────────────────────────────
+void SubOscillator::setClipType(int t) { clipType_.store(std::clamp(t, 0, 2)); }
 
 // ────────────────────────────────────────────────────
 // setHarmonicGain — Tone1〜Tone4 倍音ゲイン設定
@@ -197,9 +211,8 @@ float SubOscillator::getNextSample() {
 
   // Tone1〜Tone4 加算合成（gain=0 のハーモニクスはスキップ）
   float additiveSample = 0.0f;
-  const float phaseDelta =
-      tableDelta * (juce::MathConstants<float>::twoPi /
-                    static_cast<float>(tableSize));
+  const float phaseDelta = tableDelta * (juce::MathConstants<float>::twoPi /
+                                         static_cast<float>(tableSize));
   for (int n = 0; n < numHarmonics; ++n) {
     const float g = harmonicGains[static_cast<size_t>(n)].load();
     if (g > 0.0f) {
@@ -214,7 +227,7 @@ float SubOscillator::getNextSample() {
   }
 
   // Mix クロスフェード
-  const float b = blend_.load();
+  const float b = mix_.load();
   float sample;
   if (b <= 0.0f) {
     // 左側: Sine ← → Wavetable（Tri/Sqr/Saw）
@@ -225,10 +238,10 @@ float SubOscillator::getNextSample() {
     sample = std::lerp(sineSample, additiveSample, b);
   }
 
-  // Distortion（tanh soft-clip — 常時適用、Saturate=0 でも軽いサチュレーション）
+  // Distortion（Soft/Hard/Tube 3モード）
   const float d = dist_.load();
-  const float drive = std::pow(10.0f, d * 24.0f / 20.0f); // 0〜24 dB → 1.0〜15.85
-  sample = std::tanh(drive * sample) / std::tanh(drive);
+  const float driveDb = d * 24.0f; // 0〜1 → 0〜24 dB
+  sample = Saturator::process(sample, driveDb, clipType_.load());
 
   currentIndex += tableDelta;
   if (currentIndex >= static_cast<float>(tableSize))
