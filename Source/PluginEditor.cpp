@@ -52,6 +52,7 @@ void BabySquatchAudioProcessorEditor::onEnvelopeChanged() {
   bakeLut(pitchEnvData, processorRef.subEngine().pitchLut(), durationMs);
   bakeLut(distEnvData, processorRef.subEngine().distLut(), durationMs);
   bakeLut(blendEnvData, processorRef.subEngine().blendLut(), durationMs);
+  bakeLut(clickAmpEnvData, processorRef.clickEngine().clickAmpLut(), durationMs);
   // 1点=ノブ制御（有効化＋ポイント値をノブに反映）、2点以上=エンベロープ制御（無効化）
 
   // Amp
@@ -100,6 +101,17 @@ void BabySquatchAudioProcessorEditor::onEnvelopeChanged() {
     subUI.knobs[2].setValue(v * 100.0, juce::dontSendNotification);
     envelopeCurveEditor.setPreviewBlend(v);
   }
+
+  // Click Amp
+  const bool clickAmpCtrl = clickAmpEnvData.isEnvelopeControlled();
+  clickUI.sample.amp.slider.setEnabled(!clickAmpCtrl);
+  clickUI.sample.amp.slider.setTooltip(
+      clickAmpCtrl ? "Click on Amp label to edit envelope" : "");
+  if (!clickAmpCtrl && clickAmpEnvData.hasPoints()) {
+    const float v = clickAmpEnvData.getPoints()[0].value;
+    clickAmpEnvData.setDefaultValue(v);
+    clickUI.sample.amp.slider.setValue(v * 100.0, juce::dontSendNotification);
+  }
 }
 
 // ────────────────────────────────────────────────────
@@ -121,6 +133,8 @@ void BabySquatchAudioProcessorEditor::mouseDown(const juce::MouseEvent &e) {
     switchEditTarget(mix);
   else if (e.eventComponent == &subUI.knobLabels[3])
     switchEditTarget(saturate);
+  else if (e.eventComponent == &clickUI.sample.amp.label)
+    switchEditTarget(clickAmp);
 }
 
 void BabySquatchAudioProcessorEditor::switchEditTarget(
@@ -138,6 +152,10 @@ void BabySquatchAudioProcessorEditor::switchEditTarget(
                                               : kLabel);
   subUI.knobLabels[2].setColour(juce::Label::textColourId,
                                 t == mix ? juce::Colour(0xFF4CAF50) : kLabel);
+  // Click Sample Amp label
+  clickUI.sample.amp.label.setColour(
+      juce::Label::textColourId,
+      t == clickAmp ? UIConstants::Colours::clickArc : kLabel);
 }
 
 // ────────────────────────────────────────────────────

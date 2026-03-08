@@ -16,12 +16,13 @@ class EnvelopeData;
 class EnvelopeCurveEditor : public juce::Component {
 public:
   EnvelopeCurveEditor(EnvelopeData &ampData, EnvelopeData &pitchData,
-                      EnvelopeData &distData, EnvelopeData &blendData);
+                      EnvelopeData &distData, EnvelopeData &blendData,
+                      EnvelopeData &clickAmpData);
 
   void paint(juce::Graphics &g) override;
 
-  /// 編集対象のエンベロープを切り替え（Amp / Freq / Saturate / Mix）
-  enum class EditTarget { amp, freq, saturate, mix };
+  /// 編集対象のエンベロープを切り替え（Amp / Freq / Saturate / Mix / Click Amp）
+  enum class EditTarget { amp, freq, saturate, mix, clickAmp };
   void setEditTarget(EditTarget target);
 
   /// 波形プレビュー用: 選択波形を設定（Sine/Tri/Square/Saw）
@@ -39,6 +40,9 @@ public:
   /// fn(timeSec) → -1.0〜+1.0 の振幅値を返すラムダ。
   /// nullptr を渡すとオーバーレイを無効化。
   void setClickPreviewProvider(std::function<float(float)> fn);
+
+  /// Click Sample Decay 期間を設定（5msフェードアウトの基準）
+  void setClickDecayMs(float ms);
 
   /// Noise モード用: fn(timeSec) → 振幅 0〜1 を返す。±env の帯として描画。
   void setClickNoiseEnvProvider(std::function<float(float)> fn);
@@ -108,8 +112,9 @@ private:
   EnvelopeData &pitchEnvData;
   EnvelopeData &distEnvData;
   EnvelopeData &blendEnvData;
+  EnvelopeData &clickAmpEnvData;
   EnvelopeData
-      *editEnvData; // 編集中のエンベロープ（Amp / Freq / Saturate / Mix）
+      *editEnvData; // 編集中のエンベロープ（Amp / Freq / Saturate / Mix / Click Amp）
   EditTarget editTarget = EditTarget::amp;
   float displayDurationMs = 300.0f;
   float displayCycles = 4.0f;
@@ -123,6 +128,7 @@ private:
   std::function<void()> onChange;
   std::function<void(EditTarget)> onEditTargetChanged;
   std::function<float(float)> clickPreviewFn_; // Click Sample 波形プロバイダー
+  float clickDecayMs_ = 300.0f; // Click Sample Decay 期間（ms）
   std::function<float(float)> clickNoiseEnvFn_; // Click Noise 帯プロバイダー
   std::function<std::pair<float, float>(float)>
       directPreviewFn_; // Direct 波形 {min,max} プロバイダー

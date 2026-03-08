@@ -61,8 +61,9 @@ private:
   EnvelopeData pitchEnvData;
   EnvelopeData distEnvData;
   EnvelopeData blendEnvData;
+  EnvelopeData clickAmpEnvData;
   EnvelopeCurveEditor envelopeCurveEditor{ampEnvData, pitchEnvData, distEnvData,
-                                          blendEnvData};
+                                          blendEnvData, clickAmpEnvData};
 
   // ── マスターセクション（鍵盤右余白エリア） ──
   MasterFader masterSection;
@@ -154,9 +155,20 @@ private:
       std::vector<float> thumbMax;
       double thumbDurSec = 0.0;
       KnobUI pitch;
-      KnobUI attack;
-      KnobUI hold;
-      KnobUI release;
+      KnobUI amp; ///< 0〜200% 振幅スケーラー（Sub の Amp と同等）
+      KnobUI decay; ///< Noiseモードの Decay と完全別管理（初期値 = Sub length）
+    };
+
+    /// モード毎に独立保存されるパラメーター状態
+    struct ModeState {
+      double hpfFreq = 20.0; // Hz (20=bypass)
+      double hpfQ = 0.71;
+      int hpfSlope = 12;        // 12/24/48
+      double lpfFreq = 20000.0; // Hz (20000=bypass)
+      double lpfQ = 0.71;
+      int lpfSlope = 12;
+      double drive = 0.0; // dB
+      int clipType = 0;   // 0=Soft,1=Hard,2=Tube
     };
 
     juce::Label modeLabel;
@@ -165,9 +177,13 @@ private:
     FilterBand hpf{"HP"};
     FilterBand lpf{"LP"};
     SampleUI sample;
+    ModeState noiseState;  ///< Noise モード保存値
+    ModeState sampleState; ///< Sample モード保存値
     std::function<float(float)> noiseProvider;
   };
   ClickUI clickUI;
+  void saveClickModeState(ClickUI::ModeState &dst);
+  void restoreClickModeState(const ClickUI::ModeState &src);
 
   // ── DIRECTパネル ──
   struct DirectUI {

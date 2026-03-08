@@ -209,6 +209,16 @@ public:
   void setOnChange(std::function<void(int)> cb) { onChange_ = std::move(cb); }
   int getSelected() const noexcept { return selected_; }
 
+  void setSelected(int idx, bool notify = false) {
+    idx = juce::jlimit(0, 2, idx);
+    if (idx != selected_) {
+      selected_ = idx;
+      repaint();
+      if (notify && onChange_)
+        onChange_(selected_);
+    }
+  }
+
   void paint(juce::Graphics &g) override {
     const auto font = juce::Font(juce::FontOptions(fontSizeSmall));
     g.setFont(font);

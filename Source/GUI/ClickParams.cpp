@@ -1,6 +1,7 @@
 // ClickParams.cpp
 // Click panel UI setup / layout
 #include "../PluginEditor.h"
+#include "LutBaker.h"
 #include "WaveformUtils.h"
 
 namespace {
@@ -202,56 +203,63 @@ void BabySquatchAudioProcessorEditor::setupClickParams() {
   addAndMakeVisible(clickUI.sample.pitch.slider);
   addAndMakeVisible(clickUI.sample.pitch.label);
 
-  // Attack: 0.1–500 ms
-  styleClickKnob(clickUI.sample.attack.slider, clickKnobLAF);
-  clickUI.sample.attack.slider.setRange(0.1, 500.0, 0.1);
-  clickUI.sample.attack.slider.setSkewFactorFromMidPoint(20.0);
-  clickUI.sample.attack.slider.setDoubleClickReturnValue(true, 1.0);
-  clickUI.sample.attack.slider.setValue(1.0, juce::dontSendNotification);
-  clickUI.sample.attack.slider.onValueChange = [this] {
-    processorRef.clickEngine().setAttackMs(
-        static_cast<float>(clickUI.sample.attack.slider.getValue()));
-    refreshClickSampleProvider();
+  // Amp: 0–200%（Sub Amp と同等）
+  styleClickKnob(clickUI.sample.amp.slider, clickKnobLAF);
+  clickUI.sample.amp.slider.setRange(0.0, 200.0, 0.1);
+  clickUI.sample.amp.slider.setDoubleClickReturnValue(true, 100.0);
+  clickUI.sample.amp.slider.setValue(100.0, juce::dontSendNotification);
+  clickUI.sample.amp.slider.onDragStart = [this] {
+    switchEditTarget(EnvelopeCurveEditor::EditTarget::clickAmp);
   };
-  styleKnobLabel(clickUI.sample.attack.label, "A", tinyFont);
-  clickUI.sample.attack.slider.setVisible(false);
-  clickUI.sample.attack.label.setVisible(false);
-  addAndMakeVisible(clickUI.sample.attack.slider);
-  addAndMakeVisible(clickUI.sample.attack.label);
+  clickUI.sample.amp.slider.onValueChange = [this] {
+    const float v =
+        static_cast<float>(clickUI.sample.amp.slider.getValue()) / 100.0f;
+    clickAmpEnvData.setDefaultValue(v);
+    if (!clickAmpEnvData.isEnvelopeControlled())
+      clickAmpEnvData.setPointValue(0, v);
+    bakeLut(clickAmpEnvData, processorRef.clickEngine().clickAmpLut(),
+            envelopeCurveEditor.getDisplayDurationMs());
+    envelopeCurveEditor.repaint();
+  };
+  // 初期デフォルトポイント（1点：ノブ制御状態）
+  clickAmpEnvData.addPoint(0.0f, clickAmpEnvData.getDefaultValue());
+  {
+    const bool controlled = clickAmpEnvData.isEnvelopeControlled();
+    clickUI.sample.amp.slider.setEnabled(!controlled);
+    clickUI.sample.amp.slider.setTooltip(
+        controlled ? "Click on Amp label to edit envelope" : "");
+  }
+  styleKnobLabel(clickUI.sample.amp.label, "Amp", tinyFont);
+  clickUI.sample.amp.label.addMouseListener(this, false);
+  clickUI.sample.amp.slider.setVisible(false);
+  clickUI.sample.amp.label.setVisible(false);
+  addAndMakeVisible(clickUI.sample.amp.slider);
+  addAndMakeVisible(clickUI.sample.amp.label);
 
-  // Hold (D): 1–2000 ms（ラベルは "D"）
-  styleClickKnob(clickUI.sample.hold.slider, clickKnobLAF);
-  clickUI.sample.hold.slider.setRange(1.0, 2000.0, 1.0);
-  clickUI.sample.hold.slider.setSkewFactorFromMidPoint(200.0);
-  clickUI.sample.hold.slider.setDoubleClickReturnValue(true, 200.0);
-  clickUI.sample.hold.slider.setValue(200.0, juce::dontSendNotification);
-  clickUI.sample.hold.slider.onValueChange = [this] {
-    processorRef.clickEngine().setDecayMs(
-        static_cast<float>(clickUI.sample.hold.slider.getValue()));
-    refreshClickSampleProvider();
+  // Sample Decay: エンベロープ LUT の期間を制御（Noiseモードの Decay
+  // とは完全別） 初期値 = Sub lengthのデフォルト 300 ms
+  styleClickKnob(clickUI.sample.decay.slider, clickKnobLAF);
+  clickUI.sample.decay.slider.setRange(10.0, 2000.0, 1.0);
+  clickUI.sample.decay.slider.setSkewFactorFromMidPoint(300.0);
+  clickUI.sample.decay.slider.setDoubleClickReturnValue(true, 300.0);
+  clickUI.sample.decay.slider.setValue(300.0, juce::dontSendNotification);
+  clickUI.sample.decay.slider.textFromValueFunction = [](double v) {
+    return v < 1000.0 ? juce::String(juce::roundToInt(v)) + " ms"
+                      : juce::String(v / 1000.0, 2) + " s";
   };
-  styleKnobLabel(clickUI.sample.hold.label, "D", tinyFont);
-  clickUI.sample.hold.slider.setVisible(false);
-  clickUI.sample.hold.label.setVisible(false);
-  addAndMakeVisible(clickUI.sample.hold.slider);
-  addAndMakeVisible(clickUI.sample.hold.label);
-
-  // Release: 1–1000 ms
-  styleClickKnob(clickUI.sample.release.slider, clickKnobLAF);
-  clickUI.sample.release.slider.setRange(1.0, 1000.0, 1.0);
-  clickUI.sample.release.slider.setSkewFactorFromMidPoint(100.0);
-  clickUI.sample.release.slider.setDoubleClickReturnValue(true, 50.0);
-  clickUI.sample.release.slider.setValue(50.0, juce::dontSendNotification);
-  clickUI.sample.release.slider.onValueChange = [this] {
-    processorRef.clickEngine().setReleaseMs(
-        static_cast<float>(clickUI.sample.release.slider.getValue()));
-    refreshClickSampleProvider();
+  clickUI.sample.decay.slider.onValueChange = [this] {
+    const auto durMs =
+        static_cast<float>(clickUI.sample.decay.slider.getValue());
+    bakeLut(clickAmpEnvData, processorRef.clickEngine().clickAmpLut(), durMs);
+    envelopeCurveEditor.setClickDecayMs(durMs);
   };
-  styleKnobLabel(clickUI.sample.release.label, "R", tinyFont);
-  clickUI.sample.release.slider.setVisible(false);
-  clickUI.sample.release.label.setVisible(false);
-  addAndMakeVisible(clickUI.sample.release.slider);
-  addAndMakeVisible(clickUI.sample.release.label);
+  // 起動時に LUT 期間を初期値へ反映（setupLengthBox 実行後に上書きされる）
+  bakeLut(clickAmpEnvData, processorRef.clickEngine().clickAmpLut(), 300.0f);
+  styleKnobLabel(clickUI.sample.decay.label, "Decay", tinyFont);
+  clickUI.sample.decay.slider.setVisible(false);
+  clickUI.sample.decay.label.setVisible(false);
+  addAndMakeVisible(clickUI.sample.decay.slider);
+  addAndMakeVisible(clickUI.sample.decay.label);
 
   // Sample ロードボタン
   clickUI.sample.loadButton.setColour(
@@ -276,8 +284,7 @@ void BabySquatchAudioProcessorEditor::setupClickParams() {
   processorRef.clickEngine().setLpfFreq(20000.0f); // バイパス
   processorRef.clickEngine().setLpfQ(0.71f);
   processorRef.clickEngine().setPitchSemitones(0.0f);
-  processorRef.clickEngine().setAttackMs(1.0f);
-  processorRef.clickEngine().setReleaseMs(50.0f);
+  processorRef.clickEngine().setSampleAmpLevel(1.0f);
 
   // プレビュープロバイダーを clickUI に保持
   // DSP = BPFインパルス応答 × Decayエンベロープ なので両方の積を使う
@@ -331,12 +338,13 @@ void BabySquatchAudioProcessorEditor::layoutClickParams(
 
   // 上段4ノブ: Sample → Pitch/A/D/R, Noise → BP/Q/Drive/ClipType
   if (isSample) {
+    // スロット 0=Pitch, 1=Amp, 2=Drive/ClipType（Noiseと共用）, 3=Decay
     const std::array<juce::Slider *, 4> topKnobs = {
-        {&clickUI.sample.pitch.slider, &clickUI.sample.attack.slider,
-         &clickUI.sample.hold.slider, &clickUI.sample.release.slider}};
+        {&clickUI.sample.pitch.slider, &clickUI.sample.amp.slider,
+         &clickUI.noise.saturator.driveSlider, &clickUI.sample.decay.slider}};
     const std::array<juce::Component *, 4> topLabels = {
-        {&clickUI.sample.pitch.label, &clickUI.sample.attack.label,
-         &clickUI.sample.hold.label, &clickUI.sample.release.label}};
+        {&clickUI.sample.pitch.label, &clickUI.sample.amp.label,
+         &clickUI.noise.saturator.clipType, &clickUI.sample.decay.label}};
     for (int col = 0; col < 4; ++col) {
       const auto idx = static_cast<size_t>(col);
       juce::Rectangle slot(area.getX() + col * slotW, area.getY(), slotW, rowH);
@@ -403,62 +411,98 @@ void BabySquatchAudioProcessorEditor::setClickModeVisible(bool isSample) {
         static_cast<juce::Component *>(&clickUI.noise.bpf1.slopeSelector),
         static_cast<juce::Component *>(&clickUI.noise.bpf1.freqSlider),
         static_cast<juce::Component *>(&clickUI.noise.bpf1.qLabel),
-        static_cast<juce::Component *>(&clickUI.noise.bpf1.qSlider),
-        static_cast<juce::Component *>(&clickUI.noise.saturator.driveSlider),
-        static_cast<juce::Component *>(&clickUI.noise.saturator.clipType)})
+        static_cast<juce::Component *>(&clickUI.noise.bpf1.qSlider)})
     c->setVisible(!isSample);
+
+  // Saturator（Drive + ClipType）は両モード共通で常時表示
+  clickUI.noise.saturator.driveSlider.setVisible(true);
+  clickUI.noise.saturator.clipType.setVisible(true);
 
   for (juce::Component *c :
        {static_cast<juce::Component *>(&clickUI.sample.loadButton),
         static_cast<juce::Component *>(&clickUI.sample.pitch.slider),
         static_cast<juce::Component *>(&clickUI.sample.pitch.label),
-        static_cast<juce::Component *>(&clickUI.sample.attack.slider),
-        static_cast<juce::Component *>(&clickUI.sample.attack.label),
-        static_cast<juce::Component *>(&clickUI.sample.hold.slider),
-        static_cast<juce::Component *>(&clickUI.sample.hold.label),
-        static_cast<juce::Component *>(&clickUI.sample.release.slider),
-        static_cast<juce::Component *>(&clickUI.sample.release.label)})
+        static_cast<juce::Component *>(&clickUI.sample.amp.slider),
+        static_cast<juce::Component *>(&clickUI.sample.amp.label),
+        static_cast<juce::Component *>(&clickUI.sample.decay.slider),
+        static_cast<juce::Component *>(&clickUI.sample.decay.label)})
     c->setVisible(isSample);
 }
 
+// ── モード切替: 共有ウィジェットの状態を保存 ──
+void BabySquatchAudioProcessorEditor::saveClickModeState(
+    ClickUI::ModeState &dst) {
+  dst.hpfFreq = clickUI.hpf.slider.getValue();
+  dst.hpfQ = clickUI.hpf.qSlider.getValue();
+  dst.hpfSlope = clickUI.hpf.slope.getSlope();
+  dst.lpfFreq = clickUI.lpf.slider.getValue();
+  dst.lpfQ = clickUI.lpf.qSlider.getValue();
+  dst.lpfSlope = clickUI.lpf.slope.getSlope();
+  dst.drive = clickUI.noise.saturator.driveSlider.getValue();
+  dst.clipType = clickUI.noise.saturator.clipType.getSelected();
+}
+
+// ── モード切替: 共有ウィジェットへ状態を復元し DSP へ反映 ──
+void BabySquatchAudioProcessorEditor::restoreClickModeState(
+    const ClickUI::ModeState &src) {
+  clickUI.hpf.slider.setValue(src.hpfFreq, juce::dontSendNotification);
+  clickUI.hpf.qSlider.setValue(src.hpfQ, juce::dontSendNotification);
+  clickUI.hpf.slope.setSlope(src.hpfSlope);
+  clickUI.lpf.slider.setValue(src.lpfFreq, juce::dontSendNotification);
+  clickUI.lpf.qSlider.setValue(src.lpfQ, juce::dontSendNotification);
+  clickUI.lpf.slope.setSlope(src.lpfSlope);
+  clickUI.noise.saturator.driveSlider.setValue(src.drive,
+                                               juce::dontSendNotification);
+  clickUI.noise.saturator.clipType.setSelected(src.clipType);
+
+  auto &eng = processorRef.clickEngine();
+  eng.setHpfFreq(static_cast<float>(src.hpfFreq));
+  eng.setHpfQ(static_cast<float>(src.hpfQ));
+  eng.setHpfSlope(src.hpfSlope);
+  eng.setLpfFreq(static_cast<float>(src.lpfFreq));
+  eng.setLpfQ(static_cast<float>(src.lpfQ));
+  eng.setLpfSlope(src.lpfSlope);
+  eng.setDriveDb(static_cast<float>(src.drive));
+  eng.setClipType(src.clipType);
+}
+
 void BabySquatchAudioProcessorEditor::applyClickSampleMode() {
+  // 旧モード（Noise）の共有パラメーターを保存
+  saveClickModeState(clickUI.noiseState);
+
   setClickModeVisible(true);
 
-  // HPF/LPF 周波数をバイパス位置へ（モード切替時リセット）
-  clickUI.hpf.slider.setValue(20.0, juce::dontSendNotification);
-  clickUI.hpf.slider.setDoubleClickReturnValue(true, 20.0);
-  clickUI.lpf.slider.setValue(20000.0, juce::dontSendNotification);
-  clickUI.lpf.slider.setDoubleClickReturnValue(true, 20000.0);
-  processorRef.clickEngine().setHpfFreq(20.0f);
-  processorRef.clickEngine().setHpfQ(
-      static_cast<float>(clickUI.hpf.qSlider.getValue()));
-  processorRef.clickEngine().setLpfFreq(20000.0f);
-  processorRef.clickEngine().setLpfQ(
-      static_cast<float>(clickUI.lpf.qSlider.getValue()));
+  // Sample モードの保存値を復元
+  restoreClickModeState(clickUI.sampleState);
 
-  // Sample モードの A/D/R + Pitch を DSP へ
-  processorRef.clickEngine().setAttackMs(
-      static_cast<float>(clickUI.sample.attack.slider.getValue()));
-  processorRef.clickEngine().setDecayMs(
-      static_cast<float>(clickUI.sample.hold.slider.getValue()));
-  processorRef.clickEngine().setReleaseMs(
-      static_cast<float>(clickUI.sample.release.slider.getValue()));
+  // Sample 専用パラメーターを DSP へ
   processorRef.clickEngine().setPitchSemitones(
       static_cast<float>(clickUI.sample.pitch.slider.getValue()));
-  // サンプル未ロード時は波形をクリア、ロード済みなら更新
+  processorRef.clickEngine().setSampleAmpLevel(
+      static_cast<float>(clickUI.sample.amp.slider.getValue()) / 100.0f);
+
   envelopeCurveEditor.setClickPreviewProvider(nullptr);
   refreshClickSampleProvider();
 }
 
 void BabySquatchAudioProcessorEditor::applyClickNoiseMode(int m) {
+  // 旧モード（Sample）の共有パラメーターを保存
+  saveClickModeState(clickUI.sampleState);
+
   setClickModeVisible(false);
 
-  // HPF/LPF: Q range/label は両モード共通（0.1–18 / "Q"）なので変更不要
-  // フィルター周波数の現在値はそのまま維持する
+  // Noise モードの保存値を復元
+  restoreClickModeState(clickUI.noiseState);
 
-  // Noise の Decay を DSP へ戻す
+  // Noise 専用パラメーターを DSP へ
   processorRef.clickEngine().setDecayMs(
       static_cast<float>(clickUI.noise.decaySlider.getValue()));
+  processorRef.clickEngine().setFreq1(
+      static_cast<float>(clickUI.noise.bpf1.freqSlider.getValue()));
+  processorRef.clickEngine().setFocus1(
+      static_cast<float>(clickUI.noise.bpf1.qSlider.getValue()));
+  processorRef.clickEngine().setBpf1Slope(
+      clickUI.noise.bpf1.slopeSelector.getSlope());
 
   if (m == static_cast<int>(ClickUI::Mode::Noise))
     envelopeCurveEditor.setClickNoiseEnvProvider(clickUI.noiseProvider);
@@ -489,20 +533,15 @@ void BabySquatchAudioProcessorEditor::refreshClickSampleProvider() {
   const double durSec =
       clickUI.sample.thumbDurSec / static_cast<double>(speedRatio);
 
-  const float attackSec =
-      static_cast<float>(clickUI.sample.attack.slider.getValue()) / 1000.0f;
-  const float holdSec =
-      static_cast<float>(clickUI.sample.hold.slider.getValue()) / 1000.0f;
-  const float releaseSec =
-      static_cast<float>(clickUI.sample.release.slider.getValue()) / 1000.0f;
-
   auto minPtr = std::make_shared<std::vector<float>>(clickUI.sample.thumbMin);
   auto maxPtr = std::make_shared<std::vector<float>>(clickUI.sample.thumbMax);
 
   envelopeCurveEditor.setClickPreviewProvider(
-      [minPtr, maxPtr, durSec, attackSec, holdSec, releaseSec](float timeSec) {
+      [minPtr, maxPtr, durSec](float timeSec) {
+        // A/D/R なし: サンプル全体を一定振幅で表示
         const auto [lo, hi] = WaveformUtils::computePreview(
-            *minPtr, *maxPtr, durSec, attackSec, holdSec, releaseSec, timeSec);
+            *minPtr, *maxPtr, durSec, 0.0f, static_cast<float>(durSec) + 1.0f,
+            0.0f, timeSec);
         return (lo + hi) * 0.5f;
       });
 }

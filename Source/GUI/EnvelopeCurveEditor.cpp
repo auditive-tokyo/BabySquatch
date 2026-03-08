@@ -8,9 +8,11 @@
 EnvelopeCurveEditor::EnvelopeCurveEditor(EnvelopeData &ampData,
                                          EnvelopeData &pitchData,
                                          EnvelopeData &distData,
-                                         EnvelopeData &blendData)
+                                         EnvelopeData &blendData,
+                                         EnvelopeData &clickAmpData)
     : ampEnvData(ampData), pitchEnvData(pitchData), distEnvData(distData),
-      blendEnvData(blendData), editEnvData(&ampData) {
+      blendEnvData(blendData), clickAmpEnvData(clickAmpData),
+      editEnvData(&ampData) {
   setOpaque(true);
 }
 
@@ -148,6 +150,11 @@ void EnvelopeCurveEditor::setClickPreviewProvider(
   repaint();
 }
 
+void EnvelopeCurveEditor::setClickDecayMs(float ms) {
+  clickDecayMs_ = ms;
+  repaint();
+}
+
 void EnvelopeCurveEditor::setClickNoiseEnvProvider(
     std::function<float(float)> fn) {
   clickPreviewFn_ = nullptr;
@@ -267,13 +274,31 @@ void EnvelopeCurveEditor::paintClickWaveform(juce::Graphics &g, float w,
   if (!clickPreviewFn_)
     return;
 
+  const bool hasClickAmpEnv = clickAmpEnvData.isEnvelopeControlled();
+
+  // 末尾 fadeout: Click Sample Decay 期間の末尾 5ms half-cosine
+  constexpr float clickFadeOutMs = 5.0f;
+  const float clickFadeStartMs =
+      std::max(0.0f, clickDecayMs_ - clickFadeOutMs);
+
   juce::Path fillPath;
   juce::Path waveLine;
   fillPath.startNewSubPath(0.0f, centreY);
 
   for (int i = 0; i <= numPixels; ++i) {
     const auto x = static_cast<float>(i);
-    const float sample = juce::jlimit(-1.0f, 1.0f, clickPreviewFn_(x * dtSec));
+    const float timeMs = (x / w) * displayDurationMs;
+    float ampMul = hasClickAmpEnv ? clickAmpEnvData.evaluate(timeMs)
+                                  : clickAmpEnvData.getDefaultValue();
+    // Decay 期間を超えたらゼロ、末尾 5ms は half-cosine フェード
+    if (timeMs >= clickDecayMs_) {
+      ampMul = 0.0f;
+    } else if (timeMs > clickFadeStartMs && clickFadeOutMs > 0.0f) {
+      const float t = (timeMs - clickFadeStartMs) / clickFadeOutMs;
+      ampMul *= 0.5f * (1.0f + std::cos(t * juce::MathConstants<float>::pi));
+    }
+    const float sample =
+        juce::jlimit(-1.0f, 1.0f, clickPreviewFn_(x * dtSec) * ampMul);
     const float y = juce::jlimit(0.0f, h, centreY - sample * centreY);
     fillPath.lineTo(x, y);
     if (i == 0)
@@ -399,6 +424,9 @@ void EnvelopeCurveEditor::paintEnvelopeOverlay(juce::Graphics &g,
   case mix:
     envColour = juce::Colour(0xFF4CAF50);
     break; // グリーン
+  case clickAmp:
+    envColour = UIConstants::Colours::clickArc;
+    break;
   }
   g.setColour(envColour);
   g.strokePath(envLine, juce::PathStrokeType(1.5f));
@@ -566,7 +594,7 @@ std::pair<float, float> EnvelopeCurveEditor::editValueRange() const {
     return {0.0f, 1.0f};
   if (editTarget == mix)
     return {-1.0f, 1.0f};
-  return {0.0f, 2.0f}; // amp
+  return {0.0f, 2.0f}; // amp / clickAmp
 }
 
 float EnvelopeCurveEditor::valueToY(float value) const {
@@ -757,6 +785,9 @@ void EnvelopeCurveEditor::setEditTarget(EditTarget target) {
     break;
   case mix:
     editEnvData = &blendEnvData;
+    break;
+  case clickAmp:
+    editEnvData = &clickAmpEnvData;
     break;
   }
   dragPointIndex = -1;

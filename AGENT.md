@@ -135,16 +135,6 @@ BabySquatchは3つのモジュールで構成されています：
   - トリガー: ルックアヘッド型トランジェント検出を実装した際に必須となる（ルックアヘッド分だけ Wet が遅れるため）
   - 現状: 大きな遅延源がないため未着手で問題なし。トランジェント検出実装時に同時対応する
 
-- **Click Sample モードへの Saturator 適用**（設計確定・未実装）
-  - 背景: Noise モードの Drive/ClipType は ✅ 実装済み（`Saturator::process()` 経由）。Sample モードにも同じ Saturator を適用したい
-  - 方針:
-    - A/Hold/R 3ノブを廃止 → Gain 1ノブに変更。振幅形状は EnvelopeCurveEditor のカーブで制御（Sub と同方式）
-    - 空いた 2 スロットに Drive / ClipType を配置 → Noise モードと同じ `SaturatorUI` 構造体を Sample モードでも使用
-    - Sample モードの 4 スロット構成: `[Pitch] [Gain] [Drive] [ClipType]`
-    - **EnvelopeData の扱い**: Click amp 用に `EnvelopeData` インスタンスを別途追加（Sub の amp カーブとは独立）。クラス・LUT ロジックは既存の共通コードを流用
-    - EnvelopeCurveEditor に Click amp カーブを EditTarget として追加する必要あり
-  - 実装箇所: `ClickEngine::synthesizeSample()` の mode==2 ブロック出口で `Saturator::process()` 呼び出し追加
-
 - **CI / CD パイプライン構築**
   - 目的: GitHub Actions でビルド・静的解析を自動化し、プッシュごとに品質を担保する
   - 優先タスク:

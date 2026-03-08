@@ -48,7 +48,19 @@ void BabySquatchAudioProcessorEditor::setupLengthBox() {
     bakeLut(pitchEnvData, processorRef.subEngine().pitchLut(), v);
     bakeLut(distEnvData, processorRef.subEngine().distLut(), v);
     bakeLut(blendEnvData, processorRef.subEngine().blendLut(), v);
+    // Sample Decay のダブルクリックリターン値を Sub length と連動させる
+    clickUI.sample.decay.slider.setDoubleClickReturnValue(true,
+                                                         static_cast<double>(v));
   };
+  // Sample Decay の初期値と初回のバコオフを Sub lengthに合わせる
+  const auto initLen =
+      static_cast<float>(subUI.length.slider.getValue()); // 300 ms
+  clickUI.sample.decay.slider.setValue(static_cast<double>(initLen),
+                                       juce::dontSendNotification);
+  clickUI.sample.decay.slider.setDoubleClickReturnValue(
+      true, static_cast<double>(initLen));
+  bakeLut(clickAmpEnvData, processorRef.clickEngine().clickAmpLut(), initLen);
+  envelopeCurveEditor.setClickDecayMs(initLen);
   addAndMakeVisible(subUI.length.slider);
 }
 

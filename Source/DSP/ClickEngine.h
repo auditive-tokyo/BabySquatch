@@ -1,5 +1,6 @@
 #pragma once
 
+#include "EnvelopeLutManager.h"
 #include "SamplePlayer.h"
 
 #include <array>
@@ -73,8 +74,8 @@ public:
 
   // Sample モード用
   void setPitchSemitones(float st) { sampleParams_.pitchSemitones.store(st); }
-  void setAttackMs(float ms) { sampleParams_.attackMs.store(ms); }
-  void setReleaseMs(float ms) { sampleParams_.releaseMs.store(ms); }
+  /// Sample モードの振幅スケーラー (0.0=0%, 2.0=200%)
+  void setSampleAmpLevel(float v) { sampleAmpLevel_.store(v); }
 
   /// レベル計測用 scratchBuffer の先頭ポインタ
   const float *scratchData() const noexcept { return scratchBuffer_.data(); }
@@ -82,6 +83,9 @@ public:
   /// 内部 SamplePlayer への参照（UI からのロード用）
   SamplePlayer &sampler() noexcept { return sampler_; }
   const SamplePlayer &sampler() const noexcept { return sampler_; }
+
+  /// Click Amp 用 LUT（UI から bakeLut で書き込み）
+  EnvelopeLutManager &clickAmpLut() noexcept { return clickAmpLut_; }
 
 private:
   static constexpr int kMaxCascade = 4;
@@ -119,11 +123,9 @@ private:
   float noteTimeSamples_{0.0f};
   std::atomic<bool> active_{false};
 
-  /// Sample モード用パラメーターをまとめた構造体（A/D/R + ピッチ）
+  /// Sample モード用パラメーターをまとめた構造体（ピッチ）
   struct SampleModeParams {
     std::atomic<float> pitchSemitones{0.0f};
-    std::atomic<float> attackMs{1.0f};
-    std::atomic<float> releaseMs{50.0f};
   };
 
   std::atomic<int> bpf1Stages_{1}; // BPF1 cascade stages
@@ -133,11 +135,14 @@ private:
   // Sample モード用パラメーター
   SampleModeParams sampleParams_;
   // Noise 用 BPF パラメーター
-  std::atomic<float> freq1_{5000.0f}; // BPF1 中心周波数
-  std::atomic<float> focus1_{0.71f};  // BPF1 Q
-  std::atomic<float> driveDb_{0.0f};  // Drive (dB)
-  std::atomic<int> clipType_{0};      // 0=Soft, 1=Hard, 2=Bit
-  FilterParams hpfParams_{20.0f, 0.71f, 1}; // デフォルト: バイパス(20Hz), Q=0.71
+  std::atomic<float> freq1_{5000.0f};       // BPF1 中心周波数
+  std::atomic<float> focus1_{0.71f};        // BPF1 Q
+  std::atomic<float> driveDb_{0.0f};        // Drive (dB)
+  std::atomic<int> clipType_{0};            // 0=Soft, 1=Hard, 2=Bit
+  std::atomic<float> sampleAmpLevel_{1.0f}; // Sample Amp (0〜2)
+  EnvelopeLutManager clickAmpLut_;           // Click Amp エンベロープ LUT
+  FilterParams hpfParams_{20.0f, 0.71f,
+                          1}; // デフォルト: バイパス(20Hz), Q=0.71
   FilterParams lpfParams_{20000.0f, 0.71f,
                           1}; // デフォルト: バイパス(20kHz), Q=0.71
 };
