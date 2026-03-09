@@ -52,6 +52,9 @@ void BabySquatchAudioProcessor::prepareToPlay(double sampleRate,
   transientDetector_.setThresholdDb(-24.0f);
   transientDetector_.setHoldMs(50.0f);
   monoMixBuffer_.resize(static_cast<std::size_t>(samplesPerBlock));
+
+  inputFifoData_.assign(static_cast<std::size_t>(kInputFifoCapacity), 0.0f);
+  inputFifo_.reset();
 }
 
 void BabySquatchAudioProcessor::releaseResources() {
@@ -94,12 +97,11 @@ void BabySquatchAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   const int numSamples = buffer.getNumSamples();
   const double sr = getSampleRate();
 
-  // ── トランジェント検出（入力信号をクリアする前に解析）──
-  // Sample モード時は入力不要のため検出もスキップ
-  if (transientDetector_.isEnabled() && !directSampleMode_.load() && buffer.getNumChannels() > 0) {
+  // ── モノミックス（Direct パススルーモード時: 波形表示 /
+  // トランジェント検出に使用）──
+  if (!directSampleMode_.load() && buffer.getNumChannels() > 0) {
     const int numCh = buffer.getNumChannels();
     auto *mono = monoMixBuffer_.data();
-    // ステレオ→モノミックス（L+R 平均の絶対値で検出）
     const float *ch0 = buffer.getReadPointer(0);
     if (numCh >= 2) {
       const float *ch1 = buffer.getReadPointer(1);
@@ -108,10 +110,30 @@ void BabySquatchAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     } else {
       std::copy_n(ch0, numSamples, mono);
     }
-    if (transientDetector_.process(std::span<const float>(mono, static_cast<std::size_t>(numSamples)))) {
-      subEngine_.triggerNote();
-      clickEngine_.triggerNote();
-      directEngine_.triggerNote();
+
+    // Auto トリガー: トランジェント検出
+    if (transientDetector_.isEnabled()) {
+      if (transientDetector_.process(std::span<const float>(
+              mono, static_cast<std::size_t>(numSamples)))) {
+        subEngine_.triggerNote();
+        clickEngine_.triggerNote();
+        directEngine_.triggerNote();
+      }
+    }
+
+    // 波形リアルタイム表示用 FIFO へ書き込み
+    const int toWrite = juce::jmin(numSamples, inputFifo_.getFreeSpace());
+    if (toWrite > 0) {
+      int s1;
+      int sz1;
+      int s2;
+      int sz2;
+      inputFifo_.prepareToWrite(toWrite, s1, sz1, s2, sz2);
+      if (sz1 > 0)
+        std::copy_n(mono, sz1, inputFifoData_.data() + s1);
+      if (sz2 > 0)
+        std::copy_n(mono + sz1, sz2, inputFifoData_.data() + s2);
+      inputFifo_.finishedWrite(sz1 + sz2);
     }
   }
 
@@ -130,7 +152,8 @@ void BabySquatchAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
 
   // マスター出力 L/R レベル計測
   for (std::size_t ch = 0; ch < 2; ++ch) {
-    const int bufCh = juce::jmin(static_cast<int>(ch), buffer.getNumChannels() - 1);
+    const int bufCh =
+        juce::jmin(static_cast<int>(ch), buffer.getNumChannels() - 1);
     if (bufCh >= 0)
       masterDetector_[ch].process(buffer.getReadPointer(bufCh), numSamples);
     else

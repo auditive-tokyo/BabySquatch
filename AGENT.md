@@ -141,16 +141,123 @@ BabySquatchは3つのモジュールで構成されています：
       - クリーンなキックチャンネルなら差分が大きく出るため、Threshold 高めでも立ち上がり最初の瞬間にトリガー
   - 実装タイミング: **入力波形リアルタイム表示**と同時実装を推奨（波形＋Threshold 水平線を重ねて表示するため）
 
-- **入力波形リアルタイム表示（インサートモードと同時実装）**
-  - 目的: Direct インサートモード使用時に入力キック波形を EnvelopeCurveEditor 上にリアルタイム描画（FabFilter L2 スタイル）
-  - 実装方針:
-    - DSPスレッド: `processBlock()` で入力サンプルを `juce::AbstractFIFO` ベースのロックフリーリングバッファへ書き込み（~500ms分、約88KB）
-    - UIスレッド: `juce::Timer` 30fps で読み出し、各ピクセル列の min/max を縦線描画
-    - `EnvelopeCurveEditor` に新レイヤーとして追加（既存描画に影響なし）
-  - パフォーマンス影響:
-    - レイテンシー: 0（オーディオパス不介入）
-    - CPU: 無視できるレベル（DSP側は atomic increment + memcpy のみ）
-  - 実装タイミング: **Sub/Click 共通トリガー（トランジェント検出）と同時実装**を推奨（入力バッファ読み取り処理を共用できるため）
+- **~~入力波形リアルタイム表示~~** ✅ 実装済み
+  - `juce::AbstractFifo` + `std::vector<float> inputFifoData_` を `PluginProcessor` に追加（容量: 48000サンプル = ~1sec @ 48kHz）
+  - `processBlock()` でステレオ→モノミックス後、Direct パススルーモード時に FIFO へ書き込み
+  - `PluginEditor` が `private juce::Timer` を継承（30fps）、`timerCallback()` で FIFO を読み出してローリング表示バッファ（500ms分）に追記
+  - `timerCallback()` が per-pixel {min, max} を計算して `EnvelopeCurveEditor::setRealtimePixels()` へ渡し `repaint()` を呼ぶ
+  - `EnvelopeCurveEditor::paintDirectWaveform()` にデータソース抽象化ラムダを追加
+    - `useRealtimeInput_ = true`: `realtimePixels_[i]` を使用（入力波形）
+    - `useRealtimeInput_ = false`: `directPreviewFn_(x * dtSec)` を使用（サンプルファイルプレビュー、従来動作）
+  - Sample モード切り替え時: `setUseRealtimeInput(false)` → サンプルファイル波形に戻る
+
+- **Direct パラメーターをパススルー入力に適用（Direct Insert FX）**
+  - **現状の問題**: `directSampleMode_ = false`（パススルー）のとき `DirectEngine::render()` は `active_ = false` で早期リターンし、入力信号はすべてのパラメーターをバイパスしてそのまま通過する。Channel Fader も無効。適用されるのは Master Gain のみ。
+  - **目的**: パススルーモード時に入力信号を DirectEngine の各パラメーターで整形できるようにする。キックのHighPass・Drive・Amp/Decay 形状を入力に乗せることで Sub/Click との音色統一感を高める。
+
+  **設計方針（Opus レビュー後確定版）**:
+  - Sampleモードとパススルーモードは排他（`directSampleMode_` フラグで切り替え）→ フィルター（`hpfs_`/`lpfs_`）・再生カウンター（`active_`/`noteTimeSamples_`）は**共用可能**。専用配列の新設は不要でありCPU/メモリ双方で無駄になるため採用しない
+  - `render()` のシグネチャは変更せず、パススルー専用メソッド `renderPassthrough()` を別途新設して責務を分離する
+  - パススルー時のモノミックス→`addSample()`方式を採用（キックは実用上モノで問題なし）。ステレオ in-place 処理は将来的に検討
+
+  **実装ステップ（順序厳守）**:
+
+  1. **`DirectEngine` にパススルーモードフラグを追加**
+     - `std::atomic<bool> passthroughMode_{false}` をメンバーに追加
+     - `void setPassthroughMode(bool b) noexcept { passthroughMode_.store(b); }` を public setter として追加
+     - `PluginProcessor` がモード切り替え時に呼ぶ（`directSampleMode_` セット箇所と同タイミング）
+
+  2. **`triggerNote()` のガード条件修正**
+     - 現状: `if (!sampler_.isLoaded()) return;` → パススルー時はサンプルが存在しないためトリガーされない
+     - 修正: パススルーモード時はサンプルチェックをスキップしてトリガーする
+       ```cpp
+       void DirectEngine::triggerNote() {
+           if (!passthroughMode_.load() && !sampler_.isLoaded()) return;
+           // パススルー時はサンプルのresetPlayheadは不要（スキップ）
+           if (!passthroughMode_.load()) sampler_.resetPlayhead();
+           noteTimeSamples_ = 0.0f;
+           for (auto& f : hpfs_) f.reset();  // フィルター状態をリセット（共用）
+           for (auto& f : lpfs_) f.reset();
+           active_.store(true);
+       }
+       ```
+     - `hpfs_`/`lpfs_` のリセットをここで行うことで、モード切り替え直後のフィルター状態汚染を防ぐ
+
+  3. **`renderPassthrough()` メソッドを新設**
+     - シグネチャ: `void renderPassthrough(juce::AudioBuffer<float>& buffer, std::span<const float> inputMono, int numSamples, double sampleRate)`
+     - 既存の `hpfs_`/`lpfs_`/`active_`/`noteTimeSamples_` を**そのまま共用**（Sample モードと同一変数、排他なので干渉しない）
+     - 既存の `computeSampleAmp()` / `prepareFilters()` / `computeMaxTimeSamples()` もそのまま流用（ただし `computeMaxTimeSamples` は LUT 長のみ使用）
+     - ループ処理:
+       ```cpp
+       for (int i = 0; i < numSamples; ++i) {
+           float amp = 1.0f;
+           if (active_.load()) {
+               if (noteTimeSamples_ >= maxTimeSamples) { active_.store(false); } // Decay終了
+               else { amp = computeSampleAmp(noteTimeSamples_ * 1000.0f / sr); }
+               noteTimeSamples_ += 1.0f;
+           } else { amp = 0.0f; }  // Decay終了後はミュート（Amp Envelope ON 時）
+           float s = inputMono[i];
+           // Drive（プリフィルター）
+           s = Saturator::process(s, driveDb_.load(), clipType_.load());
+           // HPF / LPF
+           for (int fi = 0; fs.doHpf && fi < fs.hpfStg; ++fi)
+               s = hpfs_[fi].processSample(0, s);
+           for (int fi = 0; fs.doLpf && fi < fs.lpfStg; ++fi)
+               s = lpfs_[fi].processSample(0, s);
+           // 共振ピーク整形（既存サンプル再生と同一ロジック）
+           if (fs.doHpf || fs.doLpf) s = Saturator::process(s, 0.0f, clipType_.load());
+           s *= gain * amp;
+           for (int ch = 0; ch < numCh; ++ch) buffer.addSample(ch, i, s);
+       }
+       ```
+     - `scratchBuffer_[i] = s` への書き込みも忘れずに行う（Channel Fader のレベル計測 `scratchData()` が参照するため）
+
+  4. **`processBlock()` のバッファクリア論理修正（重要）**
+     - **現状のバグ**: パススルー（`passes.direct=true, directSampleMode_=false`）時はクリア条件 `!passes.direct || directSampleMode_.load()` が `false` になり `buffer.clear()` が呼ばれない。入力信号がバッファに残ったまま `renderPassthrough()` が `addSample()` すると**未処理ステレオ入力 + 処理済みモノ信号**が合算される二重信号バグになる
+     - **修正**: パススルーモードでも `buffer.clear()` を行い、`renderPassthrough()` で処理済み信号のみを加算する
+       ```cpp
+       // 修正前: if (!passes.direct || directSampleMode_.load()) buffer.clear();
+       // 修正後:
+       if (!passes.direct) {
+           buffer.clear();                    // Direct OFF: 全消去
+       } else if (directSampleMode_.load()) {
+           buffer.clear();                    // Sample モード: クリア→サンプル再生で加算
+       } else {
+           buffer.clear();                    // パススルーモード: クリア→処理済み入力を加算
+       }
+       // → 全 case で buffer.clear() → 以下の1行で統一可:
+       if (!passes.direct || true) buffer.clear(); // または単純に buffer.clear() を常時呼ぶ
+       ```
+     - 上記を整理すると: `buffer.clear()` を常に呼ぶ（Direct OFF 時は後続の render も呼ばれないため問題なし）
+
+  5. **`processBlock()` での呼び分け**
+     - パススルーモード時は `render()` の代わりに `renderPassthrough()` を呼ぶよう分岐:
+       ```cpp
+       if (!directSampleMode_.load() && passes.direct) {
+           directEngine_.renderPassthrough(buffer,
+               std::span<const float>(monoMixBuffer_.data(), numSamples),
+               numSamples, sr);
+       } else {
+           directEngine_.render(buffer, numSamples, passes.direct, sr);
+       }
+       ```
+     - `monoMixBuffer_` はパススルーモード時にのみ有効（既存コードで `!directSampleMode_.load()` ガードの中で生成済み）
+
+  6. **Pitch ノブのグレーアウト**
+     - リアルタイム入力に `pow(2, semitones/12) × rateRatio` 方式のピッチシフトは不可（遅延なしでは時間伸縮が必要）
+     - `DirectParams.cpp` にて: `pitchSlider_.setEnabled(!isPassthrough)` のように `isPassthrough` フラグ（`PluginProcessor::isDirectPassthrough()` の戻り値）で制御
+     - `PluginEditor` 側でモード変更時に `DirectParams` の refresh を呼ぶか、`Timer` 内で定期チェックする
+
+  **パラメーター適用可否まとめ**:
+  | パラメーター | 適用 | 備考 |
+  |---|---|---|
+  | Amp (Gain) | ✅ | `gainDb_` 共用 |
+  | Decay LUT (Amp Envelope) | ✅ | `active_`/`noteTimeSamples_` を共用。`triggerNote()` 連動 |
+  | Drive + Clip Type | ✅ | `monoMixBuffer_` を `Saturator::process()` に通す |
+  | HP Freq / Q / Slope | ✅ | `hpfs_` を共用（フィルター二重化なし） |
+  | LP Freq / Q / Slope | ✅ | `lpfs_` を共用（フィルター二重化なし） |
+  | Pitch (semitones) | ❌ | グレーアウト（リアルタイムピッチシフトは遅延なしでは不可） |
+  | Channel Fader | ✅ | `scratchBuffer_` への書き込みにより `scratchData()` 経由でレベル計測も正常動作 |
 
 - **レイテンシー補正（Delay Compensation）**
   - 背景: BabySquatch は Direct（入力パススルー）と Sub/Click（生成信号）を混合するため、どちらかに処理遅延が生じると内部でタイミングズレが発生する

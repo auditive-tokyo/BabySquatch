@@ -46,36 +46,56 @@ public:
   juce::MidiKeyboardState &getKeyboardState() { return keyboardState; }
 
   // ── 委譲先エンジン／ヘルパーへのアクセサ ──
-  SubEngine    &subEngine()    noexcept { return subEngine_; }
-  ClickEngine  &clickEngine()  noexcept { return clickEngine_; }
+  SubEngine &subEngine() noexcept { return subEngine_; }
+  ClickEngine &clickEngine() noexcept { return clickEngine_; }
   DirectEngine &directEngine() noexcept { return directEngine_; }
   ChannelState &channelState() noexcept { return channelState_; }
   const ChannelState &channelState() const noexcept { return channelState_; }
 
   void setMasterGainDb(float db) { masterGainDb_.store(db); }
-  float getMasterGainDb() const  { return masterGainDb_.load(); }
+  float getMasterGainDb() const { return masterGainDb_.load(); }
 
   /// トランジェント検出器へのアクセサ
   TransientDetector &transientDetector() noexcept { return transientDetector_; }
 
   /// Direct Sample モード時は入力をミュート（UI スレッドから設定）
-  void setDirectSampleMode(bool isSample) noexcept { directSampleMode_.store(isSample); }
+  void setDirectSampleMode(bool isSample) noexcept {
+    directSampleMode_.store(isSample);
+  }
+  /// Direct パススルーモードかどうか（UI スレッドから参照）
+  bool isDirectPassthrough() const noexcept {
+    return !directSampleMode_.load();
+  }
   /// UIスレッドからマスター出力ドアを取得 (ch: 0=L, 1=R)
-  float getMasterLevelDb(int ch) const { return masterDetector_[static_cast<std::size_t>(ch & 1)].getPeakDb(); }
+  float getMasterLevelDb(int ch) const {
+    return masterDetector_[static_cast<std::size_t>(ch & 1)].getPeakDb();
+  }
+
+  /// 入力波形 FIFO へのアクセサ（UI スレッドの Timer から読み取る）
+  juce::AbstractFifo &inputFifo() noexcept { return inputFifo_; }
+  const std::vector<float> &inputFifoData() const noexcept {
+    return inputFifoData_;
+  }
 
 private:
   void handleMidiEvents(juce::MidiBuffer &midiMessages, int numSamples);
 
   juce::MidiKeyboardState keyboardState;
-  SubEngine    subEngine_;
-  ClickEngine  clickEngine_;
+  SubEngine subEngine_;
+  ClickEngine clickEngine_;
   DirectEngine directEngine_;
   ChannelState channelState_;
   std::atomic<float> masterGainDb_{0.0f};
   mutable std::array<LevelDetector, 2> masterDetector_; // 0=L, 1=R
   TransientDetector transientDetector_;
   std::vector<float> monoMixBuffer_; // トランジェント検出用モノ合成バッファ
-  std::atomic<bool> directSampleMode_{false}; // Direct が Sample モードのとき入力を消去
+  std::atomic<bool> directSampleMode_{
+      false}; // Direct が Sample モードのとき入力を消去
+
+  // ── 入力波形リアルタイム表示用 FIFO ──
+  static constexpr int kInputFifoCapacity = 48000; // ~1 秒分 @ 48 kHz
+  juce::AbstractFifo inputFifo_{kInputFifoCapacity};
+  std::vector<float> inputFifoData_;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(BabySquatchAudioProcessor)
 };

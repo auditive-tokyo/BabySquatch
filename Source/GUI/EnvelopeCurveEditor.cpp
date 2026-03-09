@@ -48,8 +48,8 @@ EnvelopeCurveEditor::EnvelopeCurveEditor(EnvelopeData &ampData,
                                          EnvelopeData &mixData,
                                          EnvelopeData &clickAmpData,
                                          EnvelopeData &directAmpData)
-    : envDatas_{&ampData, &freqData, &distData, &mixData, &clickAmpData,
-                &directAmpData},
+    : envDatas_{&ampData, &freqData,     &distData,
+                &mixData, &clickAmpData, &directAmpData},
       editEnvData(&ampData) {
   setOpaque(true);
 }
@@ -187,6 +187,16 @@ void EnvelopeCurveEditor::setDirectProvider(
   repaint();
 }
 
+void EnvelopeCurveEditor::setRealtimePixels(
+    std::vector<std::pair<float, float>> pixels) {
+  realtimePixels_ = std::move(pixels);
+  // repaint は呼び出し元 (Timer) が責任を持つ
+}
+
+void EnvelopeCurveEditor::setUseRealtimeInput(bool use) noexcept {
+  useRealtimeInput_ = use;
+}
+
 void EnvelopeCurveEditor::setClickPreviewProvider(
     std::function<std::pair<float, float>(float)> fn) {
   clickNoiseEnvFn_ = nullptr;
@@ -208,13 +218,23 @@ void EnvelopeCurveEditor::setClickNoiseEnvProvider(
 
 void EnvelopeCurveEditor::paintDirectWaveform(juce::Graphics &g, float w,
                                               float h, float centreY) const {
-  if (!directPreviewFn_)
+  const bool hasRealtime = useRealtimeInput_ && !realtimePixels_.empty();
+  if (!hasRealtime && !directPreviewFn_)
     return;
 
   const juce::Colour baseColour = UIConstants::Colours::directArc;
   const auto numPixels = static_cast<int>(w);
   const float dtSec = (displayDurationMs / 1000.0f) / w;
 
+  // データソース抽象化: リアルタイム or サンプルプレビュー
+  auto getSample = [&](int i) -> std::pair<float, float> {
+    if (hasRealtime) {
+      if (i < static_cast<int>(realtimePixels_.size()))
+        return realtimePixels_[static_cast<std::size_t>(i)];
+      return {0.0f, 0.0f};
+    }
+    return directPreviewFn_(static_cast<float>(i) * dtSec);
+  };
   // 波形帯（ピクセルiの最小値→最大値を封た形）
   juce::Path fillPath;
   juce::Path topLine;
@@ -223,7 +243,7 @@ void EnvelopeCurveEditor::paintDirectWaveform(juce::Graphics &g, float w,
   // 上側エッジ (左→右, maxVal)
   for (int i = 0; i <= numPixels; ++i) {
     const auto x = static_cast<float>(i);
-    const auto [mn, mx] = directPreviewFn_(x * dtSec);
+    const auto [mn, mx] = getSample(i);
     const float yTop = juce::jlimit(0.0f, h, centreY - mx * centreY);
     if (i == 0) {
       fillPath.startNewSubPath(x, yTop);
@@ -236,7 +256,7 @@ void EnvelopeCurveEditor::paintDirectWaveform(juce::Graphics &g, float w,
   // 下側エッジ (右→左, minVal)で封じる
   for (int i = numPixels; i >= 0; --i) {
     const auto x = static_cast<float>(i);
-    const auto [mn, mx] = directPreviewFn_(x * dtSec);
+    const auto [mn, mx] = getSample(i);
     const float yBot = juce::jlimit(0.0f, h, centreY - mn * centreY);
     fillPath.lineTo(x, yBot);
     if (i == numPixels)

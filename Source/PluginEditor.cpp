@@ -173,9 +173,9 @@ void BabySquatchAudioProcessorEditor::switchEditTarget(
       juce::Label::textColourId,
       t == clickAmp ? UIConstants::Colours::clickArc : kLabel);
   // Direct Amp label
-  directUI.amp.label.setColour(
-      juce::Label::textColourId,
-      t == directAmp ? UIConstants::Colours::directArc : kLabel);
+  directUI.amp.label.setColour(juce::Label::textColourId,
+                               t == directAmp ? UIConstants::Colours::directArc
+                                              : kLabel);
 }
 
 // ────────────────────────────────────────────────────
@@ -234,13 +234,83 @@ BabySquatchAudioProcessorEditor::BabySquatchAudioProcessorEditor(
   setSize(UIConstants::windowWidth, UIConstants::windowHeight +
                                         UIConstants::expandedAreaHeight +
                                         UIConstants::panelGap);
+
+  // 入力波形 Timer 開始（30fps）
+  waveDisplayBuf_.assign(static_cast<std::size_t>(kWaveDisplayCapacity), 0.0f);
+  startTimerHz(30);
 }
 
 BabySquatchAudioProcessorEditor::~BabySquatchAudioProcessorEditor() {
+  stopTimer();
   subUI.wave.combo.setLookAndFeel(nullptr);
   clickUI.modeCombo.setLookAndFeel(nullptr);
   directUI.modeCombo.setLookAndFeel(nullptr);
   autoTrigButton.setLookAndFeel(nullptr);
+}
+
+void BabySquatchAudioProcessorEditor::timerCallback() {
+  // Direct がパススルーモードの場合のみリアルタイム入力波形を表示
+  if (!processorRef.isDirectPassthrough()) {
+    envelopeCurveEditor.setUseRealtimeInput(false);
+    return;
+  }
+
+  // FIFO から利用可能なサンプルをローリング表示バッファに追記
+  auto &fifo = processorRef.inputFifo();
+  const auto &src = processorRef.inputFifoData();
+  const int avail = fifo.getNumReady();
+
+  if (avail > 0) {
+    int s1;
+    int sz1;
+    int s2;
+    int sz2;
+    fifo.prepareToRead(avail, s1, sz1, s2, sz2);
+    const int cap = kWaveDisplayCapacity;
+    auto writeToRing = [&](const float *data, int size) {
+      for (int i = 0; i < size; ++i) {
+        waveDisplayBuf_[static_cast<std::size_t>(waveDisplayPos_)] = data[i];
+        waveDisplayPos_ = (waveDisplayPos_ + 1) % cap;
+        waveDisplayFilled_ = std::min(waveDisplayFilled_ + 1, cap);
+      }
+    };
+    writeToRing(src.data() + s1, sz1);
+    if (sz2 > 0)
+      writeToRing(src.data() + s2, sz2);
+    fifo.finishedRead(sz1 + sz2);
+  }
+
+  const int w = envelopeCurveEditor.getWidth();
+  if (w <= 0 || waveDisplayFilled_ == 0)
+    return;
+
+  // 最新 500ms 分（最大 waveDisplayFilled_ サンプル）を幅ピクセルに射影
+  const int cap = kWaveDisplayCapacity;
+  const auto smp500ms =
+      static_cast<int>(processorRef.getSampleRate() * 0.5); // SR に依存
+  const int dispSmp = std::min(waveDisplayFilled_, std::min(smp500ms, cap));
+  const int startPos = (waveDisplayPos_ - dispSmp + cap) % cap;
+  const float spf = static_cast<float>(dispSmp) / static_cast<float>(w);
+
+  std::vector<std::pair<float, float>> pixels(static_cast<std::size_t>(w));
+  for (int px = 0; px < w; ++px) {
+    const auto iStart = static_cast<int>(static_cast<float>(px) * spf);
+    const int iEnd =
+        std::min(static_cast<int>(static_cast<float>(px + 1) * spf), dispSmp);
+    float mn = 0.0f;
+    float mx = 0.0f;
+    for (int si = iStart; si < iEnd; ++si) {
+      const float s =
+          waveDisplayBuf_[static_cast<std::size_t>((startPos + si) % cap)];
+      mn = std::min(mn, s);
+      mx = std::max(mx, s);
+    }
+    pixels[static_cast<std::size_t>(px)] = {mn, mx};
+  }
+
+  envelopeCurveEditor.setRealtimePixels(std::move(pixels));
+  envelopeCurveEditor.setUseRealtimeInput(true);
+  envelopeCurveEditor.repaint();
 }
 
 void BabySquatchAudioProcessorEditor::paint(juce::Graphics &g) {

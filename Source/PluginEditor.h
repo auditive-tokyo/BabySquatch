@@ -10,7 +10,8 @@
 
 #include <array>
 
-class BabySquatchAudioProcessorEditor : public juce::AudioProcessorEditor {
+class BabySquatchAudioProcessorEditor : public juce::AudioProcessorEditor,
+                                        private juce::Timer {
 public:
   explicit BabySquatchAudioProcessorEditor(BabySquatchAudioProcessor &);
   ~BabySquatchAudioProcessorEditor() override;
@@ -21,6 +22,13 @@ public:
 
 private:
   void onEnvelopeChanged();
+
+  // ── 入力波形リアルタイム表示（30fps Timer）──
+  void timerCallback() override;
+  static constexpr int kWaveDisplayCapacity = 48000; // ~1sec @ 48kHz
+  std::vector<float> waveDisplayBuf_;
+  int waveDisplayPos_ = 0;    // 次の書き込み位置
+  int waveDisplayFilled_ = 0; // 実際に充際されたサンプル数
 
   // ── コンストラクター分割ヘルパー ──
   void setupPanelRouting(BabySquatchAudioProcessor &p);
@@ -60,18 +68,17 @@ private:
     EnvelopeData directAmp;
   };
   EnvelopeDatas envDatas;
-  EnvelopeCurveEditor envelopeCurveEditor{envDatas.amp, envDatas.freq,
-                                          envDatas.dist, envDatas.mix,
-                                          envDatas.clickAmp,
-                                          envDatas.directAmp};
+  EnvelopeCurveEditor envelopeCurveEditor{
+      envDatas.amp, envDatas.freq,     envDatas.dist,
+      envDatas.mix, envDatas.clickAmp, envDatas.directAmp};
 
   // ── マスターセクション（鍵盤右余白エリア） ──
   MasterFader masterSection;
   juce::Label infoBox;
 
   // ── Auto Trigger（鍵盤と Master の間） ──
-  UIConstants::GradientButtonLAF autoTrigLAF{
-      UIConstants::Colours::muteOff, juce::Colour(0xFFEE8822)};
+  UIConstants::GradientButtonLAF autoTrigLAF{UIConstants::Colours::muteOff,
+                                             juce::Colour(0xFFEE8822)};
   juce::TextButton autoTrigButton{"Auto"};
 
   // ── SUB展開パネル: LAF（subUI より先に宣言し、後に破棄されるようにする） ──
@@ -103,8 +110,8 @@ private:
   struct SubUI {
     std::array<CustomSlider, 8> knobs;
     std::array<juce::Label, 8> knobLabels;
-    UIConstants::LabelSelector saturateClipType{
-        {"Soft", "Hard", "Tube"}, UIConstants::Colours::subArc};
+    UIConstants::LabelSelector saturateClipType{{"Soft", "Hard", "Tube"},
+                                                UIConstants::Colours::subArc};
     struct {
       juce::Label label;
       juce::ComboBox combo;
@@ -219,7 +226,7 @@ private:
       CustomSlider driveSlider;
     };
     KnobUI pitch;
-    KnobUI amp;       ///< 0〜200% 振幅スケーラー
+    KnobUI amp; ///< 0〜200% 振幅スケーラー
     SaturatorUI saturator;
     KnobUI decay;
     // ── フィルター ノブ（下段） ──

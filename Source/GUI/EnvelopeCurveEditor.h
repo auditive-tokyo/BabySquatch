@@ -17,8 +17,7 @@ class EnvelopeCurveEditor : public juce::Component {
 public:
   EnvelopeCurveEditor(EnvelopeData &ampData, EnvelopeData &freqData,
                       EnvelopeData &distData, EnvelopeData &mixData,
-                      EnvelopeData &clickAmpData,
-                      EnvelopeData &directAmpData);
+                      EnvelopeData &clickAmpData, EnvelopeData &directAmpData);
 
   void paint(juce::Graphics &g) override;
 
@@ -38,10 +37,18 @@ public:
   /// nullptr を渡すとオーバーレイを無効化。
   void setDirectProvider(std::function<std::pair<float, float>(float)> fn);
 
+  /// リアルタイム入力波形データを設定（Direct パススルーモード用、UI
+  /// スレッドから呼ぶ） pixels: コンポーネント幅分の {min, max} ペア配列。
+  void setRealtimePixels(std::vector<std::pair<float, float>> pixels);
+  /// リアルタイム入力波形表示モード切り替え（true: 入力波形 / false:
+  /// サンプルプレビュー）
+  void setUseRealtimeInput(bool use) noexcept;
+
   /// Click 波形オーバーレイ用プロバイダーを設定。
   /// fn(timeSec) → {min, max}（-1〜1）の波形値を返すラムダ。
   /// nullptr を渡すとオーバーレイを無効化。
-  void setClickPreviewProvider(std::function<std::pair<float, float>(float)> fn);
+  void
+  setClickPreviewProvider(std::function<std::pair<float, float>(float)> fn);
 
   /// Click Sample Decay 期間を設定（5msフェードアウトの基準）
   void setClickDecayMs(float ms);
@@ -91,7 +98,8 @@ private:
   void paintClickNoiseBand(juce::Graphics &g, float w, float h,
                            float centreY) const;
   void paintClickSampleWave(juce::Graphics &g, float w, float h,
-                            float centreY) const;  void paintDirectWaveform(juce::Graphics &g, float w, float h,
+                            float centreY) const;
+  void paintDirectWaveform(juce::Graphics &g, float w, float h,
                            float centreY) const;
   void paintEnvelopeOverlay(juce::Graphics &g, float w) const;
   void paintTimeline(juce::Graphics &g, float w, float h, float totalH) const;
@@ -130,6 +138,9 @@ private:
   float clickDecayMs_ = 300.0f;
   std::function<float(float)> clickNoiseEnvFn_;
   std::function<std::pair<float, float>(float)> directPreviewFn_;
+  std::vector<std::pair<float, float>>
+      realtimePixels_; ///< リアルタイム per-pixel {min,max}
+  bool useRealtimeInput_ = false;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(EnvelopeCurveEditor)
 };
