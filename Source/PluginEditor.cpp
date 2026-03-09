@@ -113,6 +113,19 @@ void BabySquatchAudioProcessorEditor::onEnvelopeChanged() {
     envDatas.clickAmp.setDefaultValue(v);
     clickUI.sample.amp.slider.setValue(v * 100.0, juce::dontSendNotification);
   }
+
+  // Direct Amp
+  const bool directAmpCtrl = envDatas.directAmp.isEnvelopeControlled();
+  directUI.amp.slider.setEnabled(!directAmpCtrl);
+  directUI.amp.slider.setTooltip(
+      directAmpCtrl ? "Click on Amp label to edit envelope" : "");
+  if (!directAmpCtrl && envDatas.directAmp.hasPoints()) {
+    const float v = envDatas.directAmp.getPoints()[0].value;
+    envDatas.directAmp.setDefaultValue(v);
+    directUI.amp.slider.setValue(v * 100.0, juce::dontSendNotification);
+    bakeLut(envDatas.directAmp, processorRef.directEngine().directAmpLut(),
+            processorRef.directEngine().directAmpLut().getDurationMs());
+  }
 }
 
 // ────────────────────────────────────────────────────
@@ -136,6 +149,8 @@ void BabySquatchAudioProcessorEditor::mouseDown(const juce::MouseEvent &e) {
     switchEditTarget(saturate);
   else if (e.eventComponent == &clickUI.sample.amp.label)
     switchEditTarget(clickAmp);
+  else if (e.eventComponent == &directUI.amp.label)
+    switchEditTarget(directAmp);
 }
 
 void BabySquatchAudioProcessorEditor::switchEditTarget(
@@ -157,6 +172,10 @@ void BabySquatchAudioProcessorEditor::switchEditTarget(
   clickUI.sample.amp.label.setColour(
       juce::Label::textColourId,
       t == clickAmp ? UIConstants::Colours::clickArc : kLabel);
+  // Direct Amp label
+  directUI.amp.label.setColour(
+      juce::Label::textColourId,
+      t == directAmp ? UIConstants::Colours::directArc : kLabel);
 }
 
 // ────────────────────────────────────────────────────

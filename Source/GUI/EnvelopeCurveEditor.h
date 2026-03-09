@@ -17,13 +17,14 @@ class EnvelopeCurveEditor : public juce::Component {
 public:
   EnvelopeCurveEditor(EnvelopeData &ampData, EnvelopeData &freqData,
                       EnvelopeData &distData, EnvelopeData &mixData,
-                      EnvelopeData &clickAmpData);
+                      EnvelopeData &clickAmpData,
+                      EnvelopeData &directAmpData);
 
   void paint(juce::Graphics &g) override;
 
   /// 編集対象のエンベロープを切り替え（Amp / Freq / Saturate / Mix / Click
   /// Amp）
-  enum class EditTarget { amp, freq, saturate, mix, clickAmp };
+  enum class EditTarget { amp, freq, saturate, mix, clickAmp, directAmp };
   void setEditTarget(EditTarget target);
 
   /// 波形プレビュー用: 選択波形を設定（Sine/Tri/Square/Saw）
@@ -105,7 +106,7 @@ private:
   float computePreviewWaveValue(float sinVal, float mix, float phase) const;
 
   // [0]=amp, [1]=freq, [2]=dist, [3]=mix, [4]=clickAmp
-  std::array<EnvelopeData *, 5> envDatas_;
+  std::array<EnvelopeData *, 6> envDatas_;
   EnvelopeData *editEnvData; // 編集中のエンベロープ
 
   EditTarget editTarget = EditTarget::amp;

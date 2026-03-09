@@ -46,8 +46,10 @@ EnvelopeCurveEditor::EnvelopeCurveEditor(EnvelopeData &ampData,
                                          EnvelopeData &freqData,
                                          EnvelopeData &distData,
                                          EnvelopeData &mixData,
-                                         EnvelopeData &clickAmpData)
-    : envDatas_{&ampData, &freqData, &distData, &mixData, &clickAmpData},
+                                         EnvelopeData &clickAmpData,
+                                         EnvelopeData &directAmpData)
+    : envDatas_{&ampData, &freqData, &distData, &mixData, &clickAmpData,
+                &directAmpData},
       editEnvData(&ampData) {
   setOpaque(true);
 }
@@ -465,6 +467,9 @@ void EnvelopeCurveEditor::paintEnvelopeOverlay(juce::Graphics &g,
     break; // グリーン
   case clickAmp:
     envColour = UIConstants::Colours::clickArc;
+    break;
+  case directAmp:
+    envColour = UIConstants::Colours::directArc;
     break;
   }
   g.setColour(envColour);

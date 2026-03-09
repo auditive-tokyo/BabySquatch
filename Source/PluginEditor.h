@@ -62,7 +62,8 @@ private:
   EnvelopeDatas envDatas;
   EnvelopeCurveEditor envelopeCurveEditor{envDatas.amp, envDatas.freq,
                                           envDatas.dist, envDatas.mix,
-                                          envDatas.clickAmp};
+                                          envDatas.clickAmp,
+                                          envDatas.directAmp};
 
   // ── マスターセクション（鍵盤右余白エリア） ──
   MasterFader masterSection;

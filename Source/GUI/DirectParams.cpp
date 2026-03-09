@@ -85,6 +85,9 @@ void BabySquatchAudioProcessorEditor::setupDirectParams() {
   directUI.amp.slider.setRange(0.0, 200.0, 0.1);
   directUI.amp.slider.setDoubleClickReturnValue(true, 100.0);
   directUI.amp.slider.setValue(100.0, juce::dontSendNotification);
+  directUI.amp.slider.onDragStart = [this] {
+    switchEditTarget(EnvelopeCurveEditor::EditTarget::directAmp);
+  };
   directUI.amp.slider.onValueChange = [this] {
     const float v =
         static_cast<float>(directUI.amp.slider.getValue()) / 100.0f;
@@ -97,8 +100,15 @@ void BabySquatchAudioProcessorEditor::setupDirectParams() {
   };
   // 初期デフォルトポイント（1点：ノブ制御状態）
   envDatas.directAmp.addPoint(0.0f, envDatas.directAmp.getDefaultValue());
-  addAndMakeVisible(directUI.amp.slider);
+  {
+    const bool controlled = envDatas.directAmp.isEnvelopeControlled();
+    directUI.amp.slider.setEnabled(!controlled);
+    directUI.amp.slider.setTooltip(
+        controlled ? "Click on Amp label to edit envelope" : "");
+  }
   styleKnobLabelDirect(directUI.amp.label, "Amp", knobFont);
+  directUI.amp.label.addMouseListener(this, false);
+  addAndMakeVisible(directUI.amp.slider);
   addAndMakeVisible(directUI.amp.label);
 
   // Drive: 0 〜 24 dB
