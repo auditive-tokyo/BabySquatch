@@ -111,45 +111,24 @@ BabySquatchは3つのモジュールで構成されています：
   - 外部ファイル（.json / .txt）方式は配布・パス解決が面倒なので採用しない
   - `juce::TooltipWindow` はスタイル固定で右端常駐 UI に不向きなので採用しない
 
-- **~~Direct ピッチシフト（再生速度変更方式）~~** ✅ 実装済み
-  - `DirectEngine::render()` で `pow(2, semitones/12) × sampleRate比` を `playRate` として計算
-  - `DirectParams.cpp` Pitch ノブ → `setPitchSemitones()` 接続済み
-  - `refreshDirectProvider()` で波形プレビューに `speedRatio` 反映済み
-
-- **~~Sub/Click 共通トリガー（トランジェント検出）~~** ✅ 実装済み
-  - `TransientDetector.h`: 二重エンベロープフォロワー差分方式（Fast 0.2ms/10ms、Slow 10ms/200ms）
-  - 閾値 -24 dBFS 固定、Hold 50ms、ヒステリシス再アーム（30%）
-  - `PluginProcessor::processBlock()` でステレオ入力をモノミックス → 検出 → `triggerNote()` 呼び出し
-  - UI: "Auto" トグルボタン（鍵盤と Master の間、GradientButtonLAF）
-
 - **Auto Trigger UI 拡張（Threshold / Hold）**
   - 現状: 閾値 -24 dBFS・Hold 50ms は固定値。以下の UI を追加して調整可能にする
-  - **Hold — BPM × Note Division 入力方式**
-    - 計算式: `Hold (ms) = 60000 / BPM / (division / 4)`
-    - BPM: DAW ホストから自動取得（`getPlayHead()->getPosition()->getBpm()`）、手動オーバーライドも可
-    - Division: セグメントまたはコンボボックス（4th / 8th / 16th / 32nd / 64th / 128th …）
-    - **20ms 未満になる Division はグレーアウト**（例: BPM 170 の 128th = 11ms → 無効）
-      - グレーアウト項目に tooltip: "Use MIDI mode for subdivisions this fast"
-      - 20ms 選定根拠: 差分検出＋ヒステリシスにより下限を 30ms より緩和可能と判断
-    - 計算結果の ms 値を小さく表示（確認用ラベル）
-  - **Threshold — dB スライダー**
+  - **配置方針（Direct Insert FX と同時実装）**:
+    - **Hold** → `mode:` ドロップダウンの右側にスライダーとして配置（Direct パネル上部）
+    - **Threshold** → パススルーモード時に Pitch ノブの位置へ差し替え（Sample モード時は Pitch ノブが復帰）
+  - **Hold — ms 直値スライダー（第1フェーズ）**
+    - ウィジェット: 横向きスライダー（`mode:` ドロップダウン右の余白に収める）
+    - 範囲: 20 〜 500 ms、デフォルト 50 ms
+    - `TransientDetector::setHoldMs(float ms)` を追加して接続
+    - 将来的に BPM × Note Division 方式への拡張も可（第2フェーズ以降）
+  - **Threshold — ノブ（Pitch 位置に配置）**
+    - パススルーモード時のみ表示（`isDirectPassthrough()` で切り替え）
     - 範囲: -60 〜 0 dBFS（デフォルト -24 dBFS）
-    - 入力波形リアルタイム表示と組み合わせ、波形を見ながら視覚的に設定可能
     - 差分検出（Fast − Slow Envelope）の **onset 差分値** に対する閾値（絶対信号レベルとは別物）
       - 低い値（感度高）: 微小な立ち上がりでもトリガー → ゴーストノートや残響に反応しやすい
       - 高い値（感度低）: 明確なアタックのみトリガー → 本打ちキックだけを確実に拾う
-      - クリーンなキックチャンネルなら差分が大きく出るため、Threshold 高めでも立ち上がり最初の瞬間にトリガー
-  - 実装タイミング: **入力波形リアルタイム表示**と同時実装を推奨（波形＋Threshold 水平線を重ねて表示するため）
-
-- **~~入力波形リアルタイム表示~~** ✅ 実装済み
-  - `juce::AbstractFifo` + `std::vector<float> inputFifoData_` を `PluginProcessor` に追加（容量: 48000サンプル = ~1sec @ 48kHz）
-  - `processBlock()` でステレオ→モノミックス後、Direct パススルーモード時に FIFO へ書き込み
-  - `PluginEditor` が `private juce::Timer` を継承（30fps）、`timerCallback()` で FIFO を読み出してローリング表示バッファ（500ms分）に追記
-  - `timerCallback()` が per-pixel {min, max} を計算して `EnvelopeCurveEditor::setRealtimePixels()` へ渡し `repaint()` を呼ぶ
-  - `EnvelopeCurveEditor::paintDirectWaveform()` にデータソース抽象化ラムダを追加
-    - `useRealtimeInput_ = true`: `realtimePixels_[i]` を使用（入力波形）
-    - `useRealtimeInput_ = false`: `directPreviewFn_(x * dtSec)` を使用（サンプルファイルプレビュー、従来動作）
-  - Sample モード切り替え時: `setUseRealtimeInput(false)` → サンプルファイル波形に戻る
+    - `TransientDetector::setThresholdDb(float db)` を追加して接続
+    - 入力波形リアルタイム表示と組み合わせ、Threshold 水平線を波形上に重ねて表示
 
 - **Direct パラメーターをパススルー入力に適用（Direct Insert FX）**
   - **現状の問題**: `directSampleMode_ = false`（パススルー）のとき `DirectEngine::render()` は `active_ = false` で早期リターンし、入力信号はすべてのパラメーターをバイパスしてそのまま通過する。Channel Fader も無効。適用されるのは Master Gain のみ。
@@ -243,10 +222,15 @@ BabySquatchは3つのモジュールで構成されています：
        ```
      - `monoMixBuffer_` はパススルーモード時にのみ有効（既存コードで `!directSampleMode_.load()` ガードの中で生成済み）
 
-  6. **Pitch ノブのグレーアウト**
-     - リアルタイム入力に `pow(2, semitones/12) × rateRatio` 方式のピッチシフトは不可（遅延なしでは時間伸縮が必要）
-     - `DirectParams.cpp` にて: `pitchSlider_.setEnabled(!isPassthrough)` のように `isPassthrough` フラグ（`PluginProcessor::isDirectPassthrough()` の戻り値）で制御
-     - `PluginEditor` 側でモード変更時に `DirectParams` の refresh を呼ぶか、`Timer` 内で定期チェックする
+  6. **Pitch ノブ → Threshold ノブへの差し替え（パススルーモード時）**
+     - リアルタイム入力へのピッチシフトはアルゴリズム的に不可（位相ボコーダー等は遅延＋高CPU）のため、Pitch ノブは削除ではなく**非表示**にして同位置に Threshold ノブを表示
+     - `DirectParams.cpp` にて: `pitchSlider_.setVisible(!isPassthrough)` / `thresholdKnob_.setVisible(isPassthrough)` で切り替え
+     - `PluginEditor::timerCallback()` 内で `isDirectPassthrough()` の変化を検出して `directParams.refreshPassthroughUI()` 等を呼ぶ
+  7. **Hold スライダーの追加（mode ドロップダウン右）**
+     - `DirectParams.cpp` にて: `mode:` ドロップダウンの右側に横向きスライダーを追加
+     - 範囲: 20 〜 500 ms / デフォルト: 50 ms
+     - `onValueChange` → `processor.transientDetector_.setHoldMs(v)` で接続
+     - Auto Trigger がオフの場合はグレーアウト（`holdSlider_.setEnabled(autoEnabled)`）
 
   **パラメーター適用可否まとめ**:
   | パラメーター | 適用 | 備考 |
@@ -256,7 +240,7 @@ BabySquatchは3つのモジュールで構成されています：
   | Drive + Clip Type | ✅ | `monoMixBuffer_` を `Saturator::process()` に通す |
   | HP Freq / Q / Slope | ✅ | `hpfs_` を共用（フィルター二重化なし） |
   | LP Freq / Q / Slope | ✅ | `lpfs_` を共用（フィルター二重化なし） |
-  | Pitch (semitones) | ❌ | グレーアウト（リアルタイムピッチシフトは遅延なしでは不可） |
+  | Pitch (semitones) | ❌ | パススルー時は非表示→同位置に Threshold ノブを表示 |
   | Channel Fader | ✅ | `scratchBuffer_` への書き込みにより `scratchData()` 経由でレベル計測も正常動作 |
 
 - **レイテンシー補正（Delay Compensation）**
