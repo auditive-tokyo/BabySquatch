@@ -48,6 +48,10 @@ void BoomBabyAudioProcessor::prepareToPlay(double sampleRate,
   subEngine_.prepareToPlay(sampleRate, samplesPerBlock);
   clickEngine_.prepareToPlay(sampleRate, samplesPerBlock);
   directEngine_.prepareToPlay(sampleRate, samplesPerBlock);
+  // sampleMode_ の初期値（false = Input モード）に合わせて passthroughMode_ を同期。
+  // 未同期のまま triggerNote() が呼ばれるとサンプル未ロード判定で early return し
+  // active_ が立たず、renderPassthrough が amp=0 で無音になるのを防ぐ。
+  directEngine_.setPassthroughMode(!directMode_.sampleMode_.load());
   channelState_.resetDetectors();
 
   directMode_.transientDetector_.prepare(sampleRate);
