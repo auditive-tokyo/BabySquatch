@@ -946,13 +946,13 @@ void EnvelopeCurveEditor::showPointContextMenu(int pointIndex,
     } else if (result == 2) {
       startPointTimeEdit(pointIndex);
     } else if (result == 3) {
-      if (const auto &pts = editEnvData->getPoints();
-          pointIndex < static_cast<int>(pts.size())) {
-        editEnvData->setPointValue(pointIndex, editEnvData->getDefaultValue());
-        if (onChange)
-          onChange();
-        repaint();
-      }
+      // index 1 以降を逆順で全削除（最初のポイントの値はそのまま保持）
+      for (int i = static_cast<int>(editEnvData->getPoints().size()) - 1;
+           i >= 1; --i)
+        editEnvData->removePoint(i);
+      if (onChange)
+        onChange();
+      repaint();
     }
   });
 }
