@@ -44,6 +44,85 @@ std::pair<float, float> editValueRange(EnvelopeCurveEditor::EditTarget target) {
 
 } // namespace
 
+// ── PointValueEditor 定義（unique_ptrの完全型要件を満たすためコンストラクタ前に配置）──
+
+struct EnvelopeCurveEditor::PointValueEditor : public juce::Component {
+  enum class Mode { Value, Time };
+
+  juce::TextEditor editor;
+  EnvelopeCurveEditor *owner;
+  int pointIndex;
+  Mode mode;
+
+  PointValueEditor(EnvelopeCurveEditor *e, int idx, juce::Rectangle<int> bounds,
+                   const juce::String &currentText, Mode m)
+      : owner(e), pointIndex(idx), mode(m) {
+    editor.setFont(juce::Font{juce::FontOptions{11.0f}});
+    editor.setJustification(juce::Justification::centred);
+    editor.setColour(juce::TextEditor::backgroundColourId,
+                     juce::Colour(0xFF1A1A1A));
+    editor.setColour(juce::TextEditor::textColourId, juce::Colours::white);
+    editor.setColour(juce::TextEditor::outlineColourId,
+                     juce::Colours::white.withAlpha(0.4f));
+    editor.setColour(juce::TextEditor::focusedOutlineColourId,
+                     juce::Colours::white);
+    editor.setText(currentText, false);
+    editor.selectAll();
+    editor.onReturnKey = [this] { commit(); };
+    editor.onEscapeKey = [this] { dismiss(); };
+    addAndMakeVisible(editor);
+    setBounds(bounds);
+    e->addAndMakeVisible(this);
+    editor.grabKeyboardFocus();
+  }
+
+  void resized() override { editor.setBounds(getLocalBounds()); }
+
+  void focusOfChildComponentChanged(FocusChangeType) override {
+    if (!hasKeyboardFocus(true))
+      commit();
+  }
+
+  void commit() {
+    if (const auto &pts = owner->editEnvData->getPoints();
+        pointIndex < static_cast<int>(pts.size())) {
+      if (mode == Mode::Time) {
+        // 時間編集: ms 直値、[0, displayDurationMs] にクランプ
+        const float newMs = juce::jlimit(
+            0.0f, owner->displayDurationMs,
+            editor.getText().trim().getFloatValue());
+        const float curVal = pts[static_cast<size_t>(pointIndex)].value;
+        owner->editEnvData->movePoint(pointIndex, newMs, curVal);
+      } else {
+        // 値編集
+        if (const auto val =
+                owner->parseDisplayStringToValue(editor.getText());
+            val.has_value()) {
+          owner->editEnvData->setPointValue(pointIndex, *val);
+        } else {
+          dismiss();
+          return;
+        }
+      }
+      if (owner->onChange)
+        owner->onChange();
+      owner->repaint();
+    }
+    dismiss();
+  }
+
+  void dismiss() {
+    juce::Component::SafePointer<PointValueEditor> self(this);
+    juce::MessageManager::callAsync([self] {
+      if (self)
+        self->owner->pointValueEditor_.reset();
+    });
+  }
+};
+
+// デストラクタ: PointValueEditor 完全型の後に定義
+EnvelopeCurveEditor::~EnvelopeCurveEditor() = default;
+
 EnvelopeCurveEditor::EnvelopeCurveEditor(EnvelopeData &ampData,
                                          EnvelopeData &freqData,
                                          EnvelopeData &distData,
@@ -756,6 +835,16 @@ void EnvelopeCurveEditor::mouseDoubleClick(const juce::MouseEvent &e) {
 }
 
 void EnvelopeCurveEditor::mouseDown(const juce::MouseEvent &e) {
+  // 右クリック: ポイント上ならコンテキストメニュー
+  if (e.mods.isRightButtonDown()) {
+    const auto c = makeCoords();
+    if (const int hit = HitTester::findPoint(*this, c, static_cast<float>(e.x),
+                                             static_cast<float>(e.y));
+        hit >= 0)
+      showPointContextMenu(hit, e.getScreenPosition());
+    return;
+  }
+
   const auto px = static_cast<float>(e.x);
   const auto py = static_cast<float>(e.y);
   const auto c = makeCoords();
@@ -812,8 +901,8 @@ void EnvelopeCurveEditor::mouseMove(const juce::MouseEvent &e) {
   const auto px = static_cast<float>(e.x);
   const auto py = static_cast<float>(e.y);
   const auto c = makeCoords();
-  const int hit = HitTester::findPoint(*this, c, px, py);
-  if (hit != hoverPointIndex_) {
+  if (const int hit = HitTester::findPoint(*this, c, px, py);
+      hit != hoverPointIndex_) {
     hoverPointIndex_ = hit;
     repaint();
   }
@@ -836,6 +925,140 @@ void EnvelopeCurveEditor::setEditTarget(EditTarget target) {
 void EnvelopeCurveEditor::setOnEditTargetChanged(
     std::function<void(EditTarget)> cb) {
   onEditTargetChanged = std::move(cb);
+}
+
+// ── ポイント右クリックメニュー ──
+
+void EnvelopeCurveEditor::showPointContextMenu(int pointIndex,
+                                               juce::Point<int> screenPos) {
+  juce::PopupMenu menu;
+  menu.addItem(1, "Edit Value");
+  menu.addItem(2, "Set Position");
+  menu.addSeparator();
+  menu.addItem(3, "Reset");
+
+  const auto opts = juce::PopupMenu::Options().withTargetScreenArea(
+      juce::Rectangle<int>(screenPos.x, screenPos.y, 1, 1));
+
+  menu.showMenuAsync(opts, [this, pointIndex](int result) {
+    if (result == 1) {
+      startPointValueEdit(pointIndex);
+    } else if (result == 2) {
+      startPointTimeEdit(pointIndex);
+    } else if (result == 3) {
+      if (const auto &pts = editEnvData->getPoints();
+          pointIndex < static_cast<int>(pts.size())) {
+        editEnvData->setPointValue(pointIndex, editEnvData->getDefaultValue());
+        if (onChange)
+          onChange();
+        repaint();
+      }
+    }
+  });
+}
+
+void EnvelopeCurveEditor::startPointValueEdit(int pointIndex) {
+  const auto &pts = editEnvData->getPoints();
+  if (pointIndex >= static_cast<int>(pts.size()))
+    return;
+
+  const auto &pt = pts[static_cast<size_t>(pointIndex)];
+  const auto c = makeCoords();
+  const float px = c.timeMsToX(pt.timeMs);
+  const float py = c.valueToY(pt.value);
+
+  constexpr int editorW = 90;
+  constexpr int editorH = 22;
+  int bx = static_cast<int>(px) - editorW / 2;
+  int by = static_cast<int>(py) - editorH - 10;
+  if (by < 0)
+    by = static_cast<int>(py) + 10;
+  bx = juce::jlimit(0, getWidth() - editorW, bx);
+  by = juce::jlimit(0, static_cast<int>(c.plotH) - editorH, by);
+
+  pointValueEditor_ = std::make_unique<PointValueEditor>(
+      this, pointIndex, juce::Rectangle<int>(bx, by, editorW, editorH),
+      pointValueToDisplayString(pt.value), PointValueEditor::Mode::Value);
+}
+
+void EnvelopeCurveEditor::startPointTimeEdit(int pointIndex) {
+  const auto &pts = editEnvData->getPoints();
+  if (pointIndex >= static_cast<int>(pts.size()))
+    return;
+
+  const auto &pt = pts[static_cast<size_t>(pointIndex)];
+  const auto c = makeCoords();
+  const float px = c.timeMsToX(pt.timeMs);
+  const float py = c.valueToY(pt.value);
+
+  constexpr int editorW = 90;
+  constexpr int editorH = 22;
+  int bx = static_cast<int>(px) - editorW / 2;
+  int by = static_cast<int>(py) - editorH - 10;
+  if (by < 0)
+    by = static_cast<int>(py) + 10;
+  bx = juce::jlimit(0, getWidth() - editorW, bx);
+  by = juce::jlimit(0, static_cast<int>(c.plotH) - editorH, by);
+
+  // 現在の時間を表示文字列に変換
+  const float ms = pt.timeMs;
+  juce::String currentText;
+  if (ms < 10.0f)
+    currentText = juce::String(ms, 2);
+  else if (ms < 100.0f)
+    currentText = juce::String(ms, 1);
+  else
+    currentText = juce::String(static_cast<int>(std::round(ms)));
+
+  pointValueEditor_ = std::make_unique<PointValueEditor>(
+      this, pointIndex, juce::Rectangle<int>(bx, by, editorW, editorH),
+      currentText, PointValueEditor::Mode::Time);
+}
+
+juce::String EnvelopeCurveEditor::pointValueToDisplayString(float value) const {
+  using enum EditTarget;
+  switch (editTarget) {
+  case freq:
+    return juce::String(static_cast<int>(std::round(value)));
+  case saturate:
+    return juce::String(value * 24.0f, 1);
+  case mix:
+    return juce::String(static_cast<int>(std::round(value * 100.0f)));
+  case amp:
+  case clickAmp:
+  case directAmp:
+    return juce::String(static_cast<int>(std::round(value * 100.0f)));
+  }
+  return juce::String(value, 2);
+}
+
+std::optional<float>
+EnvelopeCurveEditor::parseDisplayStringToValue(const juce::String &text) const {
+  const auto s = text.trim();
+  if (s.isEmpty())
+    return {};
+
+  using enum EditTarget;
+  switch (editTarget) {
+  case freq: {
+    // 音名（例: G3）→ Hz 変換を優先
+    if (const auto hz = CustomSlider::parseNoteNameToHz(s); hz.has_value())
+      return static_cast<float>(juce::jlimit(20.0, 20000.0, *hz));
+    // 数値（Hz直値）
+    if (const float hz = s.getFloatValue(); hz > 0.0f)
+      return juce::jlimit(20.0f, 20000.0f, hz);
+    return {};
+  }
+  case saturate:
+    return juce::jlimit(0.0f, 1.0f, s.getFloatValue() / 24.0f);
+  case mix:
+    return juce::jlimit(-1.0f, 1.0f, s.getFloatValue() / 100.0f);
+  case amp:
+  case clickAmp:
+  case directAmp:
+    return juce::jlimit(0.0f, 2.0f, s.getFloatValue() / 100.0f);
+  }
+  return {};
 }
 
 void EnvelopeCurveEditor::PaintHelper::pointTooltip(
@@ -872,7 +1095,9 @@ void EnvelopeCurveEditor::PaintHelper::pointTooltip(
       valueStr = juce::String(pt.value / 1000.0f, 2) + " kHz";
     else
       valueStr = juce::String(static_cast<int>(std::round(pt.value))) + " Hz";
-    if (const juce::String noteName = hzToNoteName(static_cast<double>(pt.value)); noteName.isNotEmpty())
+    if (const juce::String noteName =
+            hzToNoteName(static_cast<double>(pt.value));
+        noteName.isNotEmpty())
       valueStr += "  " + noteName;
     break;
   }

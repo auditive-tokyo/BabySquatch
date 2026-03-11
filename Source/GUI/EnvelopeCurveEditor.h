@@ -2,6 +2,7 @@
 
 #include <array>
 #include <functional>
+#include <optional>
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include "../DSP/SubOscillator.h" // WaveShape enum
@@ -18,6 +19,7 @@ public:
   EnvelopeCurveEditor(EnvelopeData &ampData, EnvelopeData &freqData,
                       EnvelopeData &distData, EnvelopeData &mixData,
                       EnvelopeData &clickAmpData, EnvelopeData &directAmpData);
+  ~EnvelopeCurveEditor() override; ///< 定義は .cpp 内（PointValueEditor が完全型後）
 
   void paint(juce::Graphics &g) override;
 
@@ -81,6 +83,13 @@ public:
   void mouseUp(const juce::MouseEvent &e) override;
   void mouseMove(const juce::MouseEvent &e) override;
   void mouseExit(const juce::MouseEvent &e) override;
+
+  /// 右クリックメニュー（Edit Value / Set Position / Reset）
+  void showPointContextMenu(int pointIndex, juce::Point<int> screenPos);
+  void startPointValueEdit(int pointIndex);
+  void startPointTimeEdit(int pointIndex);
+  juce::String pointValueToDisplayString(float value) const;
+  std::optional<float> parseDisplayStringToValue(const juce::String &text) const;
 
   static constexpr float pointHitRadius = 8.0f;
   static constexpr float timelineHeight = 30.0f;
@@ -161,6 +170,9 @@ private:
   bool useRealtimeInput_ = false;
 
   int hoverPointIndex_{-1}; ///< mouseMove で検出したホバー中ポイント（-1: なし）
+
+  struct PointValueEditor;
+  std::unique_ptr<PointValueEditor> pointValueEditor_;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(EnvelopeCurveEditor)
 };
