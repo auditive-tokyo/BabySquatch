@@ -24,7 +24,7 @@ BoomBabyは3つのモジュールで構成されています：
 
 - macOS
 - CMake/Xcode
-- C++20
+- C++23
 - JUCE Framework
 
 ## エージェント動作ルール (必須)
@@ -147,6 +147,27 @@ BoomBabyは3つのモジュールで構成されています：
     4. GUI 側: `driveSlider` の `onValueChange` で `v / 24.0f` を渡すよう修正
     5. `EnvelopeDatas` に `clickDrive` を追加し、`EnvelopeCurveEditor` に接続
   - 注意: Click の Drive は **UI ウィジェットは1個（共用）だが、値は `noiseState.drive` / `sampleState.drive` でモード別に独立保存・復元**されている。LUT を追加する場合も同様に Noise 用・Sample 用の2系統が必要（`ModeState` に `EnvelopeData` または LUT インデックスを追加してモード切り替え時に swap する形になる）
+
+- **FilterResponseView（フィルター応答カーブ描画コンポーネント）**
+  - 目的: Click / Direct パネルに HPF・LPF・BPF の周波数応答カーブを表示し、フィルター設定を視覚的にフィードバックする
+  - 対象チャンネル:
+    - **Click**: BPF1（Noise モード専用）+ HPF + LPF（各最大4段カスケード）
+    - **Direct**: HPF + LPF（各最大4段カスケード）
+  - 実装方針: **`EnvelopeCurveEditor` とは別コンポーネント**（`FilterResponseView.h/.cpp`）
+    - 理由: X軸が周波数（Hz, log）vs 時間（ms）で座標系が根本的に異なるため同居不適
+    - SVF-TPT の解析的マグニチュード応答で描画（`g = tan(π·fc/fs)` → `|H(e^jω)|` 直接計算）
+    - カスケード段数は `|H|^stages` で処理
+  - API 設計:
+    ```cpp
+    FilterResponseView
+    ├── setSampleRate(double sr)
+    ├── setHpfParams(float freq, float q, int stages)
+    ├── setLpfParams(float freq, float q, int stages)
+    ├── setBpfParams(float freq, float q, int stages)  // Click 専用
+    └── paint() → log-freq 軸で dB マグニチュード描画
+    ```
+  - 配置: Click パネル / Direct パネルにそれぞれインスタンスを配置
+  - 見積もり: ~170行（`.h` + `.cpp`）。`EnvelopeCurveEditor.cpp` の行数は増えない
 
 - **プリセット管理 + デフォルトプリセット**
   - 目的: 全パラメーター（エンベロープ含む）の初期値をハードコードではなく設定ファイルとして管理。ユーザーリセット・将来のプリセット追加に対応

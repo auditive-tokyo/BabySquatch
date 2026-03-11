@@ -4,6 +4,7 @@
 
 #include <array>
 #include <cmath>
+#include <utility>
 
 namespace {
 
@@ -807,7 +808,7 @@ void EnvelopeCurveEditor::mouseUp(const juce::MouseEvent & /*e*/) {
 
 void EnvelopeCurveEditor::setEditTarget(EditTarget target) {
   editTarget = target;
-  editEnvData = envDatas_[static_cast<size_t>(target)];
+  editEnvData = envDatas_[static_cast<std::size_t>(std::to_underlying(target))];
   drag_.pointIndex = -1;
   repaint();
 }
