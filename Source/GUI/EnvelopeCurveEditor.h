@@ -2,8 +2,8 @@
 
 #include <array>
 #include <functional>
-#include <optional>
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <optional>
 
 #include "../DSP/SubOscillator.h" // WaveShape enum
 
@@ -19,7 +19,8 @@ public:
   EnvelopeCurveEditor(EnvelopeData &ampData, EnvelopeData &freqData,
                       EnvelopeData &distData, EnvelopeData &mixData,
                       EnvelopeData &clickAmpData, EnvelopeData &directAmpData);
-  ~EnvelopeCurveEditor() override; ///< 定義は .cpp 内（PointValueEditor が完全型後）
+  ~EnvelopeCurveEditor()
+      override; ///< 定義は .cpp 内（PointValueEditor が完全型後）
 
   void paint(juce::Graphics &g) override;
 
@@ -68,6 +69,16 @@ public:
   void setDisplayDurationMs(float ms);
   float getDisplayDurationMs() const { return displayDurationMs; }
 
+  /// 各チャンネルのミュート状態を設定（波形オーバーレイの表示/非表示）
+  void setSubMuted(bool muted);
+  void setClickMuted(bool muted);
+  void setDirectMuted(bool muted);
+
+  /// 各チャンネルのソロ状態を設定（ソロ中は該当チャンネルのみ表示）
+  void setSubSoloed(bool soloed);
+  void setClickSoloed(bool soloed);
+  void setDirectSoloed(bool soloed);
+
   /// ポイント変更時コールバック（LUT ベイク等に使用）
   void setOnChange(std::function<void()> cb);
 
@@ -89,17 +100,19 @@ public:
   void startPointValueEdit(int pointIndex);
   void startPointTimeEdit(int pointIndex);
   juce::String pointValueToDisplayString(float value) const;
-  std::optional<float> parseDisplayStringToValue(const juce::String &text) const;
+  std::optional<float>
+  parseDisplayStringToValue(const juce::String &text) const;
 
   static constexpr float pointHitRadius = 8.0f;
   static constexpr float timelineHeight = 30.0f;
 
 private:
-  // ── 座標変換ヘルパー群（nested struct: outer class の private に直接アクセス可能） ──
+  // ── 座標変換ヘルパー群（nested struct: outer class の private
+  // に直接アクセス可能） ──
   struct CoordMapper {
     float durationMs;
     float w;
-    float plotH;        ///< getHeight() - timelineHeight
+    float plotH; ///< getHeight() - timelineHeight
     EditTarget editTarget;
     float timeMsToX(float timeMs) const noexcept;
     float valueToY(float value) const noexcept;
@@ -111,11 +124,11 @@ private:
   // ── ヒットテスト群 ──
   struct HitTester {
     /// ピクセル空間でのポイントヒット判定（-1: なし）
-    static int findPoint(const EnvelopeCurveEditor &e,
-                         const CoordMapper &c, float px, float py);
+    static int findPoint(const EnvelopeCurveEditor &e, const CoordMapper &c,
+                         float px, float py);
     /// Shift+クリック用: 最近傍セグメント（-1: なし）
-    static int findSegment(const EnvelopeCurveEditor &e,
-                           const CoordMapper &c, float px, float py);
+    static int findSegment(const EnvelopeCurveEditor &e, const CoordMapper &c,
+                           float px, float py);
   };
 
   // ── paint() 分割ヘルパー群 ──
@@ -130,11 +143,10 @@ private:
                                const CoordMapper &c, float centreY);
     static void envelopeOverlay(const EnvelopeCurveEditor &e, juce::Graphics &g,
                                 const CoordMapper &c);
-    static void timeline(juce::Graphics &g,
-                         const CoordMapper &c, float totalH);
+    static void timeline(juce::Graphics &g, const CoordMapper &c, float totalH);
     /// Mix + 波形選択に応じた1サンプルを返す
-    static float previewWaveValue(const EnvelopeCurveEditor &e,
-                                  float sinVal, float mix, float phase);
+    static float previewWaveValue(const EnvelopeCurveEditor &e, float sinVal,
+                                  float mix, float phase);
     /// ホバー / ドラッグ中ポイントの値ツールチップを描画
     static void pointTooltip(const EnvelopeCurveEditor &e, juce::Graphics &g,
                              const CoordMapper &c);
@@ -169,7 +181,15 @@ private:
       realtimePixels_; ///< リアルタイム per-pixel {min,max}
   bool useRealtimeInput_ = false;
 
-  int hoverPointIndex_{-1}; ///< mouseMove で検出したホバー中ポイント（-1: なし）
+  int hoverPointIndex_{
+      -1}; ///< mouseMove で検出したホバー中ポイント（-1: なし）
+
+  bool subMuted_ = false;
+  bool clickMuted_ = false;
+  bool directMuted_ = false;
+  bool subSoloed_ = false;
+  bool clickSoloed_ = false;
+  bool directSoloed_ = false;
 
   struct PointValueEditor;
   std::unique_ptr<PointValueEditor> pointValueEditor_;

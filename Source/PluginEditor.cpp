@@ -9,16 +9,30 @@
 void BoomBabyAudioProcessorEditor::setupPanelRouting(
     BoomBabyAudioProcessor &p) {
   using enum ChannelState::Channel;
-  subPanel.setOnMuteChanged([&p](bool m) { p.channelState().setMute(sub, m); });
-  subPanel.setOnSoloChanged([&p](bool s) { p.channelState().setSolo(sub, s); });
-  clickPanel.setOnMuteChanged(
-      [&p](bool m) { p.channelState().setMute(click, m); });
-  clickPanel.setOnSoloChanged(
-      [&p](bool s) { p.channelState().setSolo(click, s); });
-  directPanel.setOnMuteChanged(
-      [&p](bool m) { p.channelState().setMute(direct, m); });
-  directPanel.setOnSoloChanged(
-      [&p](bool s) { p.channelState().setSolo(direct, s); });
+  subPanel.setOnMuteChanged([&p, this](bool m) {
+    p.channelState().setMute(sub, m);
+    envelopeCurveEditor.setSubMuted(m);
+  });
+  subPanel.setOnSoloChanged([&p, this](bool s) {
+    p.channelState().setSolo(sub, s);
+    envelopeCurveEditor.setSubSoloed(s);
+  });
+  clickPanel.setOnMuteChanged([&p, this](bool m) {
+    p.channelState().setMute(click, m);
+    envelopeCurveEditor.setClickMuted(m);
+  });
+  clickPanel.setOnSoloChanged([&p, this](bool s) {
+    p.channelState().setSolo(click, s);
+    envelopeCurveEditor.setClickSoloed(s);
+  });
+  directPanel.setOnMuteChanged([&p, this](bool m) {
+    p.channelState().setMute(direct, m);
+    envelopeCurveEditor.setDirectMuted(m);
+  });
+  directPanel.setOnSoloChanged([&p, this](bool s) {
+    p.channelState().setSolo(direct, s);
+    envelopeCurveEditor.setDirectSoloed(s);
+  });
 
   subPanel.setLevelProvider(
       [&p]() { return p.channelState().getChannelLevelDb(sub); });
@@ -55,6 +69,8 @@ void BoomBabyAudioProcessorEditor::onEnvelopeChanged() {
   bakeLut(envDatas.mix, processorRef.subEngine().mixLut(), durationMs);
   bakeLut(envDatas.clickAmp, processorRef.clickEngine().clickAmpLut(),
           durationMs);
+  bakeLut(envDatas.directAmp, processorRef.directEngine().directAmpLut(),
+          processorRef.directEngine().directAmpLut().getDurationMs());
   // 1点=ノブ制御（有効化＋ポイント値をノブに反映）、2点以上=エンベロープ制御（無効化）
 
   // Amp
@@ -124,8 +140,6 @@ void BoomBabyAudioProcessorEditor::onEnvelopeChanged() {
     const float v = envDatas.directAmp.getPoints()[0].value;
     envDatas.directAmp.setDefaultValue(v);
     directUI.amp.slider.setValue(v * 100.0, juce::dontSendNotification);
-    bakeLut(envDatas.directAmp, processorRef.directEngine().directAmpLut(),
-            processorRef.directEngine().directAmpLut().getDurationMs());
   }
 }
 
@@ -263,9 +277,11 @@ void BoomBabyAudioProcessorEditor::timerCallback() {
         waveDisplayFilled_ = std::min(waveDisplayFilled_ + 1, cap);
       }
     };
-    writeToRing(std::span<const float>{src.data() + s1, static_cast<std::size_t>(sz1)});
+    writeToRing(
+        std::span<const float>{src.data() + s1, static_cast<std::size_t>(sz1)});
     if (sz2 > 0)
-      writeToRing(std::span<const float>{src.data() + s2, static_cast<std::size_t>(sz2)});
+      writeToRing(std::span<const float>{src.data() + s2,
+                                         static_cast<std::size_t>(sz2)});
     fifo.finishedRead(sz1 + sz2);
   }
 

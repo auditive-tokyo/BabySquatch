@@ -33,10 +33,10 @@ void BoomBabyAudioProcessorEditor::setupDirectParams() {
 
   // ── Mode combo ──
   directUI.modeCombo.addItem("Direct",
-                             static_cast<int>(DirectUI::Mode::Direct));
+                             std::to_underlying(DirectUI::Mode::Direct));
   directUI.modeCombo.addItem("Sample",
-                             static_cast<int>(DirectUI::Mode::Sample));
-  directUI.modeCombo.setSelectedId(static_cast<int>(DirectUI::Mode::Direct),
+                             std::to_underlying(DirectUI::Mode::Sample));
+  directUI.modeCombo.setSelectedId(std::to_underlying(DirectUI::Mode::Direct),
                                    juce::dontSendNotification);
   directUI.modeCombo.setLookAndFeel(&darkComboLAF);
   addAndMakeVisible(directUI.modeCombo);
@@ -56,7 +56,7 @@ void BoomBabyAudioProcessorEditor::setupDirectParams() {
   // ── Mode コンボ変更時: ボタン表示切り替え ──
   directUI.modeCombo.onChange = [this] {
     const bool isSample = directUI.modeCombo.getSelectedId() ==
-                          static_cast<int>(DirectUI::Mode::Sample);
+                          std::to_underlying(DirectUI::Mode::Sample);
     directUI.sample.loadButton.setVisible(isSample);
     if (!isSample)
       directUI.sample.loadButton.setButtonText("Drop or Click to Load");
