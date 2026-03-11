@@ -26,7 +26,7 @@ public:
 
   /// 編集対象のエンベロープを切り替え（Amp / Freq / Saturate / Mix / Click
   /// Amp）
-  enum class EditTarget { amp, freq, saturate, mix, clickAmp, directAmp };
+  enum class EditTarget { amp, freq, saturate, mix, clickAmp, directAmp, none };
   void setEditTarget(EditTarget target);
 
   /// 波形プレビュー用: 選択波形を設定（Sine/Tri/Square/Saw）

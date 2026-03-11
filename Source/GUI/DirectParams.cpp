@@ -73,6 +73,9 @@ void BoomBabyAudioProcessorEditor::setupDirectParams() {
   directUI.pitch.slider.setRange(-24.0, 24.0, 1.0);
   directUI.pitch.slider.setDoubleClickReturnValue(true, 0.0);
   directUI.pitch.slider.setValue(0.0, juce::dontSendNotification);
+  directUI.pitch.slider.onDragStart = [this] {
+    switchEditTarget(EnvelopeCurveEditor::EditTarget::none);
+  };
   directUI.pitch.slider.onValueChange = [this] {
     processorRef.directEngine().setPitchSemitones(
         static_cast<float>(directUI.pitch.slider.getValue()));
@@ -120,6 +123,9 @@ void BoomBabyAudioProcessorEditor::setupDirectParams() {
   directUI.saturator.driveSlider.textFromValueFunction = [](double v) {
     return juce::String(v, 1) + " dB";
   };
+  directUI.saturator.driveSlider.onDragStart = [this] {
+    switchEditTarget(EnvelopeCurveEditor::EditTarget::none);
+  };
   directUI.saturator.driveSlider.onValueChange = [this] {
     processorRef.directEngine().setDriveDb(
         static_cast<float>(directUI.saturator.driveSlider.getValue()));
@@ -140,6 +146,9 @@ void BoomBabyAudioProcessorEditor::setupDirectParams() {
   directUI.decay.slider.textFromValueFunction = [](double v) {
     return v < 1000.0 ? juce::String(juce::roundToInt(v)) + " ms"
                       : juce::String(v / 1000.0, 2) + " s";
+  };
+  directUI.decay.slider.onDragStart = [this] {
+    switchEditTarget(EnvelopeCurveEditor::EditTarget::none);
   };
   directUI.decay.slider.onValueChange = [this] {
     const auto durMs = static_cast<float>(directUI.decay.slider.getValue());
@@ -165,6 +174,9 @@ void BoomBabyAudioProcessorEditor::setupDirectParams() {
   directUI.hpf.slider.setTextValueSuffix(" Hz");
   directUI.hpf.slider.setValue(20.0, juce::dontSendNotification);
   directUI.hpf.slider.setDoubleClickReturnValue(true, 20.0);
+  directUI.hpf.slider.onDragStart = [this] {
+    switchEditTarget(EnvelopeCurveEditor::EditTarget::none);
+  };
   directUI.hpf.slider.onValueChange = [this] {
     processorRef.directEngine().setHpfFreq(
         static_cast<float>(directUI.hpf.slider.getValue()));
@@ -178,6 +190,9 @@ void BoomBabyAudioProcessorEditor::setupDirectParams() {
   };
   directUI.hpf.qSlider.setValue(0.707, juce::dontSendNotification);
   directUI.hpf.qSlider.setDoubleClickReturnValue(true, 0.707);
+  directUI.hpf.qSlider.onDragStart = [this] {
+    switchEditTarget(EnvelopeCurveEditor::EditTarget::none);
+  };
   directUI.hpf.qSlider.onValueChange = [this] {
     processorRef.directEngine().setHpfQ(
         static_cast<float>(directUI.hpf.qSlider.getValue()));
@@ -197,6 +212,9 @@ void BoomBabyAudioProcessorEditor::setupDirectParams() {
   directUI.lpf.slider.setTextValueSuffix(" Hz");
   directUI.lpf.slider.setValue(20000.0, juce::dontSendNotification);
   directUI.lpf.slider.setDoubleClickReturnValue(true, 20000.0);
+  directUI.lpf.slider.onDragStart = [this] {
+    switchEditTarget(EnvelopeCurveEditor::EditTarget::none);
+  };
   directUI.lpf.slider.onValueChange = [this] {
     processorRef.directEngine().setLpfFreq(
         static_cast<float>(directUI.lpf.slider.getValue()));
@@ -210,6 +228,9 @@ void BoomBabyAudioProcessorEditor::setupDirectParams() {
   };
   directUI.lpf.qSlider.setValue(0.707, juce::dontSendNotification);
   directUI.lpf.qSlider.setDoubleClickReturnValue(true, 0.707);
+  directUI.lpf.qSlider.onDragStart = [this] {
+    switchEditTarget(EnvelopeCurveEditor::EditTarget::none);
+  };
   directUI.lpf.qSlider.onValueChange = [this] {
     processorRef.directEngine().setLpfQ(
         static_cast<float>(directUI.lpf.qSlider.getValue()));
@@ -237,6 +258,9 @@ void BoomBabyAudioProcessorEditor::setupDirectParams() {
   directUI.threshold.slider.textFromValueFunction = [](double v) {
     return juce::String(v, 1) + " dB";
   };
+  directUI.threshold.slider.onDragStart = [this] {
+    switchEditTarget(EnvelopeCurveEditor::EditTarget::none);
+  };
   directUI.threshold.slider.onValueChange = [this] {
     processorRef.directMode().detector().setThresholdDb(
         static_cast<float>(directUI.threshold.slider.getValue()));
@@ -254,6 +278,9 @@ void BoomBabyAudioProcessorEditor::setupDirectParams() {
   directUI.hold.slider.setValue(50.0, juce::dontSendNotification);
   directUI.hold.slider.textFromValueFunction = [](double v) {
     return juce::String(juce::roundToInt(v)) + " ms";
+  };
+  directUI.hold.slider.onDragStart = [this] {
+    switchEditTarget(EnvelopeCurveEditor::EditTarget::none);
   };
   directUI.hold.slider.onValueChange = [this] {
     processorRef.directMode().detector().setHoldMs(
@@ -399,8 +426,7 @@ void BoomBabyAudioProcessorEditor::onSampleLoadClicked() {
       });
 }
 
-void BoomBabyAudioProcessorEditor::onSampleFileChosen(
-    const juce::File &file) {
+void BoomBabyAudioProcessorEditor::onSampleFileChosen(const juce::File &file) {
   directUI.sample.loadedFilePath = file.getFullPathName();
   directUI.sample.loadButton.setButtonText(file.getFileNameWithoutExtension());
   directUI.sample.loadButton.setTooltip(directUI.sample.loadedFilePath);

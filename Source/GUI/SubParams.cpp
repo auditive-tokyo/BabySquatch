@@ -212,6 +212,9 @@ void BoomBabyAudioProcessorEditor::setupSubKnobsRow() {
     subUI.knobs[idx].setValue(25.0, juce::dontSendNotification);
     subUI.knobs[idx].setDoubleClickReturnValue(true, 25.0);
     const int harmonicNum = i + 1;
+    subUI.knobs[idx].onDragStart = [this] {
+      switchEditTarget(EnvelopeCurveEditor::EditTarget::none);
+    };
     subUI.knobs[idx].onValueChange = [this, idx, harmonicNum] {
       const auto gain =
           static_cast<float>(subUI.knobs[idx].getValue()) / 100.0f;

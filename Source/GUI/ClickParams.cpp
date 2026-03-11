@@ -32,12 +32,12 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
   addAndMakeVisible(clickUI.modeLabel);
 
   // ── Mode combo ──
-  clickUI.modeCombo.addItem("Noise", static_cast<int>(ClickUI::Mode::Noise));
-  clickUI.modeCombo.addItem("Sample", static_cast<int>(ClickUI::Mode::Sample));
-  clickUI.modeCombo.setSelectedId(static_cast<int>(ClickUI::Mode::Noise),
+  clickUI.modeCombo.addItem("Noise", std::to_underlying(ClickUI::Mode::Noise));
+  clickUI.modeCombo.addItem("Sample", std::to_underlying(ClickUI::Mode::Sample));
+  clickUI.modeCombo.setSelectedId(std::to_underlying(ClickUI::Mode::Noise),
                                   juce::dontSendNotification);
   clickUI.modeCombo.setLookAndFeel(&darkComboLAF);
-  processorRef.clickEngine().setMode(static_cast<int>(ClickUI::Mode::Noise));
+  processorRef.clickEngine().setMode(std::to_underlying(ClickUI::Mode::Noise));
   addAndMakeVisible(clickUI.modeCombo);
 
   // ── Filter param labels ──
@@ -76,6 +76,9 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
     return v < 1000.0 ? juce::String(juce::roundToInt(v)) + " ms"
                       : juce::String(v / 1000.0, 2) + " s";
   };
+  clickUI.noise.decaySlider.onDragStart = [this] {
+    switchEditTarget(EnvelopeCurveEditor::EditTarget::none);
+  };
   clickUI.noise.decaySlider.onValueChange = [this] {
     processorRef.clickEngine().setDecayMs(
         static_cast<float>(clickUI.noise.decaySlider.getValue()));
@@ -90,6 +93,9 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
   clickUI.noise.bpf1.freqSlider.setTextValueSuffix(" Hz");
   clickUI.noise.bpf1.freqSlider.setValue(5000.0, juce::dontSendNotification);
   clickUI.noise.bpf1.freqSlider.setDoubleClickReturnValue(true, 5000.0);
+  clickUI.noise.bpf1.freqSlider.onDragStart = [this] {
+    switchEditTarget(EnvelopeCurveEditor::EditTarget::none);
+  };
   clickUI.noise.bpf1.freqSlider.onValueChange = [this] {
     processorRef.clickEngine().setFreq1(
         static_cast<float>(clickUI.noise.bpf1.freqSlider.getValue()));
@@ -105,6 +111,9 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
   clickUI.noise.bpf1.qSlider.textFromValueFunction = [](double v) {
     return juce::String(v, 2);
   };
+  clickUI.noise.bpf1.qSlider.onDragStart = [this] {
+    switchEditTarget(EnvelopeCurveEditor::EditTarget::none);
+  };
   clickUI.noise.bpf1.qSlider.onValueChange = [this] {
     processorRef.clickEngine().setFocus1(
         static_cast<float>(clickUI.noise.bpf1.qSlider.getValue()));
@@ -119,6 +128,9 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
   clickUI.noise.saturator.driveSlider.setDoubleClickReturnValue(true, 0.0);
   clickUI.noise.saturator.driveSlider.textFromValueFunction = [](double v) {
     return juce::String(v, 1) + " dB";
+  };
+  clickUI.noise.saturator.driveSlider.onDragStart = [this] {
+    switchEditTarget(EnvelopeCurveEditor::EditTarget::none);
   };
   clickUI.noise.saturator.driveSlider.onValueChange = [this] {
     processorRef.clickEngine().setDriveDb(
@@ -138,6 +150,9 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
   clickUI.hpf.slider.setTextValueSuffix(" Hz");
   clickUI.hpf.slider.setValue(20.0, juce::dontSendNotification);
   clickUI.hpf.slider.setDoubleClickReturnValue(true, 20.0); // 20Hz = バイパス
+  clickUI.hpf.slider.onDragStart = [this] {
+    switchEditTarget(EnvelopeCurveEditor::EditTarget::none);
+  };
   clickUI.hpf.slider.onValueChange = [this] {
     processorRef.clickEngine().setHpfFreq(
         static_cast<float>(clickUI.hpf.slider.getValue()));
@@ -151,6 +166,9 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
   clickUI.hpf.qSlider.setDoubleClickReturnValue(true, 0.71);
   clickUI.hpf.qSlider.textFromValueFunction = [](double v) {
     return juce::String(v, 2);
+  };
+  clickUI.hpf.qSlider.onDragStart = [this] {
+    switchEditTarget(EnvelopeCurveEditor::EditTarget::none);
   };
   clickUI.hpf.qSlider.onValueChange = [this] {
     processorRef.clickEngine().setHpfQ(
@@ -166,6 +184,9 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
   clickUI.lpf.slider.setValue(20000.0, juce::dontSendNotification);
   clickUI.lpf.slider.setDoubleClickReturnValue(true,
                                                20000.0); // 20000Hz = バイパス
+  clickUI.lpf.slider.onDragStart = [this] {
+    switchEditTarget(EnvelopeCurveEditor::EditTarget::none);
+  };
   clickUI.lpf.slider.onValueChange = [this] {
     processorRef.clickEngine().setLpfFreq(
         static_cast<float>(clickUI.lpf.slider.getValue()));
@@ -180,6 +201,9 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
   clickUI.lpf.qSlider.textFromValueFunction = [](double v) {
     return juce::String(v, 2);
   };
+  clickUI.lpf.qSlider.onDragStart = [this] {
+    switchEditTarget(EnvelopeCurveEditor::EditTarget::none);
+  };
   clickUI.lpf.qSlider.onValueChange = [this] {
     processorRef.clickEngine().setLpfQ(
         static_cast<float>(clickUI.lpf.qSlider.getValue()));
@@ -192,6 +216,9 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
   clickUI.sample.pitch.slider.setRange(-24.0, 24.0, 1.0);
   clickUI.sample.pitch.slider.setDoubleClickReturnValue(true, 0.0);
   clickUI.sample.pitch.slider.setValue(0.0, juce::dontSendNotification);
+  clickUI.sample.pitch.slider.onDragStart = [this] {
+    switchEditTarget(EnvelopeCurveEditor::EditTarget::none);
+  };
   clickUI.sample.pitch.slider.onValueChange = [this] {
     processorRef.clickEngine().setPitchSemitones(
         static_cast<float>(clickUI.sample.pitch.slider.getValue()));
@@ -247,6 +274,9 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
     return v < 1000.0 ? juce::String(juce::roundToInt(v)) + " ms"
                       : juce::String(v / 1000.0, 2) + " s";
   };
+  clickUI.sample.decay.slider.onDragStart = [this] {
+    switchEditTarget(EnvelopeCurveEditor::EditTarget::none);
+  };
   clickUI.sample.decay.slider.onValueChange = [this] {
     const auto durMs =
         static_cast<float>(clickUI.sample.decay.slider.getValue());
@@ -300,7 +330,7 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
   clickUI.modeCombo.onChange = [this] {
     const int m = clickUI.modeCombo.getSelectedId();
     processorRef.clickEngine().setMode(m);
-    if (m == static_cast<int>(ClickUI::Mode::Sample))
+    if (m == std::to_underlying(ClickUI::Mode::Sample))
       applyClickSampleMode();
     else
       applyClickNoiseMode(m);
@@ -327,7 +357,7 @@ void BoomBabyAudioProcessorEditor::layoutClickParams(
   topRow.removeFromLeft(colGap);
 
   const bool isSample = (clickUI.modeCombo.getSelectedId() ==
-                         static_cast<int>(ClickUI::Mode::Sample));
+                         std::to_underlying(ClickUI::Mode::Sample));
   if (isSample) {
     clickUI.sample.loadButton.setBounds(topRow);
   }
@@ -502,7 +532,7 @@ void BoomBabyAudioProcessorEditor::applyClickNoiseMode(int m) {
   processorRef.clickEngine().setBpf1Slope(
       clickUI.noise.bpf1.slopeSelector.getSlope());
 
-  if (m == static_cast<int>(ClickUI::Mode::Noise))
+  if (m == std::to_underlying(ClickUI::Mode::Noise))
     envelopeCurveEditor.setClickNoiseEnvProvider(clickUI.noiseProvider);
 }
 

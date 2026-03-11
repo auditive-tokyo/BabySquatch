@@ -576,7 +576,7 @@ float EnvelopeCurveEditor::PaintHelper::previewWaveValue(
 
 void EnvelopeCurveEditor::PaintHelper::envelopeOverlay(
     const EnvelopeCurveEditor &e, juce::Graphics &g, const CoordMapper &c) {
-  if (!e.editEnvData->hasPoints())
+  if (!e.editEnvData->hasPoints() || e.editTarget == EditTarget::none)
     return;
 
   const auto numPixels = static_cast<int>(c.w);
@@ -614,6 +614,8 @@ void EnvelopeCurveEditor::PaintHelper::envelopeOverlay(
   case directAmp:
     envColour = UIConstants::Colours::directArc;
     break;
+  case none:
+    return;
   }
   g.setColour(envColour);
   g.strokePath(envLine, juce::PathStrokeType(1.5f));
@@ -855,6 +857,8 @@ int EnvelopeCurveEditor::HitTester::findSegment(const EnvelopeCurveEditor &e,
 // ── マウス操作 ──
 
 void EnvelopeCurveEditor::mouseDoubleClick(const juce::MouseEvent &e) {
+  if (editTarget == EditTarget::none)
+    return;
   const auto px = static_cast<float>(e.x);
   const auto py = static_cast<float>(e.y);
   const auto c = makeCoords();
@@ -885,6 +889,8 @@ void EnvelopeCurveEditor::mouseDoubleClick(const juce::MouseEvent &e) {
 }
 
 void EnvelopeCurveEditor::mouseDown(const juce::MouseEvent &e) {
+  if (editTarget == EditTarget::none)
+    return;
   // 右クリック: ポイント上ならコンテキストメニュー
   if (e.mods.isRightButtonDown()) {
     const auto c = makeCoords();
@@ -948,6 +954,13 @@ void EnvelopeCurveEditor::mouseUp(const juce::MouseEvent & /*e*/) {
 }
 
 void EnvelopeCurveEditor::mouseMove(const juce::MouseEvent &e) {
+  if (editTarget == EditTarget::none) {
+    if (hoverPointIndex_ != -1) {
+      hoverPointIndex_ = -1;
+      repaint();
+    }
+    return;
+  }
   const auto px = static_cast<float>(e.x);
   const auto py = static_cast<float>(e.y);
   const auto c = makeCoords();
@@ -967,7 +980,8 @@ void EnvelopeCurveEditor::mouseExit(const juce::MouseEvent & /*e*/) {
 
 void EnvelopeCurveEditor::setEditTarget(EditTarget target) {
   editTarget = target;
-  editEnvData = envDatas_[static_cast<std::size_t>(std::to_underlying(target))];
+  if (target != EditTarget::none)
+    editEnvData = envDatas_[static_cast<std::size_t>(std::to_underlying(target))];
   drag_.pointIndex = -1;
   repaint();
 }
@@ -1078,6 +1092,8 @@ juce::String EnvelopeCurveEditor::pointValueToDisplayString(float value) const {
   case clickAmp:
   case directAmp:
     return juce::String(static_cast<int>(std::round(value * 100.0f)));
+  case none:
+    break;
   }
   return juce::String(value, 2);
 }
@@ -1107,12 +1123,16 @@ EnvelopeCurveEditor::parseDisplayStringToValue(const juce::String &text) const {
   case clickAmp:
   case directAmp:
     return juce::jlimit(0.0f, 2.0f, s.getFloatValue() / 100.0f);
+  case none:
+    break;
   }
   return {};
 }
 
 void EnvelopeCurveEditor::PaintHelper::pointTooltip(
     const EnvelopeCurveEditor &e, juce::Graphics &g, const CoordMapper &c) {
+  if (e.editTarget == EditTarget::none)
+    return;
   // ドラッグ中 > ホバー の優先順位で表示対象を決定
   const int idx =
       (e.drag_.pointIndex >= 0) ? e.drag_.pointIndex : e.hoverPointIndex_;
@@ -1171,6 +1191,8 @@ void EnvelopeCurveEditor::PaintHelper::pointTooltip(
     valueStr = juce::String(pct) + "%";
     break;
   }
+  case none:
+    break;
   }
 
   const juce::String label = timeStr + "  /  " + valueStr;
