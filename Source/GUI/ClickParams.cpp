@@ -1,6 +1,7 @@
 // ClickParams.cpp
 // Click panel UI setup / layout
 #include "../PluginEditor.h"
+#include "../DSP/Saturator.h"
 #include "LutBaker.h"
 #include "WaveformUtils.h"
 
@@ -137,12 +138,15 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
   clickUI.noise.saturator.driveSlider.onValueChange = [this] {
     processorRef.clickEngine().setDriveDb(
         static_cast<float>(clickUI.noise.saturator.driveSlider.getValue()));
+    envelopeCurveEditor.repaint();
   };
   addAndMakeVisible(clickUI.noise.saturator.driveSlider);
 
   // ClipType セレクター（Soft / Hard / Tube）— Drive ノブ上部ラベルを兼ねる
-  clickUI.noise.saturator.clipType.setOnChange(
-      [this](int t) { processorRef.clickEngine().setClipType(t); });
+  clickUI.noise.saturator.clipType.setOnChange([this](int t) {
+    processorRef.clickEngine().setClipType(t);
+    envelopeCurveEditor.repaint();
+  });
   addAndMakeVisible(clickUI.noise.saturator.clipType);
 
   // HPF freq  20–20000 Hz  log
@@ -321,7 +325,7 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
   // プレビュープロバイダーを clickUI に保持
   // DSP = BPF(constant-skirt) × Decayエンベロープ なので形状 × 振幅スケーリング
   clickUI.noiseProvider = [this](float timeSec) {
-    return computeNoiseEnvelope(timeSec) * computeBpfScale();
+    return computeNoiseEnvelope(timeSec) * computeNoiseAmplitudeScale();
   };
 
   // モード変更時にコントロール表示切替 + プロバイダー更新
@@ -347,9 +351,8 @@ float BoomBabyAudioProcessorEditor::computeNoiseEnvelope(float timeSec) const {
              : 0.0f;
 }
 
-float BoomBabyAudioProcessorEditor::computeBpfScale() const {
-  // constant-skirt SVF-TPT BPF: 出力 RMS ∝ √(Q × fc)
-  // stages が増えると累乗される。デフォルト値 (Q=0.71, fc=5000, 1段) で 1.0 に正規化。
+float BoomBabyAudioProcessorEditor::computeNoiseAmplitudeScale() const {
+  // ── BPF 振幅: constant-skirt SVF-TPT, 出力 ∝ √(Q × fc) ──
   const auto q =
       static_cast<float>(clickUI.noise.bpf1.qSlider.getValue());
   const auto freq =
@@ -361,7 +364,17 @@ float BoomBabyAudioProcessorEditor::computeBpfScale() const {
   else if (slope >= 24)
     stages = 2.0f;
   constexpr float kDefaultQxFc = 0.71f * 5000.0f;
-  return std::pow(q * freq / kDefaultQxFc, stages * 0.5f);
+  const float bpfScale =
+      std::pow(q * freq / kDefaultQxFc, stages * 0.5f);
+
+  // ── Saturator: DSP では BPF 直後・Decay 前に適用 ──
+  // 非線形なので bpfScale ごと Saturator に通す。
+  // デフォルト値 (drive=0dB, Soft, bpfScale=1.0) で 1.0 に正規化。
+  const auto driveDb =
+      static_cast<float>(clickUI.noise.saturator.driveSlider.getValue());
+  const int clipType = clickUI.noise.saturator.clipType.getSelected();
+  constexpr float kDefaultSat = 0.7615942f; // tanh(1.0)
+  return Saturator::process(bpfScale, driveDb, clipType) / kDefaultSat;
 }
 
 void BoomBabyAudioProcessorEditor::layoutClickParams(
