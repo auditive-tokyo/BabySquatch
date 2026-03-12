@@ -485,8 +485,8 @@ void BoomBabyAudioProcessorEditor::refreshDirectProvider() {
 
   // HPF / LPF を thumb データに適用（DSP: Saturator → HPF → LPF の順）
   const float sr = getDisplaySampleRate();
-  const auto hpfFreq = static_cast<float>(directUI.hpf.slider.getValue());
-  if (hpfFreq > 20.5f) {
+  if (const auto hpfFreq = static_cast<float>(directUI.hpf.slider.getValue());
+      hpfFreq > 20.5f) {
     const auto hpfQ = static_cast<float>(directUI.hpf.qSlider.getValue());
     const int hpfSlope = directUI.hpf.slope.getSlope();
     int hpfStages = 1;
@@ -497,8 +497,8 @@ void BoomBabyAudioProcessorEditor::refreshDirectProvider() {
     SvfPassUtils::applySvfPass(*minPtr, hpfFreq, hpfQ, hpfStages, 0, sr);
     SvfPassUtils::applySvfPass(*maxPtr, hpfFreq, hpfQ, hpfStages, 0, sr);
   }
-  const auto lpfFreq = static_cast<float>(directUI.lpf.slider.getValue());
-  if (lpfFreq < 19999.5f) {
+  if (const auto lpfFreq = static_cast<float>(directUI.lpf.slider.getValue());
+      lpfFreq < 19999.5f) {
     const auto lpfQ = static_cast<float>(directUI.lpf.qSlider.getValue());
     const int lpfSlope = directUI.lpf.slope.getSlope();
     int lpfStages = 1;

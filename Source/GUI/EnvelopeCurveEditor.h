@@ -69,15 +69,10 @@ public:
   void setDisplayDurationMs(float ms);
   float getDisplayDurationMs() const { return displayDurationMs; }
 
-  /// 各チャンネルのミュート状態を設定（波形オーバーレイの表示/非表示）
-  void setSubMuted(bool muted);
-  void setClickMuted(bool muted);
-  void setDirectMuted(bool muted);
-
-  /// 各チャンネルのソロ状態を設定（ソロ中は該当チャンネルのみ表示）
-  void setSubSoloed(bool soloed);
-  void setClickSoloed(bool soloed);
-  void setDirectSoloed(bool soloed);
+  /// チャンネル識別子（ミュート/ソロ用、将来のチャンネル追加にも対応）
+  enum class Channel { sub, click, direct };
+  void setChannelMuted(Channel ch, bool muted);
+  void setChannelSoloed(Channel ch, bool soloed);
 
   /// ポイント変更時コールバック（LUT ベイク等に使用）
   void setOnChange(std::function<void()> cb);
@@ -152,16 +147,21 @@ private:
                              const CoordMapper &c);
   };
 
-  // [0]=amp, [1]=freq, [2]=dist, [3]=mix, [4]=clickAmp
+  // [0]=amp, [1]=freq, [2]=dist, [3]=mix, [4]=clickAmp, [5]=directAmp
   std::array<EnvelopeData *, 6> envDatas_;
   EnvelopeData *editEnvData; // 編集中のエンベロープ
 
   EditTarget editTarget = EditTarget::amp;
   float displayDurationMs = 300.0f;
-  float displayCycles = 4.0f;
-  WaveShape previewShape = WaveShape::Sine;
-  float previewMix = 0.0f;
-  std::array<float, 4> previewHarmonicGains = {0.0f, 0.0f, 0.0f, 0.0f};
+
+  // ── Sub 波形プレビュー設定 ──
+  struct WavePreview {
+    WaveShape shape = WaveShape::Sine;
+    float mix = 0.0f;
+    std::array<float, 4> harmonicGains = {0.0f, 0.0f, 0.0f, 0.0f};
+    float displayCycles = 4.0f;
+  };
+  WavePreview wavePreview_;
 
   struct DragState {
     int pointIndex{-1};
@@ -173,23 +173,37 @@ private:
 
   std::function<void()> onChange;
   std::function<void(EditTarget)> onEditTargetChanged;
-  std::function<std::pair<float, float>(float)> clickPreviewFn_;
-  float clickDecayMs_ = 300.0f;
-  std::function<float(float)> clickNoiseEnvFn_;
-  std::function<std::pair<float, float>(float)> directPreviewFn_;
-  std::vector<std::pair<float, float>>
-      realtimePixels_; ///< リアルタイム per-pixel {min,max}
-  bool useRealtimeInput_ = false;
+
+  // ── Click プレビュー状態 ──
+  struct ClickPreview {
+    std::function<std::pair<float, float>(float)> sampleFn;
+    float decayMs = 300.0f;
+    std::function<float(float)> noiseEnvFn;
+  };
+  ClickPreview clickPreview_;
+
+  // ── Direct プレビュー状態 ──
+  struct DirectPreview {
+    std::function<std::pair<float, float>(float)> fn;
+    std::vector<std::pair<float, float>>
+        realtimePixels; ///< リアルタイム per-pixel {min,max}
+    bool useRealtime = false;
+  };
+  DirectPreview directPreview_;
 
   int hoverPointIndex_{
       -1}; ///< mouseMove で検出したホバー中ポイント（-1: なし）
 
-  bool subMuted_ = false;
-  bool clickMuted_ = false;
-  bool directMuted_ = false;
-  bool subSoloed_ = false;
-  bool clickSoloed_ = false;
-  bool directSoloed_ = false;
+  // ── チャンネル表示状態（ミュート/ソロ） ──
+  struct ChannelVisibility {
+    bool subMuted = false;
+    bool clickMuted = false;
+    bool directMuted = false;
+    bool subSoloed = false;
+    bool clickSoloed = false;
+    bool directSoloed = false;
+  };
+  ChannelVisibility channelVis_;
 
   struct PointValueEditor;
   std::unique_ptr<PointValueEditor> pointValueEditor_;

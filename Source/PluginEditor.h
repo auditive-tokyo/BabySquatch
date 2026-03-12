@@ -45,6 +45,7 @@ private:
   void onClickSampleLoadClicked();
   void onClickSampleFileChosen(const juce::File &file);
   void refreshClickSampleProvider();
+  void clickRepaintOrRefresh();
   void setClickModeVisible(bool isSample);
   void applyClickSampleMode();
   void applyClickNoiseMode(int m);

@@ -13,27 +13,30 @@ void BoomBabyAudioProcessorEditor::setupPanelRouting(
   using enum ChannelState::Channel;
   subPanel.setOnMuteChanged([&p, this](bool m) {
     p.channelState().setMute(sub, m);
-    envelopeCurveEditor.setSubMuted(m);
+    envelopeCurveEditor.setChannelMuted(EnvelopeCurveEditor::Channel::sub, m);
   });
   subPanel.setOnSoloChanged([&p, this](bool s) {
     p.channelState().setSolo(sub, s);
-    envelopeCurveEditor.setSubSoloed(s);
+    envelopeCurveEditor.setChannelSoloed(EnvelopeCurveEditor::Channel::sub, s);
   });
   clickPanel.setOnMuteChanged([&p, this](bool m) {
     p.channelState().setMute(click, m);
-    envelopeCurveEditor.setClickMuted(m);
+    envelopeCurveEditor.setChannelMuted(EnvelopeCurveEditor::Channel::click, m);
   });
   clickPanel.setOnSoloChanged([&p, this](bool s) {
     p.channelState().setSolo(click, s);
-    envelopeCurveEditor.setClickSoloed(s);
+    envelopeCurveEditor.setChannelSoloed(EnvelopeCurveEditor::Channel::click,
+                                         s);
   });
   directPanel.setOnMuteChanged([&p, this](bool m) {
     p.channelState().setMute(direct, m);
-    envelopeCurveEditor.setDirectMuted(m);
+    envelopeCurveEditor.setChannelMuted(EnvelopeCurveEditor::Channel::direct,
+                                        m);
   });
   directPanel.setOnSoloChanged([&p, this](bool s) {
     p.channelState().setSolo(direct, s);
-    envelopeCurveEditor.setDirectSoloed(s);
+    envelopeCurveEditor.setChannelSoloed(EnvelopeCurveEditor::Channel::direct,
+                                         s);
   });
 
   subPanel.setLevelProvider(
@@ -320,7 +323,8 @@ void BoomBabyAudioProcessorEditor::timerCallback() {
       static_cast<float>(directUI.saturator.driveSlider.getValue());
   const int clipType = directUI.saturator.clipType.getSelected();
   const auto nPx = static_cast<std::size_t>(w);
-  std::vector<float> pxMin(nPx), pxMax(nPx);
+  std::vector<float> pxMin(nPx);
+  std::vector<float> pxMax(nPx);
   for (std::size_t i = 0; i < nPx; ++i) {
     pxMin[i] = Saturator::process(pixels[i].first, driveDb, clipType);
     pxMax[i] = Saturator::process(pixels[i].second, driveDb, clipType);
@@ -328,8 +332,8 @@ void BoomBabyAudioProcessorEditor::timerCallback() {
 
   // HPF / LPF をピクセルデータに適用
   const float sr = getDisplaySampleRate();
-  const auto hpfFreq = static_cast<float>(directUI.hpf.slider.getValue());
-  if (hpfFreq > 20.5f) {
+  if (const auto hpfFreq = static_cast<float>(directUI.hpf.slider.getValue());
+      hpfFreq > 20.5f) {
     const auto hpfQ = static_cast<float>(directUI.hpf.qSlider.getValue());
     const int hpfSlope = directUI.hpf.slope.getSlope();
     int hpfStages = 1;
@@ -340,8 +344,8 @@ void BoomBabyAudioProcessorEditor::timerCallback() {
     SvfPassUtils::applySvfPass(pxMin, hpfFreq, hpfQ, hpfStages, 0, sr);
     SvfPassUtils::applySvfPass(pxMax, hpfFreq, hpfQ, hpfStages, 0, sr);
   }
-  const auto lpfFreq = static_cast<float>(directUI.lpf.slider.getValue());
-  if (lpfFreq < 19999.5f) {
+  if (const auto lpfFreq = static_cast<float>(directUI.lpf.slider.getValue());
+      lpfFreq < 19999.5f) {
     const auto lpfQ = static_cast<float>(directUI.lpf.qSlider.getValue());
     const int lpfSlope = directUI.lpf.slope.getSlope();
     int lpfStages = 1;

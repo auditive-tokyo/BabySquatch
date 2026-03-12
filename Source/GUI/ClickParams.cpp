@@ -22,6 +22,14 @@ void styleClickKnob(juce::Slider &s, ColouredSliderLAF &laf) {
 
 } // namespace
 
+void BoomBabyAudioProcessorEditor::clickRepaintOrRefresh() {
+  if (clickUI.modeCombo.getSelectedId() ==
+      std::to_underlying(ClickUI::Mode::Sample))
+    refreshClickSampleProvider();
+  else
+    envelopeCurveEditor.repaint();
+}
+
 void BoomBabyAudioProcessorEditor::setupClickParams() {
   // ── Mode label ──
   const auto smallFont =
@@ -66,20 +74,12 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
   // HPF slope selector
   clickUI.hpf.slope.setOnChange([this](int dboct) {
     processorRef.clickEngine().setHpfSlope(dboct);
-    if (clickUI.modeCombo.getSelectedId() ==
-        std::to_underlying(ClickUI::Mode::Sample))
-      refreshClickSampleProvider();
-    else
-      envelopeCurveEditor.repaint();
+    clickRepaintOrRefresh();
   });
   // LPF slope selector
   clickUI.lpf.slope.setOnChange([this](int dboct) {
     processorRef.clickEngine().setLpfSlope(dboct);
-    if (clickUI.modeCombo.getSelectedId() ==
-        std::to_underlying(ClickUI::Mode::Sample))
-      refreshClickSampleProvider();
-    else
-      envelopeCurveEditor.repaint();
+    clickRepaintOrRefresh();
   });
 
   // ── Sliders ──
@@ -152,22 +152,14 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
   clickUI.noise.saturator.driveSlider.onValueChange = [this] {
     processorRef.clickEngine().setDriveDb(
         static_cast<float>(clickUI.noise.saturator.driveSlider.getValue()));
-    if (clickUI.modeCombo.getSelectedId() ==
-        std::to_underlying(ClickUI::Mode::Sample))
-      refreshClickSampleProvider();
-    else
-      envelopeCurveEditor.repaint();
+    clickRepaintOrRefresh();
   };
   addAndMakeVisible(clickUI.noise.saturator.driveSlider);
 
   // ClipType セレクター（Soft / Hard / Tube）— Drive ノブ上部ラベルを兼ねる
   clickUI.noise.saturator.clipType.setOnChange([this](int t) {
     processorRef.clickEngine().setClipType(t);
-    if (clickUI.modeCombo.getSelectedId() ==
-        std::to_underlying(ClickUI::Mode::Sample))
-      refreshClickSampleProvider();
-    else
-      envelopeCurveEditor.repaint();
+    clickRepaintOrRefresh();
   });
   addAndMakeVisible(clickUI.noise.saturator.clipType);
 
@@ -184,11 +176,7 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
   clickUI.hpf.slider.onValueChange = [this] {
     processorRef.clickEngine().setHpfFreq(
         static_cast<float>(clickUI.hpf.slider.getValue()));
-    if (clickUI.modeCombo.getSelectedId() ==
-        std::to_underlying(ClickUI::Mode::Sample))
-      refreshClickSampleProvider();
-    else
-      envelopeCurveEditor.repaint();
+    clickRepaintOrRefresh();
   };
   addAndMakeVisible(clickUI.hpf.slider);
 
@@ -206,11 +194,7 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
   clickUI.hpf.qSlider.onValueChange = [this] {
     processorRef.clickEngine().setHpfQ(
         static_cast<float>(clickUI.hpf.qSlider.getValue()));
-    if (clickUI.modeCombo.getSelectedId() ==
-        std::to_underlying(ClickUI::Mode::Sample))
-      refreshClickSampleProvider();
-    else
-      envelopeCurveEditor.repaint();
+    clickRepaintOrRefresh();
   };
   addAndMakeVisible(clickUI.hpf.qSlider);
 
@@ -228,11 +212,7 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
   clickUI.lpf.slider.onValueChange = [this] {
     processorRef.clickEngine().setLpfFreq(
         static_cast<float>(clickUI.lpf.slider.getValue()));
-    if (clickUI.modeCombo.getSelectedId() ==
-        std::to_underlying(ClickUI::Mode::Sample))
-      refreshClickSampleProvider();
-    else
-      envelopeCurveEditor.repaint();
+    clickRepaintOrRefresh();
   };
   addAndMakeVisible(clickUI.lpf.slider);
 
@@ -250,11 +230,7 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
   clickUI.lpf.qSlider.onValueChange = [this] {
     processorRef.clickEngine().setLpfQ(
         static_cast<float>(clickUI.lpf.qSlider.getValue()));
-    if (clickUI.modeCombo.getSelectedId() ==
-        std::to_underlying(ClickUI::Mode::Sample))
-      refreshClickSampleProvider();
-    else
-      envelopeCurveEditor.repaint();
+    clickRepaintOrRefresh();
   };
   addAndMakeVisible(clickUI.lpf.qSlider);
 
@@ -422,8 +398,8 @@ float BoomBabyAudioProcessorEditor::computeNoiseAmplitudeScale() const {
   const float kSr = getDisplaySampleRate();
   float filterScale = 1.0f;
 
-  const auto hpfFreq = static_cast<float>(clickUI.hpf.slider.getValue());
-  if (hpfFreq > 20.5f) {
+  if (const auto hpfFreq = static_cast<float>(clickUI.hpf.slider.getValue());
+      hpfFreq > 20.5f) {
     const auto hpfQ = static_cast<float>(clickUI.hpf.qSlider.getValue());
     const int hpfSlope = clickUI.hpf.slope.getSlope();
     float hpfStages = 1.0f;
@@ -441,8 +417,8 @@ float BoomBabyAudioProcessorEditor::computeNoiseAmplitudeScale() const {
     filterScale *= std::pow(mag, hpfStages);
   }
 
-  const auto lpfFreq = static_cast<float>(clickUI.lpf.slider.getValue());
-  if (lpfFreq < 19999.5f) {
+  if (const auto lpfFreq = static_cast<float>(clickUI.lpf.slider.getValue());
+      lpfFreq < 19999.5f) {
     const auto lpfQ = static_cast<float>(clickUI.lpf.qSlider.getValue());
     const int lpfSlope = clickUI.lpf.slope.getSlope();
     float lpfStages = 1.0f;
@@ -701,8 +677,8 @@ void BoomBabyAudioProcessorEditor::refreshClickSampleProvider() {
 
   // HPF / LPF を thumb データに適用（DSP: Saturator → HPF → LPF の順）
   const float sr = getDisplaySampleRate();
-  const auto hpfFreq = static_cast<float>(clickUI.hpf.slider.getValue());
-  if (hpfFreq > 20.5f) {
+  if (const auto hpfFreq = static_cast<float>(clickUI.hpf.slider.getValue());
+      hpfFreq > 20.5f) {
     const auto hpfQ = static_cast<float>(clickUI.hpf.qSlider.getValue());
     const int hpfSlope = clickUI.hpf.slope.getSlope();
     int hpfStages = 1;
@@ -713,8 +689,8 @@ void BoomBabyAudioProcessorEditor::refreshClickSampleProvider() {
     SvfPassUtils::applySvfPass(*minPtr, hpfFreq, hpfQ, hpfStages, 0, sr);
     SvfPassUtils::applySvfPass(*maxPtr, hpfFreq, hpfQ, hpfStages, 0, sr);
   }
-  const auto lpfFreq = static_cast<float>(clickUI.lpf.slider.getValue());
-  if (lpfFreq < 19999.5f) {
+  if (const auto lpfFreq = static_cast<float>(clickUI.lpf.slider.getValue());
+      lpfFreq < 19999.5f) {
     const auto lpfQ = static_cast<float>(clickUI.lpf.qSlider.getValue());
     const int lpfSlope = clickUI.lpf.slope.getSlope();
     int lpfStages = 1;

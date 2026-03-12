@@ -146,21 +146,21 @@ void EnvelopeCurveEditor::paint(juce::Graphics &g) {
   if (c.w < 1.0f || c.plotH < 1.0f)
     return;
 
-  const bool anySolo = subSoloed_ || clickSoloed_ || directSoloed_;
-  if (!subMuted_ && (!anySolo || subSoloed_)) {
+  const bool anySolo = channelVis_.subSoloed || channelVis_.clickSoloed || channelVis_.directSoloed;
+  if (!channelVis_.subMuted && (!anySolo || channelVis_.subSoloed)) {
     g.beginTransparencyLayer(UIConstants::subWaveOpacity);
     PaintHelper::waveform(*this, g, c, centreY);
     g.endTransparencyLayer();
   }
-  if (!clickMuted_ && (!anySolo || clickSoloed_)) {
+  if (!channelVis_.clickMuted && (!anySolo || channelVis_.clickSoloed)) {
     g.beginTransparencyLayer(UIConstants::clickWaveOpacity);
-    if (clickNoiseEnvFn_)
+    if (clickPreview_.noiseEnvFn)
       PaintHelper::clickNoiseBand(*this, g, c, centreY);
     else
       PaintHelper::clickSampleWave(*this, g, c, centreY);
     g.endTransparencyLayer();
   }
-  if (!directMuted_ && (!anySolo || directSoloed_)) {
+  if (!channelVis_.directMuted && (!anySolo || channelVis_.directSoloed)) {
     g.beginTransparencyLayer(UIConstants::directWaveOpacity);
     PaintHelper::directWaveform(*this, g, c, centreY);
     g.endTransparencyLayer();
@@ -205,7 +205,7 @@ void EnvelopeCurveEditor::PaintHelper::waveform(const EnvelopeCurveEditor &e,
     if (i > 0)
       phase += hz * (dtMs / 1000.0f) * juce::MathConstants<float>::twoPi;
 
-    const float mix = hasMixPoints ? mixEnv.evaluate(timeMs) : e.previewMix;
+    const float mix = hasMixPoints ? mixEnv.evaluate(timeMs) : e.wavePreview_.mix;
 
     const float sinVal = std::sin(phase);
     float waveVal = PaintHelper::previewWaveValue(e, sinVal, mix, phase);
@@ -267,74 +267,64 @@ void EnvelopeCurveEditor::PaintHelper::waveform(const EnvelopeCurveEditor &e,
 
 void EnvelopeCurveEditor::setDirectProvider(
     std::function<std::pair<float, float>(float)> fn) {
-  directPreviewFn_ = std::move(fn);
+  directPreview_.fn = std::move(fn);
   repaint();
 }
 
 void EnvelopeCurveEditor::setRealtimePixels(
     std::vector<std::pair<float, float>> pixels) {
-  realtimePixels_ = std::move(pixels);
+  directPreview_.realtimePixels = std::move(pixels);
   // repaint は呼び出し元 (Timer) が責任を持つ
 }
 
 void EnvelopeCurveEditor::setUseRealtimeInput(bool use) noexcept {
-  useRealtimeInput_ = use;
+  directPreview_.useRealtime = use;
 }
 
-void EnvelopeCurveEditor::setSubMuted(bool muted) {
-  subMuted_ = muted;
+void EnvelopeCurveEditor::setChannelMuted(Channel ch, bool muted) {
+  using enum Channel;
+  switch (ch) {
+  case sub:    channelVis_.subMuted = muted; break;
+  case click:  channelVis_.clickMuted = muted; break;
+  case direct: channelVis_.directMuted = muted; break;
+  }
   repaint();
 }
 
-void EnvelopeCurveEditor::setClickMuted(bool muted) {
-  clickMuted_ = muted;
-  repaint();
-}
-
-void EnvelopeCurveEditor::setDirectMuted(bool muted) {
-  directMuted_ = muted;
-  repaint();
-}
-
-void EnvelopeCurveEditor::setSubSoloed(bool soloed) {
-  subSoloed_ = soloed;
-  repaint();
-}
-
-void EnvelopeCurveEditor::setClickSoloed(bool soloed) {
-  clickSoloed_ = soloed;
-  repaint();
-}
-
-void EnvelopeCurveEditor::setDirectSoloed(bool soloed) {
-  directSoloed_ = soloed;
+void EnvelopeCurveEditor::setChannelSoloed(Channel ch, bool soloed) {
+  using enum Channel;
+  switch (ch) {
+  case sub:    channelVis_.subSoloed = soloed; break;
+  case click:  channelVis_.clickSoloed = soloed; break;
+  case direct: channelVis_.directSoloed = soloed; break;
+  }
   repaint();
 }
 
 void EnvelopeCurveEditor::setClickPreviewProvider(
     std::function<std::pair<float, float>(float)> fn) {
-  clickNoiseEnvFn_ = nullptr;
-  clickPreviewFn_ = std::move(fn);
+  clickPreview_.noiseEnvFn = nullptr;
+  clickPreview_.sampleFn = std::move(fn);
   repaint();
 }
 
 void EnvelopeCurveEditor::setClickDecayMs(float ms) {
-  clickDecayMs_ = ms;
+  clickPreview_.decayMs = ms;
   repaint();
 }
 
 void EnvelopeCurveEditor::setClickNoiseEnvProvider(
     std::function<float(float)> fn) {
-  clickPreviewFn_ = nullptr;
-  clickNoiseEnvFn_ = std::move(fn);
+  clickPreview_.sampleFn = nullptr;
+  clickPreview_.noiseEnvFn = std::move(fn);
   repaint();
 }
 
 void EnvelopeCurveEditor::PaintHelper::directWaveform(
     const EnvelopeCurveEditor &e, juce::Graphics &g, const CoordMapper &c,
     float centreY) {
-  const bool hasRealtime = e.useRealtimeInput_ && !e.realtimePixels_.empty();
-  if (!hasRealtime && !e.directPreviewFn_)
+  const bool hasRealtime = e.directPreview_.useRealtime && !e.directPreview_.realtimePixels.empty();
+  if (!hasRealtime && !e.directPreview_.fn)
     return;
 
   const juce::Colour baseColour = UIConstants::Colours::directArc;
@@ -346,11 +336,11 @@ void EnvelopeCurveEditor::PaintHelper::directWaveform(
 
   auto getSample = [&](int i) -> std::pair<float, float> {
     if (hasRealtime) {
-      if (i < static_cast<int>(e.realtimePixels_.size()))
-        return e.realtimePixels_[static_cast<std::size_t>(i)];
+      if (i < static_cast<int>(e.directPreview_.realtimePixels.size()))
+        return e.directPreview_.realtimePixels[static_cast<std::size_t>(i)];
       return {0.0f, 0.0f};
     }
-    return e.directPreviewFn_(static_cast<float>(i) * dtSec);
+    return e.directPreview_.fn(static_cast<float>(i) * dtSec);
   };
 
   auto getAmpMul = [&](float timeMs) {
@@ -419,7 +409,7 @@ void EnvelopeCurveEditor::PaintHelper::clickNoiseBand(
 
   for (int i = 0; i <= numPixels; ++i) {
     const auto x = static_cast<float>(i);
-    const float env = juce::jlimit(0.0f, 1.0f, e.clickNoiseEnvFn_(x * dtSec));
+    const float env = juce::jlimit(0.0f, 1.0f, e.clickPreview_.noiseEnvFn(x * dtSec));
     const float y = juce::jlimit(0.0f, c.plotH, centreY - env * centreY);
     if (i == 0) {
       bandPath.startNewSubPath(x, y);
@@ -431,7 +421,7 @@ void EnvelopeCurveEditor::PaintHelper::clickNoiseBand(
   }
   for (int i = numPixels; i >= 0; --i) {
     const auto x = static_cast<float>(i);
-    const float env = juce::jlimit(0.0f, 1.0f, e.clickNoiseEnvFn_(x * dtSec));
+    const float env = juce::jlimit(0.0f, 1.0f, e.clickPreview_.noiseEnvFn(x * dtSec));
     const float y = juce::jlimit(0.0f, c.plotH, centreY + env * centreY);
     bandPath.lineTo(x, y);
     if (i == numPixels)
@@ -458,7 +448,7 @@ void EnvelopeCurveEditor::PaintHelper::clickNoiseBand(
 void EnvelopeCurveEditor::PaintHelper::clickSampleWave(
     const EnvelopeCurveEditor &e, juce::Graphics &g, const CoordMapper &c,
     float centreY) {
-  if (!e.clickPreviewFn_)
+  if (!e.clickPreview_.sampleFn)
     return;
 
   const juce::Colour baseYellow = UIConstants::Colours::clickArc;
@@ -469,12 +459,12 @@ void EnvelopeCurveEditor::PaintHelper::clickSampleWave(
 
   constexpr float clickFadeOutMs = 5.0f;
   const float clickFadeStartMs =
-      std::max(0.0f, e.clickDecayMs_ - clickFadeOutMs);
+      std::max(0.0f, e.clickPreview_.decayMs - clickFadeOutMs);
 
   auto getAmpMul = [&](float timeMs) {
     float ampMul = hasClickAmpEnv ? clickAmpEnv.evaluate(timeMs)
                                   : clickAmpEnv.getDefaultValue();
-    if (timeMs >= e.clickDecayMs_) {
+    if (timeMs >= e.clickPreview_.decayMs) {
       ampMul = 0.0f;
     } else if (timeMs > clickFadeStartMs && clickFadeOutMs > 0.0f) {
       const float t = (timeMs - clickFadeStartMs) / clickFadeOutMs;
@@ -491,7 +481,7 @@ void EnvelopeCurveEditor::PaintHelper::clickSampleWave(
     const auto x = static_cast<float>(i);
     const float timeMs = (x / c.w) * c.durationMs;
     const float ampMul = getAmpMul(timeMs);
-    const auto [mn, mx] = e.clickPreviewFn_(x * dtSec);
+    const auto [mn, mx] = e.clickPreview_.sampleFn(x * dtSec);
     const float yTop =
         juce::jlimit(0.0f, c.plotH, centreY - mx * ampMul * centreY);
     if (i == 0) {
@@ -506,7 +496,7 @@ void EnvelopeCurveEditor::PaintHelper::clickSampleWave(
     const auto x = static_cast<float>(i);
     const float timeMs = (x / c.w) * c.durationMs;
     const float ampMul = getAmpMul(timeMs);
-    const auto [mn, mx] = e.clickPreviewFn_(x * dtSec);
+    const auto [mn, mx] = e.clickPreview_.sampleFn(x * dtSec);
     const float yBot =
         juce::jlimit(0.0f, c.plotH, centreY - mn * ampMul * centreY);
     fillPath.lineTo(x, yBot);
@@ -534,16 +524,16 @@ void EnvelopeCurveEditor::PaintHelper::clickSampleWave(
 }
 
 void EnvelopeCurveEditor::setWaveShape(WaveShape shape) {
-  if (previewShape != shape) {
-    previewShape = shape;
+  if (wavePreview_.shape != shape) {
+    wavePreview_.shape = shape;
     repaint();
   }
 }
 
 void EnvelopeCurveEditor::setPreviewMix(float mix) {
   const float clamped = juce::jlimit(-1.0f, 1.0f, mix);
-  if (std::abs(previewMix - clamped) > 1e-6f) {
-    previewMix = clamped;
+  if (std::abs(wavePreview_.mix - clamped) > 1e-6f) {
+    wavePreview_.mix = clamped;
     repaint();
   }
 }
@@ -551,8 +541,8 @@ void EnvelopeCurveEditor::setPreviewMix(float mix) {
 void EnvelopeCurveEditor::setPreviewHarmonicGain(int harmonicNum, float gain) {
   if (harmonicNum >= 1 && harmonicNum <= 4) {
     const auto idx = static_cast<size_t>(harmonicNum - 1);
-    if (std::abs(previewHarmonicGains[idx] - gain) > 1e-6f) {
-      previewHarmonicGains[idx] = gain;
+    if (std::abs(wavePreview_.harmonicGains[idx] - gain) > 1e-6f) {
+      wavePreview_.harmonicGains[idx] = gain;
       repaint();
     }
   }
@@ -561,14 +551,14 @@ void EnvelopeCurveEditor::setPreviewHarmonicGain(int harmonicNum, float gain) {
 float EnvelopeCurveEditor::PaintHelper::previewWaveValue(
     const EnvelopeCurveEditor &e, float sinVal, float mix, float phase) {
   if (mix <= 0.0f) {
-    if (e.previewShape == WaveShape::Sine)
+    if (e.wavePreview_.shape == WaveShape::Sine)
       return sinVal;
-    return std::lerp(sinVal, shapeOscValue(e.previewShape, phase), -mix);
+    return std::lerp(sinVal, shapeOscValue(e.wavePreview_.shape, phase), -mix);
   }
   float addVal = 0.0f;
   for (size_t n = 0; n < 4; ++n) {
-    if (e.previewHarmonicGains[n] > 0.0f)
-      addVal += e.previewHarmonicGains[n] *
+    if (e.wavePreview_.harmonicGains[n] > 0.0f)
+      addVal += e.wavePreview_.harmonicGains[n] *
                 std::sin(phase * static_cast<float>(n + 1));
   }
   return std::lerp(sinVal, addVal, mix);
@@ -748,7 +738,7 @@ void EnvelopeCurveEditor::PaintHelper::timeline(juce::Graphics &g,
 }
 
 void EnvelopeCurveEditor::setDisplayCycles(float cycles) {
-  displayCycles = cycles;
+  wavePreview_.displayCycles = cycles;
   repaint();
 }
 

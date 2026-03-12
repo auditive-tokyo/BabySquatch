@@ -95,7 +95,8 @@ inline void applySvfPass(std::vector<float> &data, float cutoffHz, float q,
   const float g = std::tan(juce::MathConstants<float>::pi * cutoffHz / sr);
   const float R = 1.0f / (2.0f * q);
   for (int stg = 0; stg < stages; ++stg) {
-    float ic1eq = 0.0f, ic2eq = 0.0f;
+    float ic1eq = 0.0f;
+    float ic2eq = 0.0f;
     const float a1 = 1.0f / (1.0f + 2.0f * R * g + g * g);
     const float a2 = 2.0f * R + g;
     for (auto &s : data) {
