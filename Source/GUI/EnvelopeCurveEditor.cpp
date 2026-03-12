@@ -146,7 +146,8 @@ void EnvelopeCurveEditor::paint(juce::Graphics &g) {
   if (c.w < 1.0f || c.plotH < 1.0f)
     return;
 
-  const bool anySolo = channelVis_.subSoloed || channelVis_.clickSoloed || channelVis_.directSoloed;
+  const bool anySolo = channelVis_.subSoloed || channelVis_.clickSoloed ||
+                       channelVis_.directSoloed;
   if (!channelVis_.subMuted && (!anySolo || channelVis_.subSoloed)) {
     g.beginTransparencyLayer(UIConstants::subWaveOpacity);
     PaintHelper::waveform(*this, g, c, centreY);
@@ -205,7 +206,8 @@ void EnvelopeCurveEditor::PaintHelper::waveform(const EnvelopeCurveEditor &e,
     if (i > 0)
       phase += hz * (dtMs / 1000.0f) * juce::MathConstants<float>::twoPi;
 
-    const float mix = hasMixPoints ? mixEnv.evaluate(timeMs) : e.wavePreview_.mix;
+    const float mix =
+        hasMixPoints ? mixEnv.evaluate(timeMs) : e.wavePreview_.mix;
 
     const float sinVal = std::sin(phase);
     float waveVal = PaintHelper::previewWaveValue(e, sinVal, mix, phase);
@@ -284,9 +286,15 @@ void EnvelopeCurveEditor::setUseRealtimeInput(bool use) noexcept {
 void EnvelopeCurveEditor::setChannelMuted(Channel ch, bool muted) {
   using enum Channel;
   switch (ch) {
-  case sub:    channelVis_.subMuted = muted; break;
-  case click:  channelVis_.clickMuted = muted; break;
-  case direct: channelVis_.directMuted = muted; break;
+  case sub:
+    channelVis_.subMuted = muted;
+    break;
+  case click:
+    channelVis_.clickMuted = muted;
+    break;
+  case direct:
+    channelVis_.directMuted = muted;
+    break;
   }
   repaint();
 }
@@ -294,9 +302,15 @@ void EnvelopeCurveEditor::setChannelMuted(Channel ch, bool muted) {
 void EnvelopeCurveEditor::setChannelSoloed(Channel ch, bool soloed) {
   using enum Channel;
   switch (ch) {
-  case sub:    channelVis_.subSoloed = soloed; break;
-  case click:  channelVis_.clickSoloed = soloed; break;
-  case direct: channelVis_.directSoloed = soloed; break;
+  case sub:
+    channelVis_.subSoloed = soloed;
+    break;
+  case click:
+    channelVis_.clickSoloed = soloed;
+    break;
+  case direct:
+    channelVis_.directSoloed = soloed;
+    break;
   }
   repaint();
 }
@@ -320,44 +334,19 @@ void EnvelopeCurveEditor::setClickNoiseEnvProvider(
   repaint();
 }
 
-void EnvelopeCurveEditor::PaintHelper::directWaveform(
-    const EnvelopeCurveEditor &e, juce::Graphics &g, const CoordMapper &c,
-    float centreY) {
-  const bool hasRealtime = e.directPreview_.useRealtime && !e.directPreview_.realtimePixels.empty();
-  if (!hasRealtime && !e.directPreview_.fn)
-    return;
-
-  const juce::Colour baseColour = UIConstants::Colours::directArc;
+template <typename GetSample, typename GetAmpMul>
+void EnvelopeCurveEditor::PaintHelper::buildStereoWavePaths(
+    juce::Path &fillPath, juce::Path &topLine, juce::Path &botLine,
+    const CoordMapper &c, float centreY, GetSample getSample,
+    GetAmpMul getAmpMul) {
   const auto numPixels = static_cast<int>(c.w);
-  const float dtSec = (c.durationMs / 1000.0f) / c.w;
-
-  const auto &directAmpEnv = *e.envDatas_[5];
-  const bool hasDirectAmpEnv = directAmpEnv.isEnvelopeControlled();
-
-  auto getSample = [&](int i) -> std::pair<float, float> {
-    if (hasRealtime) {
-      if (i < static_cast<int>(e.directPreview_.realtimePixels.size()))
-        return e.directPreview_.realtimePixels[static_cast<std::size_t>(i)];
-      return {0.0f, 0.0f};
-    }
-    return e.directPreview_.fn(static_cast<float>(i) * dtSec);
-  };
-
-  auto getAmpMul = [&](float timeMs) {
-    return hasDirectAmpEnv ? directAmpEnv.evaluate(timeMs)
-                           : directAmpEnv.getDefaultValue();
-  };
-
-  juce::Path fillPath;
-  juce::Path topLine;
-  juce::Path botLine;
-
   for (int i = 0; i <= numPixels; ++i) {
     const auto x = static_cast<float>(i);
     const float timeMs = (x / c.w) * c.durationMs;
     const float ampMul = getAmpMul(timeMs);
     const auto [mn, mx] = getSample(i);
-    const float yTop = juce::jlimit(0.0f, c.plotH, centreY - mx * ampMul * centreY);
+    const float yTop =
+        juce::jlimit(0.0f, c.plotH, centreY - mx * ampMul * centreY);
     if (i == 0) {
       fillPath.startNewSubPath(x, yTop);
       topLine.startNewSubPath(x, yTop);
@@ -371,13 +360,50 @@ void EnvelopeCurveEditor::PaintHelper::directWaveform(
     const float timeMs = (x / c.w) * c.durationMs;
     const float ampMul = getAmpMul(timeMs);
     const auto [mn, mx] = getSample(i);
-    const float yBot = juce::jlimit(0.0f, c.plotH, centreY - mn * ampMul * centreY);
+    const float yBot =
+        juce::jlimit(0.0f, c.plotH, centreY - mn * ampMul * centreY);
     fillPath.lineTo(x, yBot);
     if (i == numPixels)
       botLine.startNewSubPath(x, yBot);
     else
       botLine.lineTo(x, yBot);
   }
+}
+
+void EnvelopeCurveEditor::PaintHelper::directWaveform(
+    const EnvelopeCurveEditor &e, juce::Graphics &g, const CoordMapper &c,
+    float centreY) {
+  const bool hasRealtime =
+      e.directPreview_.useRealtime && !e.directPreview_.realtimePixels.empty();
+  if (!hasRealtime && !e.directPreview_.fn)
+    return;
+
+  const juce::Colour baseColour = UIConstants::Colours::directArc;
+  const float dtSec = (c.durationMs / 1000.0f) / c.w;
+
+  const auto &directAmpEnv = *e.envDatas_[5];
+  const bool hasDirectAmpEnv = directAmpEnv.isEnvelopeControlled();
+
+  auto getSample = [hasRealtime, &e, dtSec](int i) -> std::pair<float, float> {
+    if (hasRealtime) {
+      if (i < static_cast<int>(e.directPreview_.realtimePixels.size()))
+        return e.directPreview_.realtimePixels[static_cast<std::size_t>(i)];
+      return {0.0f, 0.0f};
+    }
+    return e.directPreview_.fn(static_cast<float>(i) * dtSec);
+  };
+
+  auto getAmpMul = [hasDirectAmpEnv, &directAmpEnv](float timeMs) {
+    return hasDirectAmpEnv ? directAmpEnv.evaluate(timeMs)
+                           : directAmpEnv.getDefaultValue();
+  };
+
+  juce::Path fillPath;
+  juce::Path topLine;
+  juce::Path botLine;
+
+  buildStereoWavePaths(fillPath, topLine, botLine, c, centreY, getSample,
+                       getAmpMul);
   fillPath.closeSubPath();
 
   juce::ColourGradient fillGrad(baseColour.withAlpha(0.25f), 0.0f, 0.0f,
@@ -409,7 +435,8 @@ void EnvelopeCurveEditor::PaintHelper::clickNoiseBand(
 
   for (int i = 0; i <= numPixels; ++i) {
     const auto x = static_cast<float>(i);
-    const float env = juce::jlimit(0.0f, 1.0f, e.clickPreview_.noiseEnvFn(x * dtSec));
+    const float env =
+        juce::jlimit(0.0f, 1.0f, e.clickPreview_.noiseEnvFn(x * dtSec));
     const float y = juce::jlimit(0.0f, c.plotH, centreY - env * centreY);
     if (i == 0) {
       bandPath.startNewSubPath(x, y);
@@ -421,7 +448,8 @@ void EnvelopeCurveEditor::PaintHelper::clickNoiseBand(
   }
   for (int i = numPixels; i >= 0; --i) {
     const auto x = static_cast<float>(i);
-    const float env = juce::jlimit(0.0f, 1.0f, e.clickPreview_.noiseEnvFn(x * dtSec));
+    const float env =
+        juce::jlimit(0.0f, 1.0f, e.clickPreview_.noiseEnvFn(x * dtSec));
     const float y = juce::jlimit(0.0f, c.plotH, centreY + env * centreY);
     bandPath.lineTo(x, y);
     if (i == numPixels)
@@ -452,7 +480,6 @@ void EnvelopeCurveEditor::PaintHelper::clickSampleWave(
     return;
 
   const juce::Colour baseYellow = UIConstants::Colours::clickArc;
-  const auto numPixels = static_cast<int>(c.w);
   const float dtSec = (c.durationMs / 1000.0f) / c.w;
   const auto &clickAmpEnv = *e.envDatas_[4];
   const bool hasClickAmpEnv = clickAmpEnv.isEnvelopeControlled();
@@ -461,7 +488,8 @@ void EnvelopeCurveEditor::PaintHelper::clickSampleWave(
   const float clickFadeStartMs =
       std::max(0.0f, e.clickPreview_.decayMs - clickFadeOutMs);
 
-  auto getAmpMul = [&](float timeMs) {
+  auto getAmpMul = [hasClickAmpEnv, &clickAmpEnv, &e,
+                    clickFadeStartMs](float timeMs) {
     float ampMul = hasClickAmpEnv ? clickAmpEnv.evaluate(timeMs)
                                   : clickAmpEnv.getDefaultValue();
     if (timeMs >= e.clickPreview_.decayMs) {
@@ -477,34 +505,11 @@ void EnvelopeCurveEditor::PaintHelper::clickSampleWave(
   juce::Path topLine;
   juce::Path botLine;
 
-  for (int i = 0; i <= numPixels; ++i) {
-    const auto x = static_cast<float>(i);
-    const float timeMs = (x / c.w) * c.durationMs;
-    const float ampMul = getAmpMul(timeMs);
-    const auto [mn, mx] = e.clickPreview_.sampleFn(x * dtSec);
-    const float yTop =
-        juce::jlimit(0.0f, c.plotH, centreY - mx * ampMul * centreY);
-    if (i == 0) {
-      fillPath.startNewSubPath(x, yTop);
-      topLine.startNewSubPath(x, yTop);
-    } else {
-      fillPath.lineTo(x, yTop);
-      topLine.lineTo(x, yTop);
-    }
-  }
-  for (int i = numPixels; i >= 0; --i) {
-    const auto x = static_cast<float>(i);
-    const float timeMs = (x / c.w) * c.durationMs;
-    const float ampMul = getAmpMul(timeMs);
-    const auto [mn, mx] = e.clickPreview_.sampleFn(x * dtSec);
-    const float yBot =
-        juce::jlimit(0.0f, c.plotH, centreY - mn * ampMul * centreY);
-    fillPath.lineTo(x, yBot);
-    if (i == numPixels)
-      botLine.startNewSubPath(x, yBot);
-    else
-      botLine.lineTo(x, yBot);
-  }
+  auto getSample = [&e, dtSec](int i) {
+    return e.clickPreview_.sampleFn(static_cast<float>(i) * dtSec);
+  };
+  buildStereoWavePaths(fillPath, topLine, botLine, c, centreY, getSample,
+                       getAmpMul);
   fillPath.closeSubPath();
 
   juce::ColourGradient fillGrad(baseYellow.withAlpha(0.28f), 0.0f, 0.0f,
@@ -971,7 +976,8 @@ void EnvelopeCurveEditor::mouseExit(const juce::MouseEvent & /*e*/) {
 void EnvelopeCurveEditor::setEditTarget(EditTarget target) {
   editTarget = target;
   if (target != EditTarget::none)
-    editEnvData = envDatas_[static_cast<std::size_t>(std::to_underlying(target))];
+    editEnvData =
+        envDatas_[static_cast<std::size_t>(std::to_underlying(target))];
   drag_.pointIndex = -1;
   repaint();
 }
