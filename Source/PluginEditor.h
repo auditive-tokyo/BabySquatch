@@ -25,7 +25,7 @@ private:
 
   // ── 入力波形リアルタイム表示（30fps Timer）──
   void timerCallback() override;
-  static constexpr int kWaveDisplayCapacity = 48000; // ~1sec @ 48kHz
+  static constexpr int kWaveDisplayCapacity = 192000; // ~1sec @ 192kHz
   std::vector<float> waveDisplayBuf_;
   int waveDisplayPos_ = 0;    // 次の書き込み位置
   int waveDisplayFilled_ = 0; // 実際に充際されたサンプル数
@@ -50,6 +50,10 @@ private:
   void applyClickNoiseMode(int m);
   float computeNoiseEnvelope(float timeSec) const;
   float computeNoiseAmplitudeScale() const;
+  float getDisplaySampleRate() const {
+    const double sr = processorRef.getSampleRate();
+    return sr > 0.0 ? static_cast<float>(sr) : 44100.0f;
+  }
   void setupLengthBox();
   void setupWaveShapeCombo();
   void layoutSubKnobsRow(juce::Rectangle<int> knobRow);

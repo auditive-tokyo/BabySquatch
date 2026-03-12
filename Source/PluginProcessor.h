@@ -68,7 +68,7 @@ public:
 
   // ── 入力モニター（FIFO 波形表示。将来: spectrum / input gain 拡張用）──
   struct InputMonitor {
-    static constexpr int kCapacity = 48000; ///< ~1秒分 @ 48kHz
+    static constexpr int kCapacity = 192000; ///< ~1秒分 @ 192kHz
     juce::AbstractFifo fifo_{kCapacity};
     std::vector<float> data_;
 
