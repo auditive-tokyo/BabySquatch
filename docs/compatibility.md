@@ -2,11 +2,11 @@
 
 ## Platform Requirements
 
-| | |
-| --- | --- |
-| **OS** | macOS only (Windows / Linux not supported at this time) |
-| **Architecture** | Apple Silicon (arm64) — Intel Macs are not supported |
-| **Formats** | AUv2, VST3, Standalone |
+|                  |                                                         |
+| ---------------- | ------------------------------------------------------- |
+| **OS**           | macOS only (Windows / Linux not supported at this time) |
+| **Architecture** | Apple Silicon (arm64) — Intel Macs are not supported    |
+| **Formats**      | AUv2, VST3                                              |
 
 > The distributed binary is arm64-only and is not a universal build.  
 > Intel Macs cannot run arm64 binaries — there is no workaround.  
@@ -19,14 +19,14 @@ Tested environments are listed below. To add your own, see [Contributing](#contr
 
 ## Tested Configurations
 
-| DAW                  | OS                   | CPU          | Format     | Status      |
-| -------------------- | -------------------- | ------------ | ---------- | ----------- |
-| Ableton Live 12      | macOS 15.3.1 (24D70) | Apple M4 Pro | AUv2, VST3 | ✅ Works    |
-| Logic Pro            | —                    | —            | AUv2       | —           |
-| Cubase               | —                    | —            | VST3       | —           |
-| Bitwig Studio        | —                    | —            | VST3       | —           |
-| Reaper               | —                    | —            | AUv2, VST3 | —           |
-| Studio One           | —                    | —            | AUv2, VST3 | —           |
+| DAW             | OS                   | CPU          | Format     | Status   |
+| --------------- | -------------------- | ------------ | ---------- | -------- |
+| Ableton Live 12 | macOS 15.3.1 (24D70) | Apple M4 Pro | AUv2, VST3 | ✅ Works |
+| Logic Pro       | —                    | —            | AUv2       | —        |
+| Cubase          | —                    | —            | VST3       | —        |
+| Bitwig Studio   | —                    | —            | VST3       | —        |
+| Reaper          | —                    | —            | AUv2, VST3 | —        |
+| Studio One      | —                    | —            | AUv2, VST3 | —        |
 
 ## Contributing
 
