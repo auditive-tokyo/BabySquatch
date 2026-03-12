@@ -32,7 +32,7 @@ Tested environments are listed below. To add your own, see [Contributing](#contr
 
 If you have tested BoomBaby on a configuration not listed above, please share your results — either way works:
 
-- **Quick report**: Post in [GitHub Discussions](https://github.com/auditive-tokyo/BoomBaby/discussions) — no fork needed, just describe your environment and whether it worked.
+- **Quick report**: Post in [GitHub Discussions](https://github.com/auditive-tokyo/BoomBaby/discussions/1) — no fork needed, just describe your environment and whether it worked.
 - **Add to the table**: Open a pull request following the steps below.
 
 ### Pull Request
