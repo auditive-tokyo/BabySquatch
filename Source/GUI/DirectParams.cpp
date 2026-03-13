@@ -1,6 +1,7 @@
 // DirectParams.cpp
 // Direct panel UI setup / layout
 #include "../DSP/Saturator.h"
+#include "../ParamIDs.h"
 #include "../PluginEditor.h"
 #include "LutBaker.h"
 #include "WaveformUtils.h"
@@ -62,6 +63,7 @@ void BoomBabyAudioProcessorEditor::setupDirectParams() {
     if (!isSample)
       directUI.sample.loadButton.setButtonText("Drop or Click to Load");
     processorRef.setDirectSampleMode(isSample);
+    syncParam(ParamIDs::directMode, isSample ? 1.0f : 0.0f);
     refreshDirectPassthroughUI();
     resized();
   };
@@ -80,6 +82,8 @@ void BoomBabyAudioProcessorEditor::setupDirectParams() {
   directUI.pitch.slider.onValueChange = [this] {
     processorRef.directEngine().setPitchSemitones(
         static_cast<float>(directUI.pitch.slider.getValue()));
+    syncParam(ParamIDs::directPitch,
+             static_cast<float>(directUI.pitch.slider.getValue()));
     refreshDirectProvider();
   };
   addAndMakeVisible(directUI.pitch.slider);
@@ -96,6 +100,8 @@ void BoomBabyAudioProcessorEditor::setupDirectParams() {
   };
   directUI.amp.slider.onValueChange = [this] {
     const float v = static_cast<float>(directUI.amp.slider.getValue()) / 100.0f;
+    syncParam(ParamIDs::directAmp,
+             static_cast<float>(directUI.amp.slider.getValue()));
     envDatas.directAmp.setDefaultValue(v);
     if (!envDatas.directAmp.isEnvelopeControlled())
       envDatas.directAmp.setPointValue(0, v);
@@ -130,6 +136,8 @@ void BoomBabyAudioProcessorEditor::setupDirectParams() {
   directUI.saturator.driveSlider.onValueChange = [this] {
     processorRef.directEngine().setDriveDb(
         static_cast<float>(directUI.saturator.driveSlider.getValue()));
+    syncParam(ParamIDs::directDrive,
+             static_cast<float>(directUI.saturator.driveSlider.getValue()));
     refreshDirectProvider();
   };
   addAndMakeVisible(directUI.saturator.driveSlider);
@@ -137,6 +145,7 @@ void BoomBabyAudioProcessorEditor::setupDirectParams() {
   // ClipType セレクター（Soft / Hard / Tube）— Drive ノブ上部ラベルを兼ねる
   directUI.saturator.clipType.setOnChange([this](int t) {
     processorRef.directEngine().setClipType(t);
+    syncParam(ParamIDs::directClipType, static_cast<float>(t));
     refreshDirectProvider();
   });
   addAndMakeVisible(directUI.saturator.clipType);
@@ -156,6 +165,7 @@ void BoomBabyAudioProcessorEditor::setupDirectParams() {
   };
   directUI.decay.slider.onValueChange = [this] {
     const auto durMs = static_cast<float>(directUI.decay.slider.getValue());
+    syncParam(ParamIDs::directDecay, durMs);
     bakeLut(envDatas.directAmp, processorRef.directEngine().directAmpLut(),
             durMs);
     refreshDirectProvider();
@@ -170,6 +180,10 @@ void BoomBabyAudioProcessorEditor::setupDirectParams() {
   // HPF: SlopeSelector (label) + freq knob + Q knob
   directUI.hpf.slope.setOnChange([this](int dboct) {
     processorRef.directEngine().setHpfSlope(dboct);
+    constexpr std::array kSlopes = {12, 24, 48};
+    for (int i = 0; i < 3; ++i)
+      if (kSlopes[static_cast<std::size_t>(i)] == dboct)
+        syncParam(ParamIDs::directHpfSlope, static_cast<float>(i));
     refreshDirectProvider();
   });
   addAndMakeVisible(directUI.hpf.slope);
@@ -186,6 +200,8 @@ void BoomBabyAudioProcessorEditor::setupDirectParams() {
   directUI.hpf.slider.onValueChange = [this] {
     processorRef.directEngine().setHpfFreq(
         static_cast<float>(directUI.hpf.slider.getValue()));
+    syncParam(ParamIDs::directHpfFreq,
+             static_cast<float>(directUI.hpf.slider.getValue()));
     refreshDirectProvider();
   };
   addAndMakeVisible(directUI.hpf.slider);
@@ -203,6 +219,8 @@ void BoomBabyAudioProcessorEditor::setupDirectParams() {
   directUI.hpf.qSlider.onValueChange = [this] {
     processorRef.directEngine().setHpfQ(
         static_cast<float>(directUI.hpf.qSlider.getValue()));
+    syncParam(ParamIDs::directHpfQ,
+             static_cast<float>(directUI.hpf.qSlider.getValue()));
     refreshDirectProvider();
   };
   addAndMakeVisible(directUI.hpf.qSlider);
@@ -212,6 +230,10 @@ void BoomBabyAudioProcessorEditor::setupDirectParams() {
   // LPF: SlopeSelector (label) + freq knob + Q knob
   directUI.lpf.slope.setOnChange([this](int dboct) {
     processorRef.directEngine().setLpfSlope(dboct);
+    constexpr std::array kSlopes = {12, 24, 48};
+    for (int i = 0; i < 3; ++i)
+      if (kSlopes[static_cast<std::size_t>(i)] == dboct)
+        syncParam(ParamIDs::directLpfSlope, static_cast<float>(i));
     refreshDirectProvider();
   });
   addAndMakeVisible(directUI.lpf.slope);
@@ -228,6 +250,8 @@ void BoomBabyAudioProcessorEditor::setupDirectParams() {
   directUI.lpf.slider.onValueChange = [this] {
     processorRef.directEngine().setLpfFreq(
         static_cast<float>(directUI.lpf.slider.getValue()));
+    syncParam(ParamIDs::directLpfFreq,
+             static_cast<float>(directUI.lpf.slider.getValue()));
     refreshDirectProvider();
   };
   addAndMakeVisible(directUI.lpf.slider);
@@ -245,6 +269,8 @@ void BoomBabyAudioProcessorEditor::setupDirectParams() {
   directUI.lpf.qSlider.onValueChange = [this] {
     processorRef.directEngine().setLpfQ(
         static_cast<float>(directUI.lpf.qSlider.getValue()));
+    syncParam(ParamIDs::directLpfQ,
+             static_cast<float>(directUI.lpf.qSlider.getValue()));
     refreshDirectProvider();
   };
   addAndMakeVisible(directUI.lpf.qSlider);
@@ -276,6 +302,8 @@ void BoomBabyAudioProcessorEditor::setupDirectParams() {
   directUI.threshold.slider.onValueChange = [this] {
     processorRef.directMode().detector().setThresholdDb(
         static_cast<float>(directUI.threshold.slider.getValue()));
+    syncParam(ParamIDs::directThreshold,
+             static_cast<float>(directUI.threshold.slider.getValue()));
   };
   addAndMakeVisible(directUI.threshold.slider);
   styleKnobLabelDirect(directUI.threshold.label, "Thresh", knobFont);
@@ -297,6 +325,8 @@ void BoomBabyAudioProcessorEditor::setupDirectParams() {
   directUI.hold.slider.onValueChange = [this] {
     processorRef.directMode().detector().setHoldMs(
         static_cast<float>(directUI.hold.slider.getValue()));
+    syncParam(ParamIDs::directHold,
+             static_cast<float>(directUI.hold.slider.getValue()));
   };
   directUI.hold.slider.setColour(juce::Slider::backgroundColourId,
                                  juce::Colour(0xFF333333));
@@ -338,6 +368,7 @@ void BoomBabyAudioProcessorEditor::setupDirectParams() {
     const auto idx =
         static_cast<std::size_t>(directUI.lookAhead.combo.getSelectedId() - 1);
     processorRef.setLookAheadMs(kMs[idx]);
+    syncParam(ParamIDs::directLookAhead, static_cast<float>(idx));
   };
   addAndMakeVisible(directUI.lookAhead.combo);
 

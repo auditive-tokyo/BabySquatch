@@ -2,6 +2,7 @@
 #include "DSP/Saturator.h"
 #include "GUI/LutBaker.h"
 #include "GUI/WaveformUtils.h"
+#include "ParamIDs.h"
 #include "PluginProcessor.h"
 #include <span>
 
@@ -13,28 +14,34 @@ void BoomBabyAudioProcessorEditor::setupPanelRouting(
   using enum ChannelState::Channel;
   subPanel.setOnMuteChanged([&p, this](bool m) {
     p.channelState().setMute(sub, m);
+    syncParam(ParamIDs::subMute, m ? 1.0f : 0.0f);
     envelopeCurveEditor.setChannelMuted(EnvelopeCurveEditor::Channel::sub, m);
   });
   subPanel.setOnSoloChanged([&p, this](bool s) {
     p.channelState().setSolo(sub, s);
+    syncParam(ParamIDs::subSolo, s ? 1.0f : 0.0f);
     envelopeCurveEditor.setChannelSoloed(EnvelopeCurveEditor::Channel::sub, s);
   });
   clickPanel.setOnMuteChanged([&p, this](bool m) {
     p.channelState().setMute(click, m);
+    syncParam(ParamIDs::clickMute, m ? 1.0f : 0.0f);
     envelopeCurveEditor.setChannelMuted(EnvelopeCurveEditor::Channel::click, m);
   });
   clickPanel.setOnSoloChanged([&p, this](bool s) {
     p.channelState().setSolo(click, s);
+    syncParam(ParamIDs::clickSolo, s ? 1.0f : 0.0f);
     envelopeCurveEditor.setChannelSoloed(EnvelopeCurveEditor::Channel::click,
                                          s);
   });
   directPanel.setOnMuteChanged([&p, this](bool m) {
     p.channelState().setMute(direct, m);
+    syncParam(ParamIDs::directMute, m ? 1.0f : 0.0f);
     envelopeCurveEditor.setChannelMuted(EnvelopeCurveEditor::Channel::direct,
                                         m);
   });
   directPanel.setOnSoloChanged([&p, this](bool s) {
     p.channelState().setSolo(direct, s);
+    syncParam(ParamIDs::directSolo, s ? 1.0f : 0.0f);
     envelopeCurveEditor.setChannelSoloed(EnvelopeCurveEditor::Channel::direct,
                                          s);
   });
@@ -50,16 +57,22 @@ void BoomBabyAudioProcessorEditor::setupPanelRouting(
   subPanel.getFader().onValueChange = [this] {
     processorRef.subEngine().setGainDb(
         static_cast<float>(subPanel.getFader().getValue()));
+    syncParam(ParamIDs::subGain,
+              static_cast<float>(subPanel.getFader().getValue()));
   };
   // Click フェーダー → ゲインコントロール
   clickPanel.getFader().onValueChange = [this] {
     processorRef.clickEngine().setGainDb(
         static_cast<float>(clickPanel.getFader().getValue()));
+    syncParam(ParamIDs::clickGain,
+              static_cast<float>(clickPanel.getFader().getValue()));
   };
   // Direct フェーダー → ゲインコントロール
   directPanel.getFader().onValueChange = [this] {
     processorRef.directEngine().setGainDb(
         static_cast<float>(directPanel.getFader().getValue()));
+    syncParam(ParamIDs::directGain,
+              static_cast<float>(directPanel.getFader().getValue()));
   };
 }
 
@@ -146,6 +159,9 @@ void BoomBabyAudioProcessorEditor::onEnvelopeChanged() {
     envDatas.directAmp.setDefaultValue(v);
     directUI.amp.slider.setValue(v * 100.0, juce::dontSendNotification);
   }
+
+  // エンベロープデータを APVTS に保存（状態永続化）
+  saveEnvelopesToState();
 }
 
 // ────────────────────────────────────────────────────
@@ -232,8 +248,10 @@ BoomBabyAudioProcessorEditor::BoomBabyAudioProcessorEditor(
   setupLengthBox();
 
   // マスターフェーダー配線
-  masterSection.setOnValueChange(
-      [this](float db) { processorRef.master().setGain(db); });
+  masterSection.setOnValueChange([this](float db) {
+    processorRef.master().setGain(db);
+    syncParam(ParamIDs::masterGain, db);
+  });
   masterSection.setLevelProvider(0, [this]() {
     return processorRef.master().getLevelDb(0); // L
   });
@@ -247,6 +265,10 @@ BoomBabyAudioProcessorEditor::BoomBabyAudioProcessorEditor(
 
   // 入力波形 Timer 開始（30fps）
   waveDisplayBuf_.assign(static_cast<std::size_t>(kWaveDisplayCapacity), 0.0f);
+
+  // APVTS 状態から UI ウィジェットを復元（DAW が保存した値を反映）
+  syncUIFromState();
+
   startTimerHz(30);
 }
 
@@ -256,6 +278,243 @@ BoomBabyAudioProcessorEditor::~BoomBabyAudioProcessorEditor() {
   clickUI.modeCombo.setLookAndFeel(nullptr);
   directUI.modeCombo.setLookAndFeel(nullptr);
   directUI.hold.slider.setLookAndFeel(nullptr);
+}
+
+// ────────────────────────────────────────────────────
+// APVTS ↔ UI 同期ヘルパー
+// ────────────────────────────────────────────────────
+void BoomBabyAudioProcessorEditor::syncParam(const char *id, float value) {
+  if (auto *p = processorRef.getAPVTS().getParameter(id))
+    p->setValueNotifyingHost(p->convertTo0to1(value));
+}
+
+void BoomBabyAudioProcessorEditor::syncUIFromState() {
+  auto &apvts = processorRef.getAPVTS();
+  auto load = [&](const char *id) {
+    return apvts.getRawParameterValue(id)->load();
+  };
+
+  // sendNotificationSync を使い onValueChange / onChange を発火させて
+  // DSP セッターも同時に呼ばれるようにする
+  constexpr auto notify = juce::sendNotificationSync;
+
+  // ── Sub ──
+  // Length を先に復元（bakeLut が表示期間に依存するため）
+  subUI.length.slider.setValue(load(ParamIDs::subLength), notify);
+  subUI.wave.combo.setSelectedId(
+      static_cast<int>(load(ParamIDs::subWaveShape)) + 1, notify);
+  subUI.knobs[0].setValue(load(ParamIDs::subAmp), notify);
+  subUI.knobs[1].setValue(load(ParamIDs::subFreq), notify);
+  subUI.knobs[2].setValue(load(ParamIDs::subMix), notify);
+  subUI.knobs[3].setValue(load(ParamIDs::subSatDrive), notify);
+  subUI.saturateClipType.setSelected(
+      static_cast<int>(load(ParamIDs::subSatClipType)), true);
+  subUI.knobs[4].setValue(load(ParamIDs::subTone1), notify);
+  subUI.knobs[5].setValue(load(ParamIDs::subTone2), notify);
+  subUI.knobs[6].setValue(load(ParamIDs::subTone3), notify);
+  subUI.knobs[7].setValue(load(ParamIDs::subTone4), notify);
+  subPanel.getFader().setValue(load(ParamIDs::subGain), notify);
+  subPanel.setMuteState(load(ParamIDs::subMute) >= 0.5f);
+  subPanel.setSoloState(load(ParamIDs::subSolo) >= 0.5f);
+
+  // ── Click ──
+  // Mode コンボは dontSendNotification（ModeState save/restore 回避）
+  const auto clickModeIdx = static_cast<int>(load(ParamIDs::clickMode));
+  clickUI.modeCombo.setSelectedId(clickModeIdx + 1, juce::dontSendNotification);
+  clickUI.noise.decaySlider.setValue(load(ParamIDs::clickNoiseDecay), notify);
+  clickUI.noise.bpf1.freqSlider.setValue(load(ParamIDs::clickBpf1Freq), notify);
+  clickUI.noise.bpf1.qSlider.setValue(load(ParamIDs::clickBpf1Q), notify);
+  {
+    constexpr std::array kSlopes = {12, 24, 48};
+    clickUI.noise.bpf1.slopeSelector.setSlope(
+        kSlopes[static_cast<std::size_t>(
+            static_cast<int>(load(ParamIDs::clickBpf1Slope)))],
+        true);
+    clickUI.hpf.slope.setSlope(
+        kSlopes[static_cast<std::size_t>(
+            static_cast<int>(load(ParamIDs::clickHpfSlope)))],
+        true);
+    clickUI.lpf.slope.setSlope(
+        kSlopes[static_cast<std::size_t>(
+            static_cast<int>(load(ParamIDs::clickLpfSlope)))],
+        true);
+  }
+  clickUI.sample.pitch.slider.setValue(load(ParamIDs::clickSamplePitch),
+                                       notify);
+  clickUI.sample.amp.slider.setValue(load(ParamIDs::clickSampleAmp), notify);
+  clickUI.sample.decay.slider.setValue(load(ParamIDs::clickSampleDecay),
+                                       notify);
+  clickUI.noise.saturator.driveSlider.setValue(load(ParamIDs::clickDrive),
+                                               notify);
+  clickUI.noise.saturator.clipType.setSelected(
+      static_cast<int>(load(ParamIDs::clickClipType)), true);
+  clickUI.hpf.slider.setValue(load(ParamIDs::clickHpfFreq), notify);
+  clickUI.hpf.qSlider.setValue(load(ParamIDs::clickHpfQ), notify);
+  clickUI.lpf.slider.setValue(load(ParamIDs::clickLpfFreq), notify);
+  clickUI.lpf.qSlider.setValue(load(ParamIDs::clickLpfQ), notify);
+  clickPanel.getFader().setValue(load(ParamIDs::clickGain), notify);
+  clickPanel.setMuteState(load(ParamIDs::clickMute) >= 0.5f);
+  clickPanel.setSoloState(load(ParamIDs::clickSolo) >= 0.5f);
+
+  // Mode → DSP + 表示切替（ModeState 経由しない直接設定）
+  processorRef.clickEngine().setMode(clickModeIdx + 1);
+  setClickModeVisible(clickModeIdx == 1);
+
+  // ── Direct ──
+  // Mode コンボは dontSendNotification（手動でモード設定）
+  const auto directModeIdx = static_cast<int>(load(ParamIDs::directMode));
+  directUI.modeCombo.setSelectedId(directModeIdx + 1,
+                                   juce::dontSendNotification);
+  directUI.pitch.slider.setValue(load(ParamIDs::directPitch), notify);
+  directUI.amp.slider.setValue(load(ParamIDs::directAmp), notify);
+  directUI.saturator.driveSlider.setValue(load(ParamIDs::directDrive), notify);
+  directUI.saturator.clipType.setSelected(
+      static_cast<int>(load(ParamIDs::directClipType)), true);
+  directUI.decay.slider.setValue(load(ParamIDs::directDecay), notify);
+  directUI.hpf.slider.setValue(load(ParamIDs::directHpfFreq), notify);
+  directUI.hpf.qSlider.setValue(load(ParamIDs::directHpfQ), notify);
+  {
+    constexpr std::array kSlopes = {12, 24, 48};
+    directUI.hpf.slope.setSlope(
+        kSlopes[static_cast<std::size_t>(
+            static_cast<int>(load(ParamIDs::directHpfSlope)))],
+        true);
+    directUI.lpf.slope.setSlope(
+        kSlopes[static_cast<std::size_t>(
+            static_cast<int>(load(ParamIDs::directLpfSlope)))],
+        true);
+  }
+  directUI.lpf.slider.setValue(load(ParamIDs::directLpfFreq), notify);
+  directUI.lpf.qSlider.setValue(load(ParamIDs::directLpfQ), notify);
+  directUI.threshold.slider.setValue(load(ParamIDs::directThreshold), notify);
+  directUI.hold.slider.setValue(load(ParamIDs::directHold), notify);
+  directUI.lookAhead.combo.setSelectedId(
+      static_cast<int>(load(ParamIDs::directLookAhead)) + 1, notify);
+  directPanel.getFader().setValue(load(ParamIDs::directGain), notify);
+  directPanel.setMuteState(load(ParamIDs::directMute) >= 0.5f);
+  directPanel.setSoloState(load(ParamIDs::directSolo) >= 0.5f);
+
+  // Mode → DSP + 表示切替
+  const bool isSample = directModeIdx == 1;
+  processorRef.setDirectSampleMode(isSample);
+  directUI.sample.loadButton.setVisible(isSample);
+  refreshDirectPassthroughUI();
+
+  // ── Master ──
+  const float masterDb = load(ParamIDs::masterGain);
+  masterSection.setValueDb(masterDb);
+  processorRef.master().setGain(masterDb);
+
+  // ── Mute/Solo: envelopeCurveEditor 同期 ──
+  using EC = EnvelopeCurveEditor::Channel;
+  envelopeCurveEditor.setChannelMuted(EC::sub, load(ParamIDs::subMute) >= 0.5f);
+  envelopeCurveEditor.setChannelSoloed(EC::sub,
+                                       load(ParamIDs::subSolo) >= 0.5f);
+  envelopeCurveEditor.setChannelMuted(EC::click,
+                                      load(ParamIDs::clickMute) >= 0.5f);
+  envelopeCurveEditor.setChannelSoloed(EC::click,
+                                       load(ParamIDs::clickSolo) >= 0.5f);
+  envelopeCurveEditor.setChannelMuted(EC::direct,
+                                      load(ParamIDs::directMute) >= 0.5f);
+  envelopeCurveEditor.setChannelSoloed(EC::direct,
+                                       load(ParamIDs::directSolo) >= 0.5f);
+
+  // ── エンベロープデータ復元＋LUT 再ベイク ──
+  loadEnvelopesFromState();
+}
+
+// ────────────────────────────────────────────────────
+// エンベロープデータ ↔ APVTS ValueTree シリアライズ
+// ────────────────────────────────────────────────────
+namespace {
+const juce::Identifier kEnvelopeTag{"ENVELOPE"};
+const juce::Identifier kPointTag{"POINT"};
+const juce::Identifier kPropName{"name"};
+const juce::Identifier kPropDefault{"defaultValue"};
+const juce::Identifier kPropTimeMs{"timeMs"};
+const juce::Identifier kPropValue{"value"};
+const juce::Identifier kPropCurve{"curve"};
+
+juce::ValueTree envelopeToTree(const char *name, const EnvelopeData &env) {
+  juce::ValueTree tree{kEnvelopeTag};
+  tree.setProperty(kPropName, juce::String(name), nullptr);
+  tree.setProperty(kPropDefault, env.getDefaultValue(), nullptr);
+  for (auto &pt : env.getPoints()) {
+    juce::ValueTree ptTree{kPointTag};
+    ptTree.setProperty(kPropTimeMs, pt.timeMs, nullptr);
+    ptTree.setProperty(kPropValue, pt.value, nullptr);
+    ptTree.setProperty(kPropCurve, pt.curve, nullptr);
+    tree.addChild(ptTree, -1, nullptr);
+  }
+  return tree;
+}
+
+void treeToEnvelope(const juce::ValueTree &tree, EnvelopeData &env) {
+  env.clearPoints();
+  env.setDefaultValue(tree.getProperty(kPropDefault, 1.0f));
+  for (int i = 0; i < tree.getNumChildren(); ++i) {
+    auto pt = tree.getChild(i);
+    if (!pt.hasType(kPointTag))
+      continue;
+    const float t = pt.getProperty(kPropTimeMs, 0.0f);
+    const float v = pt.getProperty(kPropValue, 1.0f);
+    const float c = pt.getProperty(kPropCurve, 0.0f);
+    env.addPoint(t, v);
+    // addPoint doesn't set curve — set it on the last-added point
+    const int idx = static_cast<int>(env.getPoints().size()) - 1;
+    env.setSegmentCurve(idx, c);
+  }
+}
+} // namespace
+
+void BoomBabyAudioProcessorEditor::saveEnvelopesToState() {
+  auto &state = processorRef.getAPVTS().state;
+
+  // 既存の ENVELOPE 子ノードを全削除
+  for (int i = state.getNumChildren(); --i >= 0;)
+    if (state.getChild(i).hasType(kEnvelopeTag))
+      state.removeChild(i, nullptr);
+
+  // 6 つのエンベロープを書き込み
+  state.addChild(envelopeToTree("amp", envDatas.amp), -1, nullptr);
+  state.addChild(envelopeToTree("freq", envDatas.freq), -1, nullptr);
+  state.addChild(envelopeToTree("dist", envDatas.dist), -1, nullptr);
+  state.addChild(envelopeToTree("mix", envDatas.mix), -1, nullptr);
+  state.addChild(envelopeToTree("clickAmp", envDatas.clickAmp), -1, nullptr);
+  state.addChild(envelopeToTree("directAmp", envDatas.directAmp), -1, nullptr);
+}
+
+void BoomBabyAudioProcessorEditor::loadEnvelopesFromState() {
+  auto &state = processorRef.getAPVTS().state;
+
+  auto findEnv = [&](const char *name) -> juce::ValueTree {
+    for (int i = 0; i < state.getNumChildren(); ++i) {
+      auto child = state.getChild(i);
+      if (child.hasType(kEnvelopeTag) &&
+          child.getProperty(kPropName).toString() == name)
+        return child;
+    }
+    return {};
+  };
+
+  struct EnvEntry {
+    const char *name;
+    EnvelopeData &data;
+  };
+  EnvEntry entries[] = {
+      {"amp", envDatas.amp},       {"freq", envDatas.freq},
+      {"dist", envDatas.dist},     {"mix", envDatas.mix},
+      {"clickAmp", envDatas.clickAmp}, {"directAmp", envDatas.directAmp},
+  };
+
+  for (auto &[name, data] : entries) {
+    auto tree = findEnv(name);
+    if (tree.isValid())
+      treeToEnvelope(tree, data);
+  }
+
+  // LUT 再ベイク＋ノブ有効/無効同期
+  onEnvelopeChanged();
 }
 
 void BoomBabyAudioProcessorEditor::timerCallback() {

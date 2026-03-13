@@ -60,6 +60,15 @@ private:
   void layoutSubKnobsRow(juce::Rectangle<int> knobRow);
   void setupSubKnobsRow();
 
+  /// APVTS パラメータ同期ヘルパー（UI → APVTS）
+  void syncParam(const char *id, float value);
+  /// APVTS 値から UI ウィジェットを復元（エディタ構築時＋状態復元時）
+  void syncUIFromState();
+  /// エンベロープデータを APVTS ValueTree に書き出し
+  void saveEnvelopesToState();
+  /// APVTS ValueTree からエンベロープデータを読み込み＋LUT 再ベイク
+  void loadEnvelopesFromState();
+
   PanelComponent subPanel{"SUB", UIConstants::Colours::subArc};
   PanelComponent clickPanel{"CLICK", UIConstants::Colours::clickArc};
   PanelComponent directPanel{"DIRECT", UIConstants::Colours::directArc};

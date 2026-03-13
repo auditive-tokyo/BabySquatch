@@ -63,6 +63,9 @@ public:
             points.erase(points.begin() + index);
     }
 
+    /// 全ポイントを削除
+    void clearPoints() { points.clear(); }
+
     /// ポイントを移動。newTimeMs は隣接ポイント間にクランプされる。
     /// 戻り値: 移動後のインデックス（隣接クランプ済みのためソート不要、通常は入力と同じ）
     int movePoint(int index, float newTimeMs, float newValue) {

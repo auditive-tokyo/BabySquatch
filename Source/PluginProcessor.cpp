@@ -1,15 +1,358 @@
 #include "PluginProcessor.h"
+#include "ParamIDs.h"
 #include "PluginEditor.h"
-
 #include <span>
+
+// ─────────────────────────────────────────────────────────────────────
+// APVTS ParameterLayout
+// ─────────────────────────────────────────────────────────────────────
+juce::AudioProcessorValueTreeState::ParameterLayout
+BoomBabyAudioProcessor::createParameterLayout() {
+  using FloatParam = juce::AudioParameterFloat;
+  using ChoiceParam = juce::AudioParameterChoice;
+  using BoolParam = juce::AudioParameterBool;
+  using NRange = juce::NormalisableRange<float>;
+
+  // ログスケールのレンジ生成ヘルパー
+  auto logRange = [](float min, float max, float mid) {
+    auto r = NRange(min, max, 0.01f);
+    r.setSkewForCentre(mid);
+    return r;
+  };
+  auto logRangeInt = [](float min, float max, float mid) {
+    auto r = NRange(min, max, 1.0f);
+    r.setSkewForCentre(mid);
+    return r;
+  };
+
+  juce::AudioProcessorValueTreeState::ParameterLayout layout;
+
+  // ===================== Sub =====================
+  layout.add(
+      std::make_unique<ChoiceParam>(ParamIDs::subWaveShape, "Sub Wave",
+                                    juce::StringArray{"Tri", "SQR", "SAW"}, 0));
+  layout.add(std::make_unique<FloatParam>(ParamIDs::subLength, "Sub Length",
+                                          logRangeInt(10.0f, 2000.0f, 300.0f),
+                                          300.0f));
+  layout.add(std::make_unique<FloatParam>(ParamIDs::subAmp, "Sub Amp",
+                                          NRange(0.0f, 200.0f, 0.1f), 100.0f));
+  layout.add(std::make_unique<FloatParam>(ParamIDs::subFreq, "Sub Freq",
+                                          logRange(20.0f, 20000.0f, 200.0f),
+                                          200.0f));
+  layout.add(std::make_unique<FloatParam>(ParamIDs::subMix, "Sub Mix",
+                                          NRange(-100.0f, 100.0f, 1.0f), 0.0f));
+  layout.add(std::make_unique<FloatParam>(ParamIDs::subSatDrive, "Sub Drive",
+                                          NRange(0.0f, 24.0f, 0.1f), 0.0f));
+  layout.add(std::make_unique<ChoiceParam>(
+      ParamIDs::subSatClipType, "Sub Clip",
+      juce::StringArray{"Soft", "Hard", "Tube"}, 0));
+  layout.add(std::make_unique<FloatParam>(ParamIDs::subTone1, "Sub Tone1",
+                                          NRange(0.0f, 100.0f, 0.1f), 25.0f));
+  layout.add(std::make_unique<FloatParam>(ParamIDs::subTone2, "Sub Tone2",
+                                          NRange(0.0f, 100.0f, 0.1f), 25.0f));
+  layout.add(std::make_unique<FloatParam>(ParamIDs::subTone3, "Sub Tone3",
+                                          NRange(0.0f, 100.0f, 0.1f), 25.0f));
+  layout.add(std::make_unique<FloatParam>(ParamIDs::subTone4, "Sub Tone4",
+                                          NRange(0.0f, 100.0f, 0.1f), 25.0f));
+  layout.add(std::make_unique<FloatParam>(ParamIDs::subGain, "Sub Gain",
+                                          NRange(-60.0f, 12.0f, 0.01f), 0.0f));
+  layout.add(std::make_unique<BoolParam>(ParamIDs::subMute, "Sub Mute", false));
+  layout.add(std::make_unique<BoolParam>(ParamIDs::subSolo, "Sub Solo", false));
+
+  // ===================== Click =====================
+  layout.add(std::make_unique<ChoiceParam>(ParamIDs::clickMode, "Click Mode",
+                                           juce::StringArray{"Noise", "Sample"},
+                                           0));
+  layout.add(
+      std::make_unique<FloatParam>(ParamIDs::clickNoiseDecay, "Click Decay",
+                                   logRangeInt(1.0f, 2000.0f, 200.0f), 30.0f));
+  layout.add(std::make_unique<FloatParam>(
+      ParamIDs::clickBpf1Freq, "Click BPF Freq",
+      logRangeInt(20.0f, 20000.0f, 1000.0f), 5000.0f));
+  layout.add(std::make_unique<FloatParam>(ParamIDs::clickBpf1Q, "Click BPF Q",
+                                          NRange(0.1f, 18.0f, 0.01f), 0.71f));
+  layout.add(
+      std::make_unique<ChoiceParam>(ParamIDs::clickBpf1Slope, "Click BPF Slope",
+                                    juce::StringArray{"12", "24", "48"}, 0));
+  layout.add(std::make_unique<FloatParam>(ParamIDs::clickSamplePitch,
+                                          "Click Pitch",
+                                          NRange(-24.0f, 24.0f, 1.0f), 0.0f));
+  layout.add(std::make_unique<FloatParam>(ParamIDs::clickSampleAmp, "Click Amp",
+                                          NRange(0.0f, 200.0f, 0.1f), 100.0f));
+  layout.add(std::make_unique<FloatParam>(
+      ParamIDs::clickSampleDecay, "Click Sample Decay",
+      logRangeInt(10.0f, 2000.0f, 300.0f), 300.0f));
+  layout.add(std::make_unique<FloatParam>(ParamIDs::clickDrive, "Click Drive",
+                                          NRange(0.0f, 24.0f, 0.1f), 0.0f));
+  layout.add(std::make_unique<ChoiceParam>(
+      ParamIDs::clickClipType, "Click Clip",
+      juce::StringArray{"Soft", "Hard", "Tube"}, 0));
+  layout.add(std::make_unique<FloatParam>(ParamIDs::clickHpfFreq, "Click HPF",
+                                          logRangeInt(20.0f, 20000.0f, 1000.0f),
+                                          20.0f));
+  layout.add(std::make_unique<FloatParam>(ParamIDs::clickHpfQ, "Click HPF Q",
+                                          NRange(0.1f, 18.0f, 0.01f), 0.71f));
+  layout.add(
+      std::make_unique<ChoiceParam>(ParamIDs::clickHpfSlope, "Click HPF Slope",
+                                    juce::StringArray{"12", "24", "48"}, 0));
+  layout.add(std::make_unique<FloatParam>(ParamIDs::clickLpfFreq, "Click LPF",
+                                          logRangeInt(20.0f, 20000.0f, 1000.0f),
+                                          20000.0f));
+  layout.add(std::make_unique<FloatParam>(ParamIDs::clickLpfQ, "Click LPF Q",
+                                          NRange(0.1f, 18.0f, 0.01f), 0.71f));
+  layout.add(
+      std::make_unique<ChoiceParam>(ParamIDs::clickLpfSlope, "Click LPF Slope",
+                                    juce::StringArray{"12", "24", "48"}, 0));
+  layout.add(std::make_unique<FloatParam>(ParamIDs::clickGain, "Click Gain",
+                                          NRange(-60.0f, 12.0f, 0.01f), 0.0f));
+  layout.add(
+      std::make_unique<BoolParam>(ParamIDs::clickMute, "Click Mute", false));
+  layout.add(
+      std::make_unique<BoolParam>(ParamIDs::clickSolo, "Click Solo", false));
+
+  // ===================== Direct =====================
+  layout.add(
+      std::make_unique<ChoiceParam>(ParamIDs::directMode, "Direct Mode",
+                                    juce::StringArray{"Direct", "Sample"}, 0));
+  layout.add(std::make_unique<FloatParam>(ParamIDs::directPitch, "Direct Pitch",
+                                          NRange(-24.0f, 24.0f, 1.0f), 0.0f));
+  layout.add(std::make_unique<FloatParam>(ParamIDs::directAmp, "Direct Amp",
+                                          NRange(0.0f, 200.0f, 0.1f), 100.0f));
+  layout.add(std::make_unique<FloatParam>(ParamIDs::directDrive, "Direct Drive",
+                                          NRange(0.0f, 24.0f, 0.1f), 0.0f));
+  layout.add(std::make_unique<ChoiceParam>(
+      ParamIDs::directClipType, "Direct Clip",
+      juce::StringArray{"Soft", "Hard", "Tube"}, 0));
+  layout.add(std::make_unique<FloatParam>(ParamIDs::directDecay, "Direct Decay",
+                                          logRangeInt(10.0f, 2000.0f, 300.0f),
+                                          300.0f));
+  layout.add(std::make_unique<FloatParam>(ParamIDs::directHpfFreq, "Direct HPF",
+                                          logRangeInt(20.0f, 20000.0f, 1000.0f),
+                                          20.0f));
+  layout.add(std::make_unique<FloatParam>(ParamIDs::directHpfQ, "Direct HPF Q",
+                                          NRange(0.1f, 18.0f, 0.01f), 0.707f));
+  layout.add(std::make_unique<ChoiceParam>(
+      ParamIDs::directHpfSlope, "Direct HPF Slope",
+      juce::StringArray{"12", "24", "48"}, 0));
+  layout.add(std::make_unique<FloatParam>(ParamIDs::directLpfFreq, "Direct LPF",
+                                          logRangeInt(20.0f, 20000.0f, 1000.0f),
+                                          20000.0f));
+  layout.add(std::make_unique<FloatParam>(ParamIDs::directLpfQ, "Direct LPF Q",
+                                          NRange(0.1f, 18.0f, 0.01f), 0.707f));
+  layout.add(std::make_unique<ChoiceParam>(
+      ParamIDs::directLpfSlope, "Direct LPF Slope",
+      juce::StringArray{"12", "24", "48"}, 0));
+  layout.add(std::make_unique<FloatParam>(ParamIDs::directThreshold,
+                                          "Direct Thresh",
+                                          NRange(-60.0f, 0.0f, 0.1f), -24.0f));
+  layout.add(std::make_unique<FloatParam>(ParamIDs::directHold, "Direct Hold",
+                                          NRange(20.0f, 500.0f, 1.0f), 50.0f));
+  layout.add(std::make_unique<ChoiceParam>(
+      ParamIDs::directLookAhead, "Direct Look-ahead",
+      juce::StringArray{"0 ms", "1.5 ms", "3 ms", "6 ms"}, 0));
+  layout.add(std::make_unique<FloatParam>(ParamIDs::directGain, "Direct Gain",
+                                          NRange(-60.0f, 12.0f, 0.01f), 0.0f));
+  layout.add(
+      std::make_unique<BoolParam>(ParamIDs::directMute, "Direct Mute", false));
+  layout.add(
+      std::make_unique<BoolParam>(ParamIDs::directSolo, "Direct Solo", false));
+
+  // ===================== Master =====================
+  layout.add(std::make_unique<FloatParam>(ParamIDs::masterGain, "Master Gain",
+                                          NRange(-60.0f, 12.0f, 0.01f), 0.0f));
+
+  return layout;
+}
 
 BoomBabyAudioProcessor::BoomBabyAudioProcessor()
     : AudioProcessor(
           BusesProperties()
               .withInput("Input", juce::AudioChannelSet::stereo(), true)
-              .withOutput("Output", juce::AudioChannelSet::stereo(), true)) {}
+              .withOutput("Output", juce::AudioChannelSet::stereo(), true)),
+      apvts_(*this, nullptr, "BoomBabyState", createParameterLayout()) {
+  registerParameterListeners();
+}
 
-BoomBabyAudioProcessor::~BoomBabyAudioProcessor() = default;
+BoomBabyAudioProcessor::~BoomBabyAudioProcessor() {
+  // Listener を安全に解除（デストラクタ順序問題を防止）
+  apvts_.removeParameterListener(ParamIDs::subWaveShape, this);
+  apvts_.removeParameterListener(ParamIDs::subLength, this);
+  apvts_.removeParameterListener(ParamIDs::subSatClipType, this);
+  apvts_.removeParameterListener(ParamIDs::subTone1, this);
+  apvts_.removeParameterListener(ParamIDs::subTone2, this);
+  apvts_.removeParameterListener(ParamIDs::subTone3, this);
+  apvts_.removeParameterListener(ParamIDs::subTone4, this);
+  apvts_.removeParameterListener(ParamIDs::subGain, this);
+  apvts_.removeParameterListener(ParamIDs::subMute, this);
+  apvts_.removeParameterListener(ParamIDs::subSolo, this);
+  apvts_.removeParameterListener(ParamIDs::clickMode, this);
+  apvts_.removeParameterListener(ParamIDs::clickNoiseDecay, this);
+  apvts_.removeParameterListener(ParamIDs::clickBpf1Freq, this);
+  apvts_.removeParameterListener(ParamIDs::clickBpf1Q, this);
+  apvts_.removeParameterListener(ParamIDs::clickBpf1Slope, this);
+  apvts_.removeParameterListener(ParamIDs::clickSamplePitch, this);
+  apvts_.removeParameterListener(ParamIDs::clickDrive, this);
+  apvts_.removeParameterListener(ParamIDs::clickClipType, this);
+  apvts_.removeParameterListener(ParamIDs::clickHpfFreq, this);
+  apvts_.removeParameterListener(ParamIDs::clickHpfQ, this);
+  apvts_.removeParameterListener(ParamIDs::clickHpfSlope, this);
+  apvts_.removeParameterListener(ParamIDs::clickLpfFreq, this);
+  apvts_.removeParameterListener(ParamIDs::clickLpfQ, this);
+  apvts_.removeParameterListener(ParamIDs::clickLpfSlope, this);
+  apvts_.removeParameterListener(ParamIDs::clickGain, this);
+  apvts_.removeParameterListener(ParamIDs::clickMute, this);
+  apvts_.removeParameterListener(ParamIDs::clickSolo, this);
+  apvts_.removeParameterListener(ParamIDs::directMode, this);
+  apvts_.removeParameterListener(ParamIDs::directPitch, this);
+  apvts_.removeParameterListener(ParamIDs::directDrive, this);
+  apvts_.removeParameterListener(ParamIDs::directClipType, this);
+  apvts_.removeParameterListener(ParamIDs::directHpfFreq, this);
+  apvts_.removeParameterListener(ParamIDs::directHpfQ, this);
+  apvts_.removeParameterListener(ParamIDs::directHpfSlope, this);
+  apvts_.removeParameterListener(ParamIDs::directLpfFreq, this);
+  apvts_.removeParameterListener(ParamIDs::directLpfQ, this);
+  apvts_.removeParameterListener(ParamIDs::directLpfSlope, this);
+  apvts_.removeParameterListener(ParamIDs::directThreshold, this);
+  apvts_.removeParameterListener(ParamIDs::directHold, this);
+  apvts_.removeParameterListener(ParamIDs::directLookAhead, this);
+  apvts_.removeParameterListener(ParamIDs::directGain, this);
+  apvts_.removeParameterListener(ParamIDs::directMute, this);
+  apvts_.removeParameterListener(ParamIDs::directSolo, this);
+  apvts_.removeParameterListener(ParamIDs::masterGain, this);
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// APVTS Listener 登録 / パラメータ→DSP 同期
+// ─────────────────────────────────────────────────────────────────────────
+void BoomBabyAudioProcessor::registerParameterListeners() {
+  for (const auto *id :
+       {ParamIDs::subWaveShape, ParamIDs::subLength, ParamIDs::subSatClipType,
+        ParamIDs::subTone1, ParamIDs::subTone2, ParamIDs::subTone3,
+        ParamIDs::subTone4, ParamIDs::subGain, ParamIDs::subMute,
+        ParamIDs::subSolo, ParamIDs::clickMode, ParamIDs::clickNoiseDecay,
+        ParamIDs::clickBpf1Freq, ParamIDs::clickBpf1Q,
+        ParamIDs::clickBpf1Slope, ParamIDs::clickSamplePitch,
+        ParamIDs::clickDrive, ParamIDs::clickClipType, ParamIDs::clickHpfFreq,
+        ParamIDs::clickHpfQ, ParamIDs::clickHpfSlope, ParamIDs::clickLpfFreq,
+        ParamIDs::clickLpfQ, ParamIDs::clickLpfSlope, ParamIDs::clickGain,
+        ParamIDs::clickMute, ParamIDs::clickSolo, ParamIDs::directMode,
+        ParamIDs::directPitch, ParamIDs::directDrive, ParamIDs::directClipType,
+        ParamIDs::directHpfFreq, ParamIDs::directHpfQ,
+        ParamIDs::directHpfSlope, ParamIDs::directLpfFreq,
+        ParamIDs::directLpfQ, ParamIDs::directLpfSlope,
+        ParamIDs::directThreshold, ParamIDs::directHold,
+        ParamIDs::directLookAhead, ParamIDs::directGain, ParamIDs::directMute,
+        ParamIDs::directSolo, ParamIDs::masterGain})
+    apvts_.addParameterListener(id, this);
+}
+
+namespace {
+constexpr std::array kSlopes = {12, 24, 48};
+constexpr std::array<float, 4> kLookAheadMs = {0.0f, 1.5f, 3.0f, 6.0f};
+} // namespace
+
+void BoomBabyAudioProcessor::parameterChanged(const juce::String &parameterID,
+                                               float newValue) {
+  const auto v = newValue;
+  const auto idx = static_cast<int>(v);
+
+  // ── Sub ──
+  if (parameterID == ParamIDs::subWaveShape) {
+    subEngine_.oscillator().setWaveShape(static_cast<WaveShape>(idx + 1));
+  } else if (parameterID == ParamIDs::subLength) {
+    subEngine_.setLengthMs(v);
+  } else if (parameterID == ParamIDs::subSatClipType) {
+    subEngine_.oscillator().setClipType(idx);
+  } else if (parameterID == ParamIDs::subTone1) {
+    subEngine_.oscillator().setHarmonicGain(1, v / 100.0f);
+  } else if (parameterID == ParamIDs::subTone2) {
+    subEngine_.oscillator().setHarmonicGain(2, v / 100.0f);
+  } else if (parameterID == ParamIDs::subTone3) {
+    subEngine_.oscillator().setHarmonicGain(3, v / 100.0f);
+  } else if (parameterID == ParamIDs::subTone4) {
+    subEngine_.oscillator().setHarmonicGain(4, v / 100.0f);
+  } else if (parameterID == ParamIDs::subGain) {
+    subEngine_.setGainDb(v);
+  } else if (parameterID == ParamIDs::subMute) {
+    channelState_.setMute(ChannelState::Channel::sub, v >= 0.5f);
+  } else if (parameterID == ParamIDs::subSolo) {
+    channelState_.setSolo(ChannelState::Channel::sub, v >= 0.5f);
+  }
+  // ── Click ──
+  else if (parameterID == ParamIDs::clickMode) {
+    clickEngine_.setMode(idx + 1); // APVTS 0=Noise→1, 1=Sample→2
+  } else if (parameterID == ParamIDs::clickNoiseDecay) {
+    clickEngine_.setDecayMs(v);
+  } else if (parameterID == ParamIDs::clickBpf1Freq) {
+    clickEngine_.setFreq1(v);
+  } else if (parameterID == ParamIDs::clickBpf1Q) {
+    clickEngine_.setFocus1(v);
+  } else if (parameterID == ParamIDs::clickBpf1Slope) {
+    clickEngine_.setBpf1Slope(kSlopes[static_cast<std::size_t>(idx)]);
+  } else if (parameterID == ParamIDs::clickSamplePitch) {
+    clickEngine_.setPitchSemitones(v);
+  } else if (parameterID == ParamIDs::clickDrive) {
+    clickEngine_.setDriveDb(v);
+  } else if (parameterID == ParamIDs::clickClipType) {
+    clickEngine_.setClipType(idx);
+  } else if (parameterID == ParamIDs::clickHpfFreq) {
+    clickEngine_.setHpfFreq(v);
+  } else if (parameterID == ParamIDs::clickHpfQ) {
+    clickEngine_.setHpfQ(v);
+  } else if (parameterID == ParamIDs::clickHpfSlope) {
+    clickEngine_.setHpfSlope(kSlopes[static_cast<std::size_t>(idx)]);
+  } else if (parameterID == ParamIDs::clickLpfFreq) {
+    clickEngine_.setLpfFreq(v);
+  } else if (parameterID == ParamIDs::clickLpfQ) {
+    clickEngine_.setLpfQ(v);
+  } else if (parameterID == ParamIDs::clickLpfSlope) {
+    clickEngine_.setLpfSlope(kSlopes[static_cast<std::size_t>(idx)]);
+  } else if (parameterID == ParamIDs::clickGain) {
+    clickEngine_.setGainDb(v);
+  } else if (parameterID == ParamIDs::clickMute) {
+    channelState_.setMute(ChannelState::Channel::click, v >= 0.5f);
+  } else if (parameterID == ParamIDs::clickSolo) {
+    channelState_.setSolo(ChannelState::Channel::click, v >= 0.5f);
+  }
+  // ── Direct ──
+  else if (parameterID == ParamIDs::directMode) {
+    setDirectSampleMode(idx == 1); // 0=Direct(passthrough), 1=Sample
+  } else if (parameterID == ParamIDs::directPitch) {
+    directEngine_.setPitchSemitones(v);
+  } else if (parameterID == ParamIDs::directDrive) {
+    directEngine_.setDriveDb(v);
+  } else if (parameterID == ParamIDs::directClipType) {
+    directEngine_.setClipType(idx);
+  } else if (parameterID == ParamIDs::directHpfFreq) {
+    directEngine_.setHpfFreq(v);
+  } else if (parameterID == ParamIDs::directHpfQ) {
+    directEngine_.setHpfQ(v);
+  } else if (parameterID == ParamIDs::directHpfSlope) {
+    directEngine_.setHpfSlope(kSlopes[static_cast<std::size_t>(idx)]);
+  } else if (parameterID == ParamIDs::directLpfFreq) {
+    directEngine_.setLpfFreq(v);
+  } else if (parameterID == ParamIDs::directLpfQ) {
+    directEngine_.setLpfQ(v);
+  } else if (parameterID == ParamIDs::directLpfSlope) {
+    directEngine_.setLpfSlope(kSlopes[static_cast<std::size_t>(idx)]);
+  } else if (parameterID == ParamIDs::directThreshold) {
+    directMode_.transientDetector_.setThresholdDb(v);
+  } else if (parameterID == ParamIDs::directHold) {
+    directMode_.transientDetector_.setHoldMs(v);
+  } else if (parameterID == ParamIDs::directLookAhead) {
+    setLookAheadMs(kLookAheadMs[static_cast<std::size_t>(idx)]);
+  } else if (parameterID == ParamIDs::directGain) {
+    directEngine_.setGainDb(v);
+  } else if (parameterID == ParamIDs::directMute) {
+    channelState_.setMute(ChannelState::Channel::direct, v >= 0.5f);
+  } else if (parameterID == ParamIDs::directSolo) {
+    channelState_.setSolo(ChannelState::Channel::direct, v >= 0.5f);
+  }
+  // ── Master ──
+  else if (parameterID == ParamIDs::masterGain) {
+    master_.setGain(v);
+  }
+}
 
 const juce::String // NOSONAR: JUCE API
 BoomBabyAudioProcessor::getName() const {
@@ -288,13 +631,17 @@ juce::AudioProcessorEditor *BoomBabyAudioProcessor::createEditor() {
 }
 
 void BoomBabyAudioProcessor::getStateInformation(juce::MemoryBlock &destData) {
-  juce::ignoreUnused(destData);
+  auto state = apvts_.copyState();
+  auto xml = state.createXml();
+  copyXmlToBinary(*xml, destData);
 }
 
 void BoomBabyAudioProcessor::setStateInformation(
     const void *data, // NOSONAR: JUCE API
     int sizeInBytes) {
-  juce::ignoreUnused(data, sizeInBytes);
+  if (auto xml = getXmlFromBinary(data, sizeInBytes))
+    if (xml->hasTagName(apvts_.state.getType()))
+      apvts_.replaceState(juce::ValueTree::fromXml(*xml));
 }
 
 juce::AudioProcessor *JUCE_CALLTYPE createPluginFilter() {

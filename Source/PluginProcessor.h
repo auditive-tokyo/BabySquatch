@@ -12,7 +12,8 @@
 #include <juce_audio_utils/juce_audio_utils.h>
 #include <juce_dsp/juce_dsp.h>
 
-class BoomBabyAudioProcessor : public juce::AudioProcessor {
+class BoomBabyAudioProcessor : public juce::AudioProcessor,
+                               private juce::AudioProcessorValueTreeState::Listener {
 public:
   BoomBabyAudioProcessor();
   ~BoomBabyAudioProcessor() override;
@@ -43,6 +44,9 @@ public:
   void getStateInformation(juce::MemoryBlock &destData) override;
   void setStateInformation(const void *data, int sizeInBytes) override;
 
+  /// APVTS アクセサ
+  juce::AudioProcessorValueTreeState &getAPVTS() noexcept { return apvts_; }
+
   /// GUI鍵盤との共有 MidiKeyboardState
   juce::MidiKeyboardState &getKeyboardState() { return keyboardState; }
 
@@ -53,7 +57,8 @@ public:
   ChannelState &channelState() noexcept { return channelState_; }
   const ChannelState &channelState() const noexcept { return channelState_; }
 
-  // ── マスターセクション（ゲイン・レベル計測。将来: limiter / preset 拡張用）──
+  // ── マスターセクション（ゲイン・レベル計測。将来: limiter / preset
+  // 拡張用）──
   struct MasterSection {
     std::atomic<float> gainDb_{0.0f};
     mutable std::array<LevelDetector, 2> detector_; ///< 0=L, 1=R
@@ -100,6 +105,12 @@ public:
 private:
   void handleMidiEvents(juce::MidiBuffer &midiMessages, int numSamples);
 
+  /// APVTS Listener: パラメータ変更を DSP へ反映
+  void parameterChanged(const juce::String &parameterID,
+                        float newValue) override;
+  /// 全パラメータの Listener 登録
+  void registerParameterListeners();
+
   juce::MidiKeyboardState keyboardState;
   SubEngine subEngine_;
   ClickEngine clickEngine_;
@@ -109,6 +120,11 @@ private:
   InputMonitor inputMonitor_;
   DirectMode directMode_;
   std::vector<float> monoMixBuffer_; ///< トランジェント検出用モノ合成バッファ
+
+  /// APVTS（全パラメータの一元管理 + 状態保存/復元）
+  static juce::AudioProcessorValueTreeState::ParameterLayout
+  createParameterLayout();
+  juce::AudioProcessorValueTreeState apvts_;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(BoomBabyAudioProcessor)
 };

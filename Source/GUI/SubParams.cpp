@@ -4,6 +4,7 @@
 // ClickParamKnobs.cpp / DirectParamKnobs.cpp を作成する。
 
 #include "LutBaker.h"
+#include "ParamIDs.h"
 #include "PluginEditor.h"
 #include "PluginProcessor.h"
 
@@ -45,6 +46,7 @@ void BoomBabyAudioProcessorEditor::setupLengthBox() {
   subUI.length.slider.setValue(300.0, juce::dontSendNotification);
   subUI.length.slider.onValueChange = [this] {
     const auto v = static_cast<float>(subUI.length.slider.getValue());
+    syncParam(ParamIDs::subLength, v);
     envelopeCurveEditor.setDisplayDurationMs(v);
     processorRef.subEngine().setLengthMs(v);
     bakeLut(envDatas.amp, processorRef.subEngine().envLut(), v);
@@ -114,6 +116,7 @@ void BoomBabyAudioProcessorEditor::setupSubKnobsRow() {
   };
   subUI.knobs[1].onValueChange = [this] {
     const auto hz = static_cast<float>(subUI.knobs[1].getValue());
+    syncParam(ParamIDs::subFreq, hz);
     envDatas.freq.setDefaultValue(hz);
     if (!envDatas.freq.isEnvelopeControlled())
       envDatas.freq.setPointValue(0, hz);
@@ -141,6 +144,7 @@ void BoomBabyAudioProcessorEditor::setupSubKnobsRow() {
   };
   subUI.knobs[0].onValueChange = [this] {
     const float v = static_cast<float>(subUI.knobs[0].getValue()) / 100.0f;
+    syncParam(ParamIDs::subAmp, static_cast<float>(subUI.knobs[0].getValue()));
     envDatas.amp.setDefaultValue(v);
     if (!envDatas.amp.isEnvelopeControlled())
       envDatas.amp.setPointValue(0, v);
@@ -165,6 +169,7 @@ void BoomBabyAudioProcessorEditor::setupSubKnobsRow() {
   };
   subUI.knobs[2].onValueChange = [this] {
     const float v = static_cast<float>(subUI.knobs[2].getValue()) / 100.0f;
+    syncParam(ParamIDs::subMix, static_cast<float>(subUI.knobs[2].getValue()));
     envDatas.mix.setDefaultValue(v);
     if (!envDatas.mix.isEnvelopeControlled())
       envDatas.mix.setPointValue(0, v);
@@ -186,6 +191,7 @@ void BoomBabyAudioProcessorEditor::setupSubKnobsRow() {
   };
   subUI.knobs[3].onValueChange = [this] {
     const float v = static_cast<float>(subUI.knobs[3].getValue()) / 24.0f;
+    syncParam(ParamIDs::subSatDrive, static_cast<float>(subUI.knobs[3].getValue()));
     envDatas.dist.setDefaultValue(v);
     if (!envDatas.dist.isEnvelopeControlled())
       envDatas.dist.setPointValue(0, v);
@@ -202,6 +208,7 @@ void BoomBabyAudioProcessorEditor::setupSubKnobsRow() {
   subUI.saturateClipType.setOnChange([this](int t) {
     switchEditTarget(EnvelopeCurveEditor::EditTarget::saturate);
     processorRef.subEngine().oscillator().setClipType(t);
+    syncParam(ParamIDs::subSatClipType, static_cast<float>(t));
   });
   addAndMakeVisible(subUI.saturateClipType);
 
@@ -220,6 +227,11 @@ void BoomBabyAudioProcessorEditor::setupSubKnobsRow() {
           static_cast<float>(subUI.knobs[idx].getValue()) / 100.0f;
       processorRef.subEngine().oscillator().setHarmonicGain(harmonicNum, gain);
       envelopeCurveEditor.setPreviewHarmonicGain(harmonicNum, gain);
+      static constexpr const char *kToneIDs[] = {
+          ParamIDs::subTone1, ParamIDs::subTone2,
+          ParamIDs::subTone3, ParamIDs::subTone4};
+      syncParam(kToneIDs[static_cast<std::size_t>(harmonicNum - 1)],
+               static_cast<float>(subUI.knobs[idx].getValue()));
     };
     processorRef.subEngine().oscillator().setHarmonicGain(harmonicNum, 0.25f);
     envelopeCurveEditor.setPreviewHarmonicGain(harmonicNum, 0.25f);
@@ -260,6 +272,8 @@ void BoomBabyAudioProcessorEditor::setupWaveShapeCombo() {
     }
     processorRef.subEngine().oscillator().setWaveShape(shape);
     envelopeCurveEditor.setWaveShape(shape);
+    syncParam(ParamIDs::subWaveShape,
+             static_cast<float>(subUI.wave.combo.getSelectedId() - 1));
   };
   addAndMakeVisible(subUI.wave.combo);
 }

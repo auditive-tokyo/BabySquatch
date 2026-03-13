@@ -1,6 +1,7 @@
 // ClickParams.cpp
 // Click panel UI setup / layout
 #include "../DSP/Saturator.h"
+#include "../ParamIDs.h"
 #include "../PluginEditor.h"
 #include "LutBaker.h"
 #include "WaveformUtils.h"
@@ -57,6 +58,10 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
   styleKnobLabel(clickUI.noise.decayLabel, "Decay", tinyFont);
   clickUI.noise.bpf1.slopeSelector.setOnChange([this](int dboct) {
     processorRef.clickEngine().setBpf1Slope(dboct);
+    constexpr std::array kSlopes = {12, 24, 48};
+    for (int i = 0; i < 3; ++i)
+      if (kSlopes[static_cast<std::size_t>(i)] == dboct)
+        syncParam(ParamIDs::clickBpf1Slope, static_cast<float>(i));
     envelopeCurveEditor.repaint();
   });
   styleKnobLabel(clickUI.noise.bpf1.qLabel, "Q", tinyFont);
@@ -74,11 +79,19 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
   // HPF slope selector
   clickUI.hpf.slope.setOnChange([this](int dboct) {
     processorRef.clickEngine().setHpfSlope(dboct);
+    constexpr std::array kSlopes = {12, 24, 48};
+    for (int i = 0; i < 3; ++i)
+      if (kSlopes[static_cast<std::size_t>(i)] == dboct)
+        syncParam(ParamIDs::clickHpfSlope, static_cast<float>(i));
     clickRepaintOrRefresh();
   });
   // LPF slope selector
   clickUI.lpf.slope.setOnChange([this](int dboct) {
     processorRef.clickEngine().setLpfSlope(dboct);
+    constexpr std::array kSlopes = {12, 24, 48};
+    for (int i = 0; i < 3; ++i)
+      if (kSlopes[static_cast<std::size_t>(i)] == dboct)
+        syncParam(ParamIDs::clickLpfSlope, static_cast<float>(i));
     clickRepaintOrRefresh();
   });
 
@@ -99,6 +112,8 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
   clickUI.noise.decaySlider.onValueChange = [this] {
     processorRef.clickEngine().setDecayMs(
         static_cast<float>(clickUI.noise.decaySlider.getValue()));
+    syncParam(ParamIDs::clickNoiseDecay,
+             static_cast<float>(clickUI.noise.decaySlider.getValue()));
     envelopeCurveEditor.repaint();
   };
   addAndMakeVisible(clickUI.noise.decaySlider);
@@ -116,6 +131,8 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
   clickUI.noise.bpf1.freqSlider.onValueChange = [this] {
     processorRef.clickEngine().setFreq1(
         static_cast<float>(clickUI.noise.bpf1.freqSlider.getValue()));
+    syncParam(ParamIDs::clickBpf1Freq,
+             static_cast<float>(clickUI.noise.bpf1.freqSlider.getValue()));
     envelopeCurveEditor.repaint();
   };
   addAndMakeVisible(clickUI.noise.bpf1.freqSlider);
@@ -134,6 +151,8 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
   clickUI.noise.bpf1.qSlider.onValueChange = [this] {
     processorRef.clickEngine().setFocus1(
         static_cast<float>(clickUI.noise.bpf1.qSlider.getValue()));
+    syncParam(ParamIDs::clickBpf1Q,
+             static_cast<float>(clickUI.noise.bpf1.qSlider.getValue()));
     envelopeCurveEditor.repaint();
   };
   addAndMakeVisible(clickUI.noise.bpf1.qSlider);
@@ -152,6 +171,8 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
   clickUI.noise.saturator.driveSlider.onValueChange = [this] {
     processorRef.clickEngine().setDriveDb(
         static_cast<float>(clickUI.noise.saturator.driveSlider.getValue()));
+    syncParam(ParamIDs::clickDrive,
+             static_cast<float>(clickUI.noise.saturator.driveSlider.getValue()));
     clickRepaintOrRefresh();
   };
   addAndMakeVisible(clickUI.noise.saturator.driveSlider);
@@ -159,6 +180,7 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
   // ClipType セレクター（Soft / Hard / Tube）— Drive ノブ上部ラベルを兼ねる
   clickUI.noise.saturator.clipType.setOnChange([this](int t) {
     processorRef.clickEngine().setClipType(t);
+    syncParam(ParamIDs::clickClipType, static_cast<float>(t));
     clickRepaintOrRefresh();
   });
   addAndMakeVisible(clickUI.noise.saturator.clipType);
@@ -176,6 +198,8 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
   clickUI.hpf.slider.onValueChange = [this] {
     processorRef.clickEngine().setHpfFreq(
         static_cast<float>(clickUI.hpf.slider.getValue()));
+    syncParam(ParamIDs::clickHpfFreq,
+             static_cast<float>(clickUI.hpf.slider.getValue()));
     clickRepaintOrRefresh();
   };
   addAndMakeVisible(clickUI.hpf.slider);
@@ -194,6 +218,8 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
   clickUI.hpf.qSlider.onValueChange = [this] {
     processorRef.clickEngine().setHpfQ(
         static_cast<float>(clickUI.hpf.qSlider.getValue()));
+    syncParam(ParamIDs::clickHpfQ,
+             static_cast<float>(clickUI.hpf.qSlider.getValue()));
     clickRepaintOrRefresh();
   };
   addAndMakeVisible(clickUI.hpf.qSlider);
@@ -212,6 +238,8 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
   clickUI.lpf.slider.onValueChange = [this] {
     processorRef.clickEngine().setLpfFreq(
         static_cast<float>(clickUI.lpf.slider.getValue()));
+    syncParam(ParamIDs::clickLpfFreq,
+             static_cast<float>(clickUI.lpf.slider.getValue()));
     clickRepaintOrRefresh();
   };
   addAndMakeVisible(clickUI.lpf.slider);
@@ -230,6 +258,8 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
   clickUI.lpf.qSlider.onValueChange = [this] {
     processorRef.clickEngine().setLpfQ(
         static_cast<float>(clickUI.lpf.qSlider.getValue()));
+    syncParam(ParamIDs::clickLpfQ,
+             static_cast<float>(clickUI.lpf.qSlider.getValue()));
     clickRepaintOrRefresh();
   };
   addAndMakeVisible(clickUI.lpf.qSlider);
@@ -246,6 +276,8 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
   clickUI.sample.pitch.slider.onValueChange = [this] {
     processorRef.clickEngine().setPitchSemitones(
         static_cast<float>(clickUI.sample.pitch.slider.getValue()));
+    syncParam(ParamIDs::clickSamplePitch,
+             static_cast<float>(clickUI.sample.pitch.slider.getValue()));
     refreshClickSampleProvider();
   };
   styleKnobLabel(clickUI.sample.pitch.label, "Pitch", tinyFont);
@@ -265,6 +297,8 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
   clickUI.sample.amp.slider.onValueChange = [this] {
     const float v =
         static_cast<float>(clickUI.sample.amp.slider.getValue()) / 100.0f;
+    syncParam(ParamIDs::clickSampleAmp,
+             static_cast<float>(clickUI.sample.amp.slider.getValue()));
     envDatas.clickAmp.setDefaultValue(v);
     if (!envDatas.clickAmp.isEnvelopeControlled())
       envDatas.clickAmp.setPointValue(0, v);
@@ -304,6 +338,7 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
   clickUI.sample.decay.slider.onValueChange = [this] {
     const auto durMs =
         static_cast<float>(clickUI.sample.decay.slider.getValue());
+    syncParam(ParamIDs::clickSampleDecay, durMs);
     bakeLut(envDatas.clickAmp, processorRef.clickEngine().clickAmpLut(), durMs);
     envelopeCurveEditor.setClickDecayMs(durMs);
   };
@@ -350,6 +385,7 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
   clickUI.modeCombo.onChange = [this] {
     const int m = clickUI.modeCombo.getSelectedId();
     processorRef.clickEngine().setMode(m);
+    syncParam(ParamIDs::clickMode, static_cast<float>(m - 1));
     if (m == std::to_underlying(ClickUI::Mode::Sample))
       applyClickSampleMode();
     else
