@@ -1017,10 +1017,11 @@ void EnvelopeCurveEditor::showPointContextMenu(int pointIndex,
   });
 }
 
-void EnvelopeCurveEditor::startPointValueEdit(int pointIndex) {
+std::optional<juce::Rectangle<int>>
+EnvelopeCurveEditor::makeEditorBounds(int pointIndex) {
   const auto &pts = editEnvData->getPoints();
   if (pointIndex >= static_cast<int>(pts.size()))
-    return;
+    return std::nullopt;
 
   const auto &pt = pts[static_cast<size_t>(pointIndex)];
   const auto c = makeCoords();
@@ -1036,30 +1037,28 @@ void EnvelopeCurveEditor::startPointValueEdit(int pointIndex) {
   bx = juce::jlimit(0, getWidth() - editorW, bx);
   by = juce::jlimit(0, static_cast<int>(c.plotH) - editorH, by);
 
+  return juce::Rectangle<int>(bx, by, editorW, editorH);
+}
+
+void EnvelopeCurveEditor::startPointValueEdit(int pointIndex) {
+  const auto bounds = makeEditorBounds(pointIndex);
+  if (!bounds)
+    return;
+
+  const auto &pt =
+      editEnvData->getPoints()[static_cast<size_t>(pointIndex)];
   pointValueEditor_ = std::make_unique<PointValueEditor>(
-      this, pointIndex, juce::Rectangle<int>(bx, by, editorW, editorH),
+      this, pointIndex, *bounds,
       pointValueToDisplayString(pt.value), PointValueEditor::Mode::Value);
 }
 
 void EnvelopeCurveEditor::startPointTimeEdit(int pointIndex) {
-  const auto &pts = editEnvData->getPoints();
-  if (pointIndex >= static_cast<int>(pts.size()))
+  const auto bounds = makeEditorBounds(pointIndex);
+  if (!bounds)
     return;
 
-  const auto &pt = pts[static_cast<size_t>(pointIndex)];
-  const auto c = makeCoords();
-  const float px = c.timeMsToX(pt.timeMs);
-  const float py = c.valueToY(pt.value);
-
-  constexpr int editorW = 90;
-  constexpr int editorH = 22;
-  int bx = static_cast<int>(px) - editorW / 2;
-  int by = static_cast<int>(py) - editorH - 10;
-  if (by < 0)
-    by = static_cast<int>(py) + 10;
-  bx = juce::jlimit(0, getWidth() - editorW, bx);
-  by = juce::jlimit(0, static_cast<int>(c.plotH) - editorH, by);
-
+  const auto &pt =
+      editEnvData->getPoints()[static_cast<size_t>(pointIndex)];
   // 現在の時間を表示文字列に変換
   const float ms = pt.timeMs;
   juce::String currentText;
@@ -1071,7 +1070,7 @@ void EnvelopeCurveEditor::startPointTimeEdit(int pointIndex) {
     currentText = juce::String(static_cast<int>(std::round(ms)));
 
   pointValueEditor_ = std::make_unique<PointValueEditor>(
-      this, pointIndex, juce::Rectangle<int>(bx, by, editorW, editorH),
+      this, pointIndex, *bounds,
       currentText, PointValueEditor::Mode::Time);
 }
 

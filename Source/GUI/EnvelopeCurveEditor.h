@@ -94,6 +94,7 @@ public:
   void showPointContextMenu(int pointIndex, juce::Point<int> screenPos);
   void startPointValueEdit(int pointIndex);
   void startPointTimeEdit(int pointIndex);
+  std::optional<juce::Rectangle<int>> makeEditorBounds(int pointIndex);
   juce::String pointValueToDisplayString(float value) const;
   std::optional<float>
   parseDisplayStringToValue(const juce::String &text) const;
