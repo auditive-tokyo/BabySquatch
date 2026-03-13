@@ -16,7 +16,7 @@ BoomBabyは3つのモジュールで構成されています：
 
 ## 対応フォーマット
 
-- AU
+- AUv2
 - VST3
 - Standalone
 
@@ -84,6 +84,7 @@ BoomBabyは3つのモジュールで構成されています：
 │   ├── SubParams.cpp          // Sub パネル UI セットアップ / レイアウト
 │   ├── UIConstants.h          // UI定数集約（色・レイアウト寸法）
 │   └── WaveformUtils.h        // 波形プレビュー描画ヘルパー（ClickParams/DirectParams 共通、ヘッダオンリー）
+├── ParamIDs.h                 // APVTSパラメーターID定数集約（ヘッダオンリー）
 ├── PluginEditor.cpp
 ├── PluginEditor.h
 ├── PluginProcessor.cpp

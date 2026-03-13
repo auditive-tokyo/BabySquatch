@@ -44,6 +44,10 @@ public:
   void getStateInformation(juce::MemoryBlock &destData) override;
   void setStateInformation(const void *data, int sizeInBytes) override;
 
+  /// 保存済み APVTS state の ENVELOPE ノードから全 LUT を再ベイク。
+  /// setStateInformation / prepareToPlay の両方から呼ぶ。
+  void bakeAllLutsFromState();
+
   /// APVTS アクセサ
   juce::AudioProcessorValueTreeState &getAPVTS() noexcept { return apvts_; }
 

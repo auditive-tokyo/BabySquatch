@@ -1,4 +1,6 @@
 #include "PluginProcessor.h"
+#include "DSP/EnvelopeData.h"
+#include "GUI/LutBaker.h"
 #include "ParamIDs.h"
 #include "PluginEditor.h"
 #include <span>
@@ -225,24 +227,28 @@ BoomBabyAudioProcessor::~BoomBabyAudioProcessor() {
 // APVTS Listener 登録 / パラメータ→DSP 同期
 // ─────────────────────────────────────────────────────────────────────────
 void BoomBabyAudioProcessor::registerParameterListeners() {
-  for (const auto *id :
-       {ParamIDs::subWaveShape, ParamIDs::subLength, ParamIDs::subSatClipType,
-        ParamIDs::subTone1, ParamIDs::subTone2, ParamIDs::subTone3,
-        ParamIDs::subTone4, ParamIDs::subGain, ParamIDs::subMute,
-        ParamIDs::subSolo, ParamIDs::clickMode, ParamIDs::clickNoiseDecay,
-        ParamIDs::clickBpf1Freq, ParamIDs::clickBpf1Q,
-        ParamIDs::clickBpf1Slope, ParamIDs::clickSamplePitch,
-        ParamIDs::clickDrive, ParamIDs::clickClipType, ParamIDs::clickHpfFreq,
-        ParamIDs::clickHpfQ, ParamIDs::clickHpfSlope, ParamIDs::clickLpfFreq,
-        ParamIDs::clickLpfQ, ParamIDs::clickLpfSlope, ParamIDs::clickGain,
-        ParamIDs::clickMute, ParamIDs::clickSolo, ParamIDs::directMode,
-        ParamIDs::directPitch, ParamIDs::directDrive, ParamIDs::directClipType,
-        ParamIDs::directHpfFreq, ParamIDs::directHpfQ,
-        ParamIDs::directHpfSlope, ParamIDs::directLpfFreq,
-        ParamIDs::directLpfQ, ParamIDs::directLpfSlope,
-        ParamIDs::directThreshold, ParamIDs::directHold,
-        ParamIDs::directLookAhead, ParamIDs::directGain, ParamIDs::directMute,
-        ParamIDs::directSolo, ParamIDs::masterGain})
+  for (const auto *id : {ParamIDs::subWaveShape,   ParamIDs::subLength,
+                         ParamIDs::subSatClipType, ParamIDs::subTone1,
+                         ParamIDs::subTone2,       ParamIDs::subTone3,
+                         ParamIDs::subTone4,       ParamIDs::subGain,
+                         ParamIDs::subMute,        ParamIDs::subSolo,
+                         ParamIDs::clickMode,      ParamIDs::clickNoiseDecay,
+                         ParamIDs::clickBpf1Freq,  ParamIDs::clickBpf1Q,
+                         ParamIDs::clickBpf1Slope, ParamIDs::clickSamplePitch,
+                         ParamIDs::clickDrive,     ParamIDs::clickClipType,
+                         ParamIDs::clickHpfFreq,   ParamIDs::clickHpfQ,
+                         ParamIDs::clickHpfSlope,  ParamIDs::clickLpfFreq,
+                         ParamIDs::clickLpfQ,      ParamIDs::clickLpfSlope,
+                         ParamIDs::clickGain,      ParamIDs::clickMute,
+                         ParamIDs::clickSolo,      ParamIDs::directMode,
+                         ParamIDs::directPitch,    ParamIDs::directDrive,
+                         ParamIDs::directClipType, ParamIDs::directHpfFreq,
+                         ParamIDs::directHpfQ,     ParamIDs::directHpfSlope,
+                         ParamIDs::directLpfFreq,  ParamIDs::directLpfQ,
+                         ParamIDs::directLpfSlope, ParamIDs::directThreshold,
+                         ParamIDs::directHold,     ParamIDs::directLookAhead,
+                         ParamIDs::directGain,     ParamIDs::directMute,
+                         ParamIDs::directSolo,     ParamIDs::masterGain})
     apvts_.addParameterListener(id, this);
 }
 
@@ -252,7 +258,7 @@ constexpr std::array<float, 4> kLookAheadMs = {0.0f, 1.5f, 3.0f, 6.0f};
 } // namespace
 
 void BoomBabyAudioProcessor::parameterChanged(const juce::String &parameterID,
-                                               float newValue) {
+                                              float newValue) {
   const auto v = newValue;
   const auto idx = static_cast<int>(v);
 
@@ -425,11 +431,43 @@ void BoomBabyAudioProcessor::prepareToPlay(double sampleRate,
   inputMonitor_.data_.assign(static_cast<std::size_t>(InputMonitor::kCapacity),
                              0.0f);
   inputMonitor_.fifo_.reset();
+
+  // 全エンジン初期化後に APVTS 値で DSP を復元。
+  // setStateInformation が先に呼ばれても prepareToPlay のハードコード値に
+  // 上書きされるため、ここで改めて全パラメータを適用する。
+  for (const auto *id : {ParamIDs::subWaveShape,   ParamIDs::subLength,
+                         ParamIDs::subSatClipType, ParamIDs::subTone1,
+                         ParamIDs::subTone2,       ParamIDs::subTone3,
+                         ParamIDs::subTone4,       ParamIDs::subGain,
+                         ParamIDs::subMute,        ParamIDs::subSolo,
+                         ParamIDs::clickMode,      ParamIDs::clickNoiseDecay,
+                         ParamIDs::clickBpf1Freq,  ParamIDs::clickBpf1Q,
+                         ParamIDs::clickBpf1Slope, ParamIDs::clickSamplePitch,
+                         ParamIDs::clickDrive,     ParamIDs::clickClipType,
+                         ParamIDs::clickHpfFreq,   ParamIDs::clickHpfQ,
+                         ParamIDs::clickHpfSlope,  ParamIDs::clickLpfFreq,
+                         ParamIDs::clickLpfQ,      ParamIDs::clickLpfSlope,
+                         ParamIDs::clickGain,      ParamIDs::clickMute,
+                         ParamIDs::clickSolo,      ParamIDs::directMode,
+                         ParamIDs::directPitch,    ParamIDs::directDrive,
+                         ParamIDs::directClipType, ParamIDs::directHpfFreq,
+                         ParamIDs::directHpfQ,     ParamIDs::directHpfSlope,
+                         ParamIDs::directLpfFreq,  ParamIDs::directLpfQ,
+                         ParamIDs::directLpfSlope, ParamIDs::directThreshold,
+                         ParamIDs::directHold,     ParamIDs::directLookAhead,
+                         ParamIDs::directGain,     ParamIDs::directMute,
+                         ParamIDs::directSolo,     ParamIDs::masterGain})
+    parameterChanged(id, apvts_.getRawParameterValue(id)->load());
+
+  // prepareToPlay の reset() で白紙になった LUT を再ベイク
+  bakeAllLutsFromState();
 }
 
 void BoomBabyAudioProcessor::setDirectSampleMode(bool isSample) noexcept {
   directMode_.sampleMode_.store(isSample);
   directEngine_.setPassthroughMode(!isSample);
+  // パススルーモード時はトランジェント検出を自動有効化
+  directMode_.transientDetector_.setEnabled(!isSample);
   // Sample モードではルックアヘッド不要 → レイテンシー 0
   if (isSample)
     setLatencySamples(0);
@@ -639,9 +677,100 @@ void BoomBabyAudioProcessor::getStateInformation(juce::MemoryBlock &destData) {
 void BoomBabyAudioProcessor::setStateInformation(
     const void *data, // NOSONAR: JUCE API
     int sizeInBytes) {
-  if (auto xml = getXmlFromBinary(data, sizeInBytes))
-    if (xml->hasTagName(apvts_.state.getType()))
+  if (auto xml = getXmlFromBinary(data, sizeInBytes)) {
+    if (xml->hasTagName(apvts_.state.getType())) {
       apvts_.replaceState(juce::ValueTree::fromXml(*xml));
+
+      // replaceState は parameterChanged を発火しないため、
+      // 全パラメータの DSP セッターを手動で呼び出す
+      for (const auto *id :
+           {ParamIDs::subWaveShape,   ParamIDs::subLength,
+            ParamIDs::subSatClipType, ParamIDs::subTone1,
+            ParamIDs::subTone2,       ParamIDs::subTone3,
+            ParamIDs::subTone4,       ParamIDs::subGain,
+            ParamIDs::subMute,        ParamIDs::subSolo,
+            ParamIDs::clickMode,      ParamIDs::clickNoiseDecay,
+            ParamIDs::clickBpf1Freq,  ParamIDs::clickBpf1Q,
+            ParamIDs::clickBpf1Slope, ParamIDs::clickSamplePitch,
+            ParamIDs::clickDrive,     ParamIDs::clickClipType,
+            ParamIDs::clickHpfFreq,   ParamIDs::clickHpfQ,
+            ParamIDs::clickHpfSlope,  ParamIDs::clickLpfFreq,
+            ParamIDs::clickLpfQ,      ParamIDs::clickLpfSlope,
+            ParamIDs::clickGain,      ParamIDs::clickMute,
+            ParamIDs::clickSolo,      ParamIDs::directMode,
+            ParamIDs::directPitch,    ParamIDs::directDrive,
+            ParamIDs::directClipType, ParamIDs::directHpfFreq,
+            ParamIDs::directHpfQ,     ParamIDs::directHpfSlope,
+            ParamIDs::directLpfFreq,  ParamIDs::directLpfQ,
+            ParamIDs::directLpfSlope, ParamIDs::directThreshold,
+            ParamIDs::directHold,     ParamIDs::directLookAhead,
+            ParamIDs::directGain,     ParamIDs::directMute,
+            ParamIDs::directSolo,     ParamIDs::masterGain})
+        parameterChanged(id, apvts_.getRawParameterValue(id)->load());
+
+      // エンベロープ LUT を保存済み状態から再ベイク
+      bakeAllLutsFromState();
+    }
+  }
+}
+
+void BoomBabyAudioProcessor::bakeAllLutsFromState() {
+  const float subLenMs =
+      apvts_.getRawParameterValue(ParamIDs::subLength)->load();
+  const float directDecayMs =
+      apvts_.getRawParameterValue(ParamIDs::directDecay)->load();
+
+  // apvts_.state の ENVELOPE 子ノードから EnvelopeData を復元するヘルパー。
+  // 保存データがなければ APVTS のデフォルト値で 1 点エンベロープを作成。
+  auto restoreEnv = [&](const char *name, float apvtsDefault) -> EnvelopeData {
+    for (int i = 0; i < apvts_.state.getNumChildren(); ++i) {
+      auto child = apvts_.state.getChild(i);
+      if (child.hasType(juce::Identifier{"ENVELOPE"}) &&
+          child.getProperty(juce::Identifier{"name"}).toString() ==
+              juce::String(name)) {
+        EnvelopeData env;
+        env.setDefaultValue(static_cast<float>(
+            child.getProperty(juce::Identifier{"defaultValue"}, apvtsDefault)));
+        env.clearPoints();
+        for (int j = 0; j < child.getNumChildren(); ++j) {
+          auto pt = child.getChild(j);
+          if (!pt.hasType(juce::Identifier{"POINT"}))
+            continue;
+          const float t = pt.getProperty(juce::Identifier{"timeMs"}, 0.0f);
+          const float v = pt.getProperty(juce::Identifier{"value"}, 1.0f);
+          const float c = pt.getProperty(juce::Identifier{"curve"}, 0.0f);
+          env.addPoint(t, v);
+          env.setSegmentCurve(static_cast<int>(env.getPoints().size()) - 1, c);
+        }
+        if (!env.hasPoints())
+          env.addPoint(0.0f, env.getDefaultValue());
+        return env;
+      }
+    }
+    // 保存データなし: デフォルト 1 点
+    EnvelopeData env;
+    env.setDefaultValue(apvtsDefault);
+    env.addPoint(0.0f, apvtsDefault);
+    return env;
+  };
+
+  const auto load = [&](const char *id) {
+    return apvts_.getRawParameterValue(id)->load();
+  };
+
+  // LUT → DSP 単位への変換は Editor 側の knob コールバックと対称にする
+  bakeLut(restoreEnv("amp", load(ParamIDs::subAmp) / 100.0f),
+          subEngine_.envLut(), subLenMs);
+  bakeLut(restoreEnv("freq", load(ParamIDs::subFreq)), subEngine_.freqLut(),
+          subLenMs);
+  bakeLut(restoreEnv("dist", load(ParamIDs::subSatDrive) / 24.0f),
+          subEngine_.distLut(), subLenMs);
+  bakeLut(restoreEnv("mix", load(ParamIDs::subMix) / 100.0f),
+          subEngine_.mixLut(), subLenMs);
+  bakeLut(restoreEnv("clickAmp", load(ParamIDs::clickSampleAmp) / 100.0f),
+          clickEngine_.clickAmpLut(), subLenMs);
+  bakeLut(restoreEnv("directAmp", load(ParamIDs::directAmp) / 100.0f),
+          directEngine_.directAmpLut(), directDecayMs);
 }
 
 juce::AudioProcessor *JUCE_CALLTYPE createPluginFilter() {

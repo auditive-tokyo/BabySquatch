@@ -6,6 +6,9 @@ void SubEngine::prepareToPlay(double sampleRate, int samplesPerBlock) {
   scratchBuffer_.resize(static_cast<size_t>(samplesPerBlock));
   noteTimeSamples_ = 0.0f;
   envLut_.reset();
+  freqLut_.reset();
+  distLut_.reset();
+  mixLut_.reset();
 }
 
 void SubEngine::triggerNote() {
