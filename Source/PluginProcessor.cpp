@@ -39,18 +39,19 @@ BoomBabyAudioProcessor::getProgramName(int index) {
 }
 
 void BoomBabyAudioProcessor::changeProgramName(int index,
-                                                  const juce::String &newName) {
+                                               const juce::String &newName) {
   juce::ignoreUnused(index, newName);
 }
 
 void BoomBabyAudioProcessor::prepareToPlay(double sampleRate,
-                                              int samplesPerBlock) {
+                                           int samplesPerBlock) {
   subEngine_.prepareToPlay(sampleRate, samplesPerBlock);
   clickEngine_.prepareToPlay(sampleRate, samplesPerBlock);
   directEngine_.prepareToPlay(sampleRate, samplesPerBlock);
-  // sampleMode_ の初期値（false = Input モード）に合わせて passthroughMode_ を同期。
-  // 未同期のまま triggerNote() が呼ばれるとサンプル未ロード判定で early return し
-  // active_ が立たず、renderPassthrough が amp=0 で無音になるのを防ぐ。
+  // sampleMode_ の初期値（false = Input モード）に合わせて passthroughMode_
+  // を同期。 未同期のまま triggerNote() が呼ばれるとサンプル未ロード判定で
+  // early return し active_ が立たず、renderPassthrough が amp=0
+  // で無音になるのを防ぐ。
   directEngine_.setPassthroughMode(!directMode_.sampleMode_.load());
   channelState_.resetDetectors();
 
@@ -58,6 +59,25 @@ void BoomBabyAudioProcessor::prepareToPlay(double sampleRate,
   directMode_.transientDetector_.setThresholdDb(-24.0f);
   directMode_.transientDetector_.setHoldMs(50.0f);
   monoMixBuffer_.resize(static_cast<std::size_t>(samplesPerBlock));
+
+  // ルックアヘッド: 最大 6ms 分のキャパシティ（192kHz で 1152 サンプル）
+  {
+    const auto maxDelaySamples =
+        static_cast<int>(std::ceil(0.006 * sampleRate));
+    juce::dsp::ProcessSpec spec{};
+    spec.sampleRate = sampleRate;
+    spec.maximumBlockSize = static_cast<juce::uint32>(samplesPerBlock);
+    spec.numChannels = 1;
+    directMode_.lookAheadDelay_.setMaximumDelayInSamples(maxDelaySamples + 1);
+    directMode_.lookAheadDelay_.prepare(spec);
+    directMode_.lookAheadDelay_.reset();
+    // 既存の lookAheadSamples_ が有効ならレイテンシーを通知
+    const int laSamples = directMode_.lookAheadSamples_.load();
+    if (laSamples > 0 && !directMode_.sampleMode_.load())
+      setLatencySamples(laSamples);
+    else
+      setLatencySamples(0);
+  }
 
   inputMonitor_.data_.assign(static_cast<std::size_t>(InputMonitor::kCapacity),
                              0.0f);
@@ -67,6 +87,24 @@ void BoomBabyAudioProcessor::prepareToPlay(double sampleRate,
 void BoomBabyAudioProcessor::setDirectSampleMode(bool isSample) noexcept {
   directMode_.sampleMode_.store(isSample);
   directEngine_.setPassthroughMode(!isSample);
+  // Sample モードではルックアヘッド不要 → レイテンシー 0
+  if (isSample)
+    setLatencySamples(0);
+  else if (const int la = directMode_.lookAheadSamples_.load(); la > 0)
+    setLatencySamples(la);
+}
+
+void BoomBabyAudioProcessor::setLookAheadMs(float ms) noexcept {
+  const double sr = getSampleRate();
+  if (sr <= 0.0)
+    return;
+  const auto samples = static_cast<int>(std::round(ms * 0.001 * sr));
+  directMode_.lookAheadSamples_.store(samples);
+  // Passthrough 時のみ DAW にレイテンシー通知
+  if (!directMode_.sampleMode_.load())
+    setLatencySamples(samples);
+  else
+    setLatencySamples(0);
 }
 
 void BoomBabyAudioProcessor::releaseResources() {
@@ -183,7 +221,7 @@ void measureChannelLevels(const ChannelState::Passes &passes,
 } // namespace
 
 void BoomBabyAudioProcessor::handleMidiEvents(juce::MidiBuffer &midiMessages,
-                                                 int numSamples) {
+                                              int numSamples) {
   // GUI鍵盤のMIDIイベントをバッファにマージ
   keyboardState.processNextMidiBuffer(midiMessages, 0, numSamples, true);
 
@@ -199,7 +237,7 @@ void BoomBabyAudioProcessor::handleMidiEvents(juce::MidiBuffer &midiMessages,
 }
 
 void BoomBabyAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
-                                             juce::MidiBuffer &midiMessages) {
+                                          juce::MidiBuffer &midiMessages) {
   juce::ScopedNoDenormals noDenormals;
 
   const auto passes = channelState_.computePasses();
@@ -210,6 +248,18 @@ void BoomBabyAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   processPassthroughMonitor(directMode_, inputMonitor_,
                             {subEngine_, clickEngine_, directEngine_}, buffer,
                             monoMixBuffer_, numSamples);
+
+  // ルックアヘッド: monoMixBuffer_ を遅延させて Direct パススルーに渡す
+  // （トランジェント検出は即座の入力で完了済み）
+  if (const int laSamples = directMode_.lookAheadSamples_.load();
+      !directMode_.sampleMode_.load() && laSamples > 0) {
+    auto &dl = directMode_.lookAheadDelay_;
+    auto *mono = monoMixBuffer_.data();
+    for (int i = 0; i < numSamples; ++i) {
+      dl.pushSample(0, mono[i]);
+      mono[i] = dl.popSample(0, static_cast<float>(laSamples));
+    }
+  }
 
   // Direct ミュート: 入力信号を消去（Sub はこの後加算。renderPassthrough も
   // addSample）
@@ -237,8 +287,7 @@ juce::AudioProcessorEditor *BoomBabyAudioProcessor::createEditor() {
   // clang-format on
 }
 
-void BoomBabyAudioProcessor::getStateInformation(
-    juce::MemoryBlock &destData) {
+void BoomBabyAudioProcessor::getStateInformation(juce::MemoryBlock &destData) {
   juce::ignoreUnused(destData);
 }
 

@@ -318,6 +318,29 @@ void BoomBabyAudioProcessorEditor::setupDirectParams() {
   directUI.hold.label.setJustificationType(juce::Justification::centredRight);
   addAndMakeVisible(directUI.hold.label);
 
+  // ── ルックアヘッドセレクター（パススルーモード時: mode コンボ行に表示）──
+  directUI.lookAhead.label.setText("ahead:", juce::dontSendNotification);
+  directUI.lookAhead.label.setFont(smallFont);
+  directUI.lookAhead.label.setColour(juce::Label::textColourId,
+                                     UIConstants::Colours::labelText);
+  directUI.lookAhead.label.setJustificationType(
+      juce::Justification::centredRight);
+  addAndMakeVisible(directUI.lookAhead.label);
+
+  directUI.lookAhead.combo.addItem("0 ms",   1);
+  directUI.lookAhead.combo.addItem("1.5 ms", 2);
+  directUI.lookAhead.combo.addItem("3 ms",   3);
+  directUI.lookAhead.combo.addItem("6 ms",   4);
+  directUI.lookAhead.combo.setSelectedId(1, juce::dontSendNotification);
+  directUI.lookAhead.combo.setLookAndFeel(&darkComboLAF);
+  directUI.lookAhead.combo.onChange = [this] {
+    constexpr std::array<float, 4> kMs{0.0f, 1.5f, 3.0f, 6.0f};
+    const auto idx =
+        static_cast<std::size_t>(directUI.lookAhead.combo.getSelectedId() - 1);
+    processorRef.setLookAheadMs(kMs[idx]);
+  };
+  addAndMakeVisible(directUI.lookAhead.combo);
+
   // 起動時のパススルー UI 状態を設定
   refreshDirectPassthroughUI();
 }
@@ -336,12 +359,19 @@ void BoomBabyAudioProcessorEditor::layoutDirectParams(
   directUI.modeCombo.setBounds(topRow.removeFromLeft(modeComboW));
 
   if (isPassthrough) {
-    // Hold ラベル + スライダーを mode 右に配置
+    // Hold ラベル + スライダー + Look-ahead セレクターを mode 右に配置
     topRow.removeFromLeft(4);
     constexpr int holdLabelW = 30;
+    constexpr int holdSliderW = 52;
+    constexpr int laLabelW = 38;
+    constexpr int laComboW = 68;
     directUI.hold.label.setBounds(topRow.removeFromLeft(holdLabelW));
     topRow.removeFromLeft(2);
-    directUI.hold.slider.setBounds(topRow);
+    directUI.hold.slider.setBounds(topRow.removeFromLeft(holdSliderW));
+    topRow.removeFromLeft(4);
+    directUI.lookAhead.label.setBounds(topRow.removeFromLeft(laLabelW));
+    topRow.removeFromLeft(2);
+    directUI.lookAhead.combo.setBounds(topRow.removeFromLeft(laComboW));
   } else {
     topRow.removeFromLeft(4);
     directUI.sample.loadButton.setBounds(topRow);
@@ -415,9 +445,11 @@ void BoomBabyAudioProcessorEditor::refreshDirectPassthroughUI() {
   directUI.threshold.slider.setVisible(isPassthrough);
   directUI.threshold.label.setVisible(isPassthrough);
 
-  // Hold スライダー: パススルーモード時のみ表示
+  // Hold / Look-ahead: パススルーモード時のみ表示
   directUI.hold.label.setVisible(isPassthrough);
   directUI.hold.slider.setVisible(isPassthrough);
+  directUI.lookAhead.label.setVisible(isPassthrough);
+  directUI.lookAhead.combo.setVisible(isPassthrough);
 
   // Auto Trigger: パススルーモード時は自動有効、サンプルモード時は無効
   processorRef.directMode().detector().setEnabled(isPassthrough);

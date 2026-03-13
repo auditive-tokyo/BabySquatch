@@ -242,6 +242,12 @@ private:
       CustomSlider slider;
     };
     HoldUI hold;             // 9
+    // ④ ルックアヘッドセレクター
+    struct LookAheadUI {
+      juce::Label label;
+      juce::ComboBox combo;
+    };
+    LookAheadUI lookAhead;     // 10
     // ③ フィルターバンドをまとめて HPF / LPF へ
     struct FilterBand {
       UIConstants::SlopeSelector slope;
@@ -251,9 +257,9 @@ private:
       explicit FilterBand(const char *tag)
           : slope{tag, UIConstants::Colours::directArc} {}
     };
-    FilterBand hpf{"HP"};    // 10
-    FilterBand lpf{"LP"};    // 11
-    // 合計: 11 フィールド（旧: 23）
+    FilterBand hpf{"HP"};    // 11
+    FilterBand lpf{"LP"};    // 12
+    // 合計: 12 フィールド（旧: 23）
   };
   DirectUI directUI;
 

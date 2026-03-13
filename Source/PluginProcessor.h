@@ -10,6 +10,7 @@
 #include <atomic>
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_audio_utils/juce_audio_utils.h>
+#include <juce_dsp/juce_dsp.h>
 
 class BoomBabyAudioProcessor : public juce::AudioProcessor {
 public:
@@ -77,16 +78,23 @@ public:
   };
   InputMonitor &inputMonitor() noexcept { return inputMonitor_; }
 
-  // ── Direct モード（パススルー / トランジェント検出。将来: latency comp 拡張用）──
+  // ── Direct モード（パススルー / トランジェント検出 / ルックアヘッド補正）──
   struct DirectMode {
     std::atomic<bool> sampleMode_{false};
     TransientDetector transientDetector_;
+
+    /// ルックアヘッド用ディレイ（モノ 1ch）
+    juce::dsp::DelayLine<float, juce::dsp::DelayLineInterpolationTypes::None>
+        lookAheadDelay_{1};
+    std::atomic<int> lookAheadSamples_{0};
 
     bool isPassthrough() const noexcept { return !sampleMode_.load(); }
     TransientDetector &detector() noexcept { return transientDetector_; }
   };
   /// Direct Sample モード切り替え（UI スレッドから設定）
   void setDirectSampleMode(bool isSample) noexcept;
+  /// ルックアヘッド時間を設定（0 / 1.5 / 3 / 6 ms）
+  void setLookAheadMs(float ms) noexcept;
   DirectMode &directMode() noexcept { return directMode_; }
 
 private:
