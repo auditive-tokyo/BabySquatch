@@ -388,8 +388,6 @@ void BoomBabyAudioProcessorEditor::syncUIFromState() {
   directUI.lpf.qSlider.setValue(load(ParamIDs::directLpfQ), notify);
   directUI.threshold.slider.setValue(load(ParamIDs::directThreshold), notify);
   directUI.hold.slider.setValue(load(ParamIDs::directHold), notify);
-  directUI.lookAhead.combo.setSelectedId(
-      static_cast<int>(load(ParamIDs::directLookAhead)) + 1, notify);
   directPanel.getFader().setValue(load(ParamIDs::directGain), notify);
   directPanel.setMuteState(load(ParamIDs::directMute) >= 0.5f);
   directPanel.setSoloState(load(ParamIDs::directSolo) >= 0.5f);

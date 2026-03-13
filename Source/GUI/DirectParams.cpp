@@ -83,7 +83,7 @@ void BoomBabyAudioProcessorEditor::setupDirectParams() {
     processorRef.directEngine().setPitchSemitones(
         static_cast<float>(directUI.pitch.slider.getValue()));
     syncParam(ParamIDs::directPitch,
-             static_cast<float>(directUI.pitch.slider.getValue()));
+              static_cast<float>(directUI.pitch.slider.getValue()));
     refreshDirectProvider();
   };
   addAndMakeVisible(directUI.pitch.slider);
@@ -101,7 +101,7 @@ void BoomBabyAudioProcessorEditor::setupDirectParams() {
   directUI.amp.slider.onValueChange = [this] {
     const float v = static_cast<float>(directUI.amp.slider.getValue()) / 100.0f;
     syncParam(ParamIDs::directAmp,
-             static_cast<float>(directUI.amp.slider.getValue()));
+              static_cast<float>(directUI.amp.slider.getValue()));
     envDatas.directAmp.setDefaultValue(v);
     if (!envDatas.directAmp.isEnvelopeControlled())
       envDatas.directAmp.setPointValue(0, v);
@@ -137,7 +137,7 @@ void BoomBabyAudioProcessorEditor::setupDirectParams() {
     processorRef.directEngine().setDriveDb(
         static_cast<float>(directUI.saturator.driveSlider.getValue()));
     syncParam(ParamIDs::directDrive,
-             static_cast<float>(directUI.saturator.driveSlider.getValue()));
+              static_cast<float>(directUI.saturator.driveSlider.getValue()));
     refreshDirectProvider();
   };
   addAndMakeVisible(directUI.saturator.driveSlider);
@@ -201,7 +201,7 @@ void BoomBabyAudioProcessorEditor::setupDirectParams() {
     processorRef.directEngine().setHpfFreq(
         static_cast<float>(directUI.hpf.slider.getValue()));
     syncParam(ParamIDs::directHpfFreq,
-             static_cast<float>(directUI.hpf.slider.getValue()));
+              static_cast<float>(directUI.hpf.slider.getValue()));
     refreshDirectProvider();
   };
   addAndMakeVisible(directUI.hpf.slider);
@@ -220,7 +220,7 @@ void BoomBabyAudioProcessorEditor::setupDirectParams() {
     processorRef.directEngine().setHpfQ(
         static_cast<float>(directUI.hpf.qSlider.getValue()));
     syncParam(ParamIDs::directHpfQ,
-             static_cast<float>(directUI.hpf.qSlider.getValue()));
+              static_cast<float>(directUI.hpf.qSlider.getValue()));
     refreshDirectProvider();
   };
   addAndMakeVisible(directUI.hpf.qSlider);
@@ -251,7 +251,7 @@ void BoomBabyAudioProcessorEditor::setupDirectParams() {
     processorRef.directEngine().setLpfFreq(
         static_cast<float>(directUI.lpf.slider.getValue()));
     syncParam(ParamIDs::directLpfFreq,
-             static_cast<float>(directUI.lpf.slider.getValue()));
+              static_cast<float>(directUI.lpf.slider.getValue()));
     refreshDirectProvider();
   };
   addAndMakeVisible(directUI.lpf.slider);
@@ -270,7 +270,7 @@ void BoomBabyAudioProcessorEditor::setupDirectParams() {
     processorRef.directEngine().setLpfQ(
         static_cast<float>(directUI.lpf.qSlider.getValue()));
     syncParam(ParamIDs::directLpfQ,
-             static_cast<float>(directUI.lpf.qSlider.getValue()));
+              static_cast<float>(directUI.lpf.qSlider.getValue()));
     refreshDirectProvider();
   };
   addAndMakeVisible(directUI.lpf.qSlider);
@@ -303,7 +303,7 @@ void BoomBabyAudioProcessorEditor::setupDirectParams() {
     processorRef.directMode().detector().setThresholdDb(
         static_cast<float>(directUI.threshold.slider.getValue()));
     syncParam(ParamIDs::directThreshold,
-             static_cast<float>(directUI.threshold.slider.getValue()));
+              static_cast<float>(directUI.threshold.slider.getValue()));
   };
   addAndMakeVisible(directUI.threshold.slider);
   styleKnobLabelDirect(directUI.threshold.label, "Thresh", knobFont);
@@ -326,7 +326,7 @@ void BoomBabyAudioProcessorEditor::setupDirectParams() {
     processorRef.directMode().detector().setHoldMs(
         static_cast<float>(directUI.hold.slider.getValue()));
     syncParam(ParamIDs::directHold,
-             static_cast<float>(directUI.hold.slider.getValue()));
+              static_cast<float>(directUI.hold.slider.getValue()));
   };
   directUI.hold.slider.setColour(juce::Slider::backgroundColourId,
                                  juce::Colour(0xFF333333));
@@ -348,30 +348,6 @@ void BoomBabyAudioProcessorEditor::setupDirectParams() {
   directUI.hold.label.setJustificationType(juce::Justification::centredRight);
   addAndMakeVisible(directUI.hold.label);
 
-  // ── ルックアヘッドセレクター（パススルーモード時: mode コンボ行に表示）──
-  directUI.lookAhead.label.setText("ahead:", juce::dontSendNotification);
-  directUI.lookAhead.label.setFont(smallFont);
-  directUI.lookAhead.label.setColour(juce::Label::textColourId,
-                                     UIConstants::Colours::labelText);
-  directUI.lookAhead.label.setJustificationType(
-      juce::Justification::centredRight);
-  addAndMakeVisible(directUI.lookAhead.label);
-
-  directUI.lookAhead.combo.addItem("0 ms",   1);
-  directUI.lookAhead.combo.addItem("1.5 ms", 2);
-  directUI.lookAhead.combo.addItem("3 ms",   3);
-  directUI.lookAhead.combo.addItem("6 ms",   4);
-  directUI.lookAhead.combo.setSelectedId(1, juce::dontSendNotification);
-  directUI.lookAhead.combo.setLookAndFeel(&darkComboLAF);
-  directUI.lookAhead.combo.onChange = [this] {
-    constexpr std::array<float, 4> kMs{0.0f, 1.5f, 3.0f, 6.0f};
-    const auto idx =
-        static_cast<std::size_t>(directUI.lookAhead.combo.getSelectedId() - 1);
-    processorRef.setLookAheadMs(kMs[idx]);
-    syncParam(ParamIDs::directLookAhead, static_cast<float>(idx));
-  };
-  addAndMakeVisible(directUI.lookAhead.combo);
-
   // 起動時のパススルー UI 状態を設定
   refreshDirectPassthroughUI();
 }
@@ -390,19 +366,12 @@ void BoomBabyAudioProcessorEditor::layoutDirectParams(
   directUI.modeCombo.setBounds(topRow.removeFromLeft(modeComboW));
 
   if (isPassthrough) {
-    // Hold ラベル + スライダー + Look-ahead セレクターを mode 右に配置
+    // Hold ラベル + スライダーを mode 右に配置（残り幅いっぱい使用）
     topRow.removeFromLeft(4);
     constexpr int holdLabelW = 30;
-    constexpr int holdSliderW = 52;
-    constexpr int laLabelW = 38;
-    constexpr int laComboW = 68;
     directUI.hold.label.setBounds(topRow.removeFromLeft(holdLabelW));
     topRow.removeFromLeft(2);
-    directUI.hold.slider.setBounds(topRow.removeFromLeft(holdSliderW));
-    topRow.removeFromLeft(4);
-    directUI.lookAhead.label.setBounds(topRow.removeFromLeft(laLabelW));
-    topRow.removeFromLeft(2);
-    directUI.lookAhead.combo.setBounds(topRow.removeFromLeft(laComboW));
+    directUI.hold.slider.setBounds(topRow); // 残り全幅
   } else {
     topRow.removeFromLeft(4);
     directUI.sample.loadButton.setBounds(topRow);
@@ -476,11 +445,9 @@ void BoomBabyAudioProcessorEditor::refreshDirectPassthroughUI() {
   directUI.threshold.slider.setVisible(isPassthrough);
   directUI.threshold.label.setVisible(isPassthrough);
 
-  // Hold / Look-ahead: パススルーモード時のみ表示
+  // Hold: パススルーモード時のみ表示
   directUI.hold.label.setVisible(isPassthrough);
   directUI.hold.slider.setVisible(isPassthrough);
-  directUI.lookAhead.label.setVisible(isPassthrough);
-  directUI.lookAhead.combo.setVisible(isPassthrough);
 
   // Auto Trigger: パススルーモード時は自動有効、サンプルモード時は無効
   processorRef.directMode().detector().setEnabled(isPassthrough);

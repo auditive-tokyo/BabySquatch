@@ -44,13 +44,15 @@ public:
   void setEnabled(bool on) noexcept { enabled_.store(on); }
   bool isEnabled() const noexcept { return enabled_.load(); }
 
-  /// 1 ブロック分を解析し、トランジェントが見つかったら true を返す。
+  /// 1 ブロック分を解析し、トランジェントのサンプル位置を返す。
   /// @param input  モノ入力（呼び出し側でステレオから合成しておく）
-  bool process(std::span<const float> input) noexcept {
+  /// @return 検出位置（0〜N-1）。未検出時は -1。
+  int process(std::span<const float> input) noexcept {
     if (!enabled_.load())
-      return false;
+      return -1;
 
-    bool triggered = false;
+    int triggerPos = -1;
+    int idx = 0;
 
     for (const float x_raw : input) {
       const float x = std::abs(x_raw);
@@ -67,7 +69,7 @@ public:
       const float onset = envFast_ - envSlow_;
 
       if (onset > threshLin_ && armed_ && holdCounter_ <= 0) {
-        triggered = true;
+        triggerPos = idx;
         armed_ = false;
         holdCounter_ = holdSamples_;
       }
@@ -78,9 +80,11 @@ public:
 
       if (holdCounter_ > 0)
         --holdCounter_;
+
+      ++idx;
     }
 
-    return triggered;
+    return triggerPos;
   }
 
 private:

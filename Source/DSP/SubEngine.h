@@ -14,8 +14,9 @@ public:
   // ── lifecycle ──
   void prepareToPlay(double sampleRate, int samplesPerBlock);
 
-  /// MIDI NoteOn 時のトリガー
-  void triggerNote();
+  /// MIDI NoteOn / トランジェント検出時のトリガー
+  /// @param sampleOffset ブロック内の開始サンプル位置（0 = 即座）
+  void triggerNote(int sampleOffset = 0);
 
   /// 1 ブロック分をレンダリングし、buffer に加算する。
   /// @param subPass  false のときは scratchBuffer のみ書き込み（Mute 時）
@@ -45,6 +46,7 @@ private:
 
   std::vector<float> scratchBuffer_;
   float noteTimeSamples_{0.0f};
+  int startOffset_{0};
 
   std::atomic<float> gainDb_{0.0f};
   std::atomic<float> lengthMs_{300.0f};

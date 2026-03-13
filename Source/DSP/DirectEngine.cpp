@@ -21,13 +21,14 @@ void DirectEngine::prepareToPlay(double /*sampleRate*/, int samplesPerBlock) {
 
   scratchBuffer_.resize(static_cast<std::size_t>(samplesPerBlock));
   noteTimeSamples_ = 0.0f;
+  startOffset_ = 0;
   active_.store(false);
 
   sampler_.prepare();
   directAmpLut_.reset();
 }
 
-void DirectEngine::triggerNote() {
+void DirectEngine::triggerNote(int sampleOffset) {
   // パススルーモード時はサンプル不要でトリガー可能
   if (!passthroughMode_.load() && !sampler_.isLoaded())
     return;
@@ -37,6 +38,7 @@ void DirectEngine::triggerNote() {
     sampler_.resetPlayhead();
 
   noteTimeSamples_ = 0.0f;
+  startOffset_ = sampleOffset;
 
   for (auto &f : hpfs_)
     f.reset();
@@ -146,6 +148,12 @@ void DirectEngine::render(juce::AudioBuffer<float> &buffer, int numSamples,
   const int numCh = buffer.getNumChannels();
 
   for (int i = 0; i < numSamples; ++i) {
+    if (startOffset_ > 0) {
+      --startOffset_;
+      scratchBuffer_[static_cast<std::size_t>(i)] = 0.0f;
+      continue;
+    }
+
     if (noteTimeSamples_ >= maxTimeSamples) {
       active_.store(false);
       std::fill_n(scratchBuffer_.data() + i,
@@ -190,14 +198,17 @@ void DirectEngine::renderPassthrough(juce::AudioBuffer<float> &buffer,
     float amp = 1.0f;
 
     if (active_.load()) {
-      if (noteTimeSamples_ >= maxTimeSamples) {
+      if (startOffset_ > 0) {
+        --startOffset_;
+        amp = 0.0f;
+      } else if (noteTimeSamples_ >= maxTimeSamples) {
         active_.store(false);
         amp = 0.0f;
       } else {
         const float noteTimeMs = noteTimeSamples_ * 1000.0f / sr;
         amp = computeSampleAmp(noteTimeMs);
+        noteTimeSamples_ += 1.0f;
       }
-      noteTimeSamples_ += 1.0f;
     } else {
       amp = 0.0f; // Decay 終了後はミュート（Amp Envelope 制御）
     }

@@ -5,15 +5,17 @@ void SubEngine::prepareToPlay(double sampleRate, int samplesPerBlock) {
   osc_.prepareToPlay(sampleRate);
   scratchBuffer_.resize(static_cast<size_t>(samplesPerBlock));
   noteTimeSamples_ = 0.0f;
+  startOffset_ = 0;
   envLut_.reset();
   freqLut_.reset();
   distLut_.reset();
   mixLut_.reset();
 }
 
-void SubEngine::triggerNote() {
+void SubEngine::triggerNote(int sampleOffset) {
   osc_.triggerNote();
   noteTimeSamples_ = 0.0f;
+  startOffset_ = sampleOffset;
 }
 
 void SubEngine::render(juce::AudioBuffer<float> &buffer, int numSamples,
@@ -40,6 +42,12 @@ void SubEngine::render(juce::AudioBuffer<float> &buffer, int numSamples,
   const float fadeStartMs = std::max(0.0f, lengthMs - fadeOutMs);
 
   for (int sample = 0; sample < numSamples; ++sample) {
+    if (startOffset_ > 0) {
+      --startOffset_;
+      scratchBuffer_[static_cast<size_t>(sample)] = 0.0f;
+      continue;
+    }
+
     const float noteTimeMs = noteTimeSamples_ * 1000.0f / sr;
 
     // One-shot: Length 到達で自動停止

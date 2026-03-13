@@ -251,12 +251,6 @@ private:
       CustomSlider slider;
     };
     HoldUI hold;             // 9
-    // ④ ルックアヘッドセレクター
-    struct LookAheadUI {
-      juce::Label label;
-      juce::ComboBox combo;
-    };
-    LookAheadUI lookAhead;     // 10
     // ③ フィルターバンドをまとめて HPF / LPF へ
     struct FilterBand {
       UIConstants::SlopeSelector slope;

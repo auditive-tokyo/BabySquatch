@@ -20,12 +20,13 @@ void ClickEngine::prepareToPlay(double /*sampleRate*/, int samplesPerBlock) {
 
   scratchBuffer_.resize(static_cast<size_t>(samplesPerBlock));
   noteTimeSamples_ = 0.0f;
+  startOffset_ = 0;
   active_.store(false);
   sampler_.prepare();
   clickAmpLut_.reset();
 }
 
-void ClickEngine::triggerNote() {
+void ClickEngine::triggerNote(int sampleOffset) {
   active_.store(true);
   random_.setSeed(0); // 決定論的出力（DAWバウンス再現性保証）
   for (auto &f : bpf1s_)
@@ -35,6 +36,7 @@ void ClickEngine::triggerNote() {
   for (auto &f : lpfs_)
     f.reset();
   noteTimeSamples_ = 0.0f;
+  startOffset_ = sampleOffset;
   sampler_.resetPlayhead();
 }
 
@@ -158,6 +160,12 @@ void ClickEngine::render(juce::AudioBuffer<float> &buffer, int numSamples,
   const FilterFlags flags = setupFilters(sr);
 
   for (int sample = 0; sample < numSamples; ++sample) {
+    if (startOffset_ > 0) {
+      --startOffset_;
+      scratchBuffer_[static_cast<size_t>(sample)] = 0.0f;
+      continue;
+    }
+
     if (noteTimeSamples_ >= maxTimeSamples) {
       active_.store(false);
       std::fill_n(scratchBuffer_.data() + sample,

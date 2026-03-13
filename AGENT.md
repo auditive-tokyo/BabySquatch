@@ -36,6 +36,14 @@ BoomBabyは3つのモジュールで構成されています：
 - **コード改修後の必須確認手順:** 変更を行ったら必ず `make check && make lint` を実行し、問題がなければ `make run` で動作確認を行うこと。
 - **CMake／ファイル構成変更時の手順:** 新規ファイルの追加・削除、または `CMakeLists.txt` の変更を行った場合は、まず `make cmake` を実行してプロジェクトを再生成し、その後に `make check && make lint` → `make run` の順で確認すること。
 
+## JUCE Documentation
+
+This project uses JUCE framework. An MCP server (`juce-docs`) is available.
+
+- When implementing JUCE classes, **always** look up the class docs first using the `get-juce-class-docs` tool
+- When unsure which class to use, use `search-juce-classes` to explore options
+- Prefer the MCP docs over your training data, as they reflect the actual installed version
+
 ## 描画方針
 
 - **現在**: CPU描画（`paint()` ベース）が主体

@@ -92,18 +92,11 @@ public:
     std::atomic<bool> sampleMode_{false};
     TransientDetector transientDetector_;
 
-    /// ルックアヘッド用ディレイ（モノ 1ch）
-    juce::dsp::DelayLine<float, juce::dsp::DelayLineInterpolationTypes::None>
-        lookAheadDelay_{1};
-    std::atomic<int> lookAheadSamples_{0};
-
     bool isPassthrough() const noexcept { return !sampleMode_.load(); }
     TransientDetector &detector() noexcept { return transientDetector_; }
   };
   /// Direct Sample モード切り替え（UI スレッドから設定）
   void setDirectSampleMode(bool isSample) noexcept;
-  /// ルックアヘッド時間を設定（0 / 1.5 / 3 / 6 ms）
-  void setLookAheadMs(float ms) noexcept;
   DirectMode &directMode() noexcept { return directMode_; }
 
 private:

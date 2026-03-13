@@ -57,7 +57,6 @@ inline constexpr const char *directLpfQ = "direct_lpf_q";
 inline constexpr const char *directLpfSlope = "direct_lpf_slope";
 inline constexpr const char *directThreshold = "direct_threshold";
 inline constexpr const char *directHold = "direct_hold";
-inline constexpr const char *directLookAhead = "direct_look_ahead";
 inline constexpr const char *directGain = "direct_gain";
 inline constexpr const char *directMute = "direct_mute";
 inline constexpr const char *directSolo = "direct_solo";

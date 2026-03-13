@@ -149,9 +149,6 @@ BoomBabyAudioProcessor::createParameterLayout() {
                                           NRange(-60.0f, 0.0f, 0.1f), -24.0f));
   layout.add(std::make_unique<FloatParam>(ParamIDs::directHold, "Direct Hold",
                                           NRange(20.0f, 500.0f, 1.0f), 50.0f));
-  layout.add(std::make_unique<ChoiceParam>(
-      ParamIDs::directLookAhead, "Direct Look-ahead",
-      juce::StringArray{"0 ms", "1.5 ms", "3 ms", "6 ms"}, 0));
   layout.add(std::make_unique<FloatParam>(ParamIDs::directGain, "Direct Gain",
                                           NRange(-60.0f, 12.0f, 0.01f), 0.0f));
   layout.add(
@@ -216,7 +213,6 @@ BoomBabyAudioProcessor::~BoomBabyAudioProcessor() {
   apvts_.removeParameterListener(ParamIDs::directLpfSlope, this);
   apvts_.removeParameterListener(ParamIDs::directThreshold, this);
   apvts_.removeParameterListener(ParamIDs::directHold, this);
-  apvts_.removeParameterListener(ParamIDs::directLookAhead, this);
   apvts_.removeParameterListener(ParamIDs::directGain, this);
   apvts_.removeParameterListener(ParamIDs::directMute, this);
   apvts_.removeParameterListener(ParamIDs::directSolo, this);
@@ -246,15 +242,14 @@ void BoomBabyAudioProcessor::registerParameterListeners() {
                          ParamIDs::directHpfQ,     ParamIDs::directHpfSlope,
                          ParamIDs::directLpfFreq,  ParamIDs::directLpfQ,
                          ParamIDs::directLpfSlope, ParamIDs::directThreshold,
-                         ParamIDs::directHold,     ParamIDs::directLookAhead,
-                         ParamIDs::directGain,     ParamIDs::directMute,
-                         ParamIDs::directSolo,     ParamIDs::masterGain})
+                         ParamIDs::directHold,     ParamIDs::directGain,
+                         ParamIDs::directMute,     ParamIDs::directSolo,
+                         ParamIDs::masterGain})
     apvts_.addParameterListener(id, this);
 }
 
 namespace {
 constexpr std::array kSlopes = {12, 24, 48};
-constexpr std::array<float, 4> kLookAheadMs = {0.0f, 1.5f, 3.0f, 6.0f};
 } // namespace
 
 void BoomBabyAudioProcessor::parameterChanged(const juce::String &parameterID,
@@ -345,8 +340,6 @@ void BoomBabyAudioProcessor::parameterChanged(const juce::String &parameterID,
     directMode_.transientDetector_.setThresholdDb(v);
   } else if (parameterID == ParamIDs::directHold) {
     directMode_.transientDetector_.setHoldMs(v);
-  } else if (parameterID == ParamIDs::directLookAhead) {
-    setLookAheadMs(kLookAheadMs[static_cast<std::size_t>(idx)]);
   } else if (parameterID == ParamIDs::directGain) {
     directEngine_.setGainDb(v);
   } else if (parameterID == ParamIDs::directMute) {
@@ -409,25 +402,6 @@ void BoomBabyAudioProcessor::prepareToPlay(double sampleRate,
   directMode_.transientDetector_.setHoldMs(50.0f);
   monoMixBuffer_.resize(static_cast<std::size_t>(samplesPerBlock));
 
-  // ルックアヘッド: 最大 6ms 分のキャパシティ（192kHz で 1152 サンプル）
-  {
-    const auto maxDelaySamples =
-        static_cast<int>(std::ceil(0.006 * sampleRate));
-    juce::dsp::ProcessSpec spec{};
-    spec.sampleRate = sampleRate;
-    spec.maximumBlockSize = static_cast<juce::uint32>(samplesPerBlock);
-    spec.numChannels = 1;
-    directMode_.lookAheadDelay_.setMaximumDelayInSamples(maxDelaySamples + 1);
-    directMode_.lookAheadDelay_.prepare(spec);
-    directMode_.lookAheadDelay_.reset();
-    // 既存の lookAheadSamples_ が有効ならレイテンシーを通知
-    const int laSamples = directMode_.lookAheadSamples_.load();
-    if (laSamples > 0 && !directMode_.sampleMode_.load())
-      setLatencySamples(laSamples);
-    else
-      setLatencySamples(0);
-  }
-
   inputMonitor_.data_.assign(static_cast<std::size_t>(InputMonitor::kCapacity),
                              0.0f);
   inputMonitor_.fifo_.reset();
@@ -454,9 +428,9 @@ void BoomBabyAudioProcessor::prepareToPlay(double sampleRate,
                          ParamIDs::directHpfQ,     ParamIDs::directHpfSlope,
                          ParamIDs::directLpfFreq,  ParamIDs::directLpfQ,
                          ParamIDs::directLpfSlope, ParamIDs::directThreshold,
-                         ParamIDs::directHold,     ParamIDs::directLookAhead,
-                         ParamIDs::directGain,     ParamIDs::directMute,
-                         ParamIDs::directSolo,     ParamIDs::masterGain})
+                         ParamIDs::directHold,     ParamIDs::directGain,
+                         ParamIDs::directMute,     ParamIDs::directSolo,
+                         ParamIDs::masterGain})
     parameterChanged(id, apvts_.getRawParameterValue(id)->load());
 
   // prepareToPlay の reset() で白紙になった LUT を再ベイク
@@ -468,24 +442,6 @@ void BoomBabyAudioProcessor::setDirectSampleMode(bool isSample) noexcept {
   directEngine_.setPassthroughMode(!isSample);
   // パススルーモード時はトランジェント検出を自動有効化
   directMode_.transientDetector_.setEnabled(!isSample);
-  // Sample モードではルックアヘッド不要 → レイテンシー 0
-  if (isSample)
-    setLatencySamples(0);
-  else if (const int la = directMode_.lookAheadSamples_.load(); la > 0)
-    setLatencySamples(la);
-}
-
-void BoomBabyAudioProcessor::setLookAheadMs(float ms) noexcept {
-  const double sr = getSampleRate();
-  if (sr <= 0.0)
-    return;
-  const auto samples = static_cast<int>(std::round(ms * 0.001 * sr));
-  directMode_.lookAheadSamples_.store(samples);
-  // Passthrough 時のみ DAW にレイテンシー通知
-  if (!directMode_.sampleMode_.load())
-    setLatencySamples(samples);
-  else
-    setLatencySamples(0);
 }
 
 void BoomBabyAudioProcessor::releaseResources() {
@@ -536,12 +492,14 @@ void processPassthroughMonitor(BoomBabyAudioProcessor::DirectMode &dm,
     std::copy_n(ch0, numSamples, mono);
   }
 
-  if (dm.transientDetector_.isEnabled() &&
-      dm.transientDetector_.process(
-          std::span<const float>(mono, static_cast<std::size_t>(numSamples)))) {
-    eng.sub.triggerNote();
-    eng.click.triggerNote();
-    eng.direct.triggerNote();
+  if (dm.transientDetector_.isEnabled()) {
+    const int pos = dm.transientDetector_.process(
+        std::span<const float>(mono, static_cast<std::size_t>(numSamples)));
+    if (pos >= 0) {
+      eng.sub.triggerNote(pos);
+      eng.click.triggerNote(pos);
+      eng.direct.triggerNote(pos);
+    }
   }
 
   const int toWrite = juce::jmin(numSamples, im.fifo_.getFreeSpace());
@@ -609,9 +567,10 @@ void BoomBabyAudioProcessor::handleMidiEvents(juce::MidiBuffer &midiMessages,
   for (const auto metadata : midiMessages) {
     const auto msg = metadata.getMessage();
     if (msg.isNoteOn()) {
-      subEngine_.triggerNote();
-      clickEngine_.triggerNote();
-      directEngine_.triggerNote();
+      const int offset = metadata.samplePosition;
+      subEngine_.triggerNote(offset);
+      clickEngine_.triggerNote(offset);
+      directEngine_.triggerNote(offset);
     }
     // NoteOff は無視: One-shot 長さは subLengthMs で決定
   }
@@ -629,18 +588,6 @@ void BoomBabyAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   processPassthroughMonitor(directMode_, inputMonitor_,
                             {subEngine_, clickEngine_, directEngine_}, buffer,
                             monoMixBuffer_, numSamples);
-
-  // ルックアヘッド: monoMixBuffer_ を遅延させて Direct パススルーに渡す
-  // （トランジェント検出は即座の入力で完了済み）
-  if (const int laSamples = directMode_.lookAheadSamples_.load();
-      !directMode_.sampleMode_.load() && laSamples > 0) {
-    auto &dl = directMode_.lookAheadDelay_;
-    auto *mono = monoMixBuffer_.data();
-    for (int i = 0; i < numSamples; ++i) {
-      dl.pushSample(0, mono[i]);
-      mono[i] = dl.popSample(0, static_cast<float>(laSamples));
-    }
-  }
 
   // Direct ミュート: 入力信号を消去（Sub はこの後加算。renderPassthrough も
   // addSample）
@@ -703,9 +650,9 @@ void BoomBabyAudioProcessor::setStateInformation(
             ParamIDs::directHpfQ,     ParamIDs::directHpfSlope,
             ParamIDs::directLpfFreq,  ParamIDs::directLpfQ,
             ParamIDs::directLpfSlope, ParamIDs::directThreshold,
-            ParamIDs::directHold,     ParamIDs::directLookAhead,
-            ParamIDs::directGain,     ParamIDs::directMute,
-            ParamIDs::directSolo,     ParamIDs::masterGain})
+            ParamIDs::directHold,     ParamIDs::directGain,
+            ParamIDs::directMute,     ParamIDs::directSolo,
+            ParamIDs::masterGain})
         parameterChanged(id, apvts_.getRawParameterValue(id)->load());
 
       // エンベロープ LUT を保存済み状態から再ベイク

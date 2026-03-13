@@ -19,8 +19,9 @@ public:
   // ── lifecycle ──
   void prepareToPlay(double sampleRate, int samplesPerBlock);
 
-  /// MIDI NoteOn 時のトリガー
-  void triggerNote();
+  /// MIDI NoteOn / トランジェント検出時のトリガー
+  /// @param sampleOffset ブロック内の開始サンプル位置（0 = 即座）
+  void triggerNote(int sampleOffset = 0);
 
   /// 1 ブロック分をレンダリングし、buffer に加算する。
   void render(juce::AudioBuffer<float> &buffer, int numSamples, bool clickPass,
@@ -125,6 +126,7 @@ private:
 
   std::vector<float> scratchBuffer_;
   float noteTimeSamples_{0.0f};
+  int startOffset_{0};
   std::atomic<bool> active_{false};
 
   /// Sample モード用パラメーターをまとめた構造体（ピッチ）

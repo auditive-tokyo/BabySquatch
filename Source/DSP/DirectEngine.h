@@ -20,8 +20,9 @@ public:
   // ── lifecycle ──
   void prepareToPlay(double sampleRate, int samplesPerBlock);
 
-  /// MIDI NoteOn 時のトリガー
-  void triggerNote();
+  /// MIDI NoteOn / トランジェント検出時のトリガー
+  /// @param sampleOffset ブロック内の開始サンプル位置（0 = 即座）
+  void triggerNote(int sampleOffset = 0);
 
   /// 1 ブロック分レンダリング。directPass=true のときのみ buffer に加算。
   void render(juce::AudioBuffer<float> &buffer, int numSamples, bool directPass,
@@ -109,6 +110,7 @@ private:
   std::vector<float> scratchBuffer_;
   std::atomic<bool> active_{false};
   float noteTimeSamples_{0.0f};
+  int startOffset_{0};
 
   // フィルター
   std::array<juce::dsp::StateVariableTPTFilter<float>, kMaxCascade> hpfs_;
