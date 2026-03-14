@@ -47,7 +47,7 @@ void BoomBabyAudioProcessorEditor::setupLengthBox() {
   subUI.length.slider.onValueChange = [this] {
     const auto v = static_cast<float>(subUI.length.slider.getValue());
     syncParam(ParamIDs::subLength, v);
-    envelopeCurveEditor.setDisplayDurationMs(v);
+    updateDisplayDuration();
     processorRef.subEngine().setLengthMs(v);
     // Sub LUT: エンベロープ実効区間に 512 点を集中させる
     bakeLut(envDatas.amp, processorRef.subEngine().envLut(),

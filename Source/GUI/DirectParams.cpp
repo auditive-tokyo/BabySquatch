@@ -193,6 +193,7 @@ void BoomBabyAudioProcessorEditor::setupDirectParams() {
     bakeLut(envDatas.directAmp, processorRef.directEngine().directAmpLut(),
             effectiveLutDuration(envDatas.directAmp, durMs));
     refreshDirectProvider();
+    updateDisplayDuration();
   };
   // ※ LUT は syncUIFromState() → onEnvelopeChanged() で正しい値にベイクされる
   addAndMakeVisible(directUI.decay.slider);

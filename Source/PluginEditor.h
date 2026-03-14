@@ -10,9 +10,8 @@
 
 #include <array>
 
-class BoomBabyAudioProcessorEditor final
-    : public juce::AudioProcessorEditor,
-      private juce::Timer {
+class BoomBabyAudioProcessorEditor final : public juce::AudioProcessorEditor,
+                                           private juce::Timer {
 public:
   explicit BoomBabyAudioProcessorEditor(BoomBabyAudioProcessor &);
   ~BoomBabyAudioProcessorEditor() override;
@@ -44,7 +43,8 @@ private:
   void onSampleLoadClicked();
   void onSampleFileChosen(const juce::File &file);
   void refreshDirectProvider();
-  /// directUI の HPF/LPF をベクター対に適用（refreshDirectProvider / timerCallback 共通）
+  /// directUI の HPF/LPF をベクター対に適用（refreshDirectProvider /
+  /// timerCallback 共通）
   void applyDirectFilters(std::vector<float> &vecMin,
                           std::vector<float> &vecMax) const;
   void onClickSampleLoadClicked();
@@ -54,6 +54,7 @@ private:
   void setClickModeVisible(bool isSample);
   void applyClickMode(int modeId);
   float computeNoiseAmplitudeScale() const;
+  void updateDisplayDuration();
   void setupLengthBox();
   void setupWaveShapeCombo();
   void layoutSubKnobsRow(juce::Rectangle<int> knobRow);
@@ -63,7 +64,9 @@ private:
   void syncParam(const char *id, float value);
   /// APVTS 値から UI ウィジェットを復元（エディタ構築時＋状態復元時）
   void syncUIFromState();
-  /// APVTS 値をポーリングし変更があったウィジェットをサイレント更新（timerCallback 用）
+  /// APVTS
+  /// 値をポーリングし変更があったウィジェットをサイレント更新（timerCallback
+  /// 用）
   void pollUIFromAPVTS();
   /// エンベロープデータを APVTS ValueTree に書き出し
   void saveEnvelopesToState();
@@ -223,7 +226,7 @@ private:
   // ── DIRECTパネル ──
   struct DirectUI {
     enum class Mode { Direct = 1, Sample };
-    juce::Label modeLabel;   // 1
+    juce::Label modeLabel;    // 1
     juce::ComboBox modeCombo; // 2
     // ① サンプル関連をまとめて 1 フィールドへ
     struct SampleData {
@@ -234,7 +237,7 @@ private:
       std::vector<float> thumbMax;
       double thumbDurSec = 0.0;
     };
-    SampleData sample;       // 3
+    SampleData sample; // 3
     // ── 上段ノブ ──
     struct KnobUI {
       juce::Label label;
@@ -246,17 +249,17 @@ private:
                                           UIConstants::Colours::directArc};
       CustomSlider driveSlider;
     };
-    KnobUI pitch;            // 4
-    KnobUI amp;              ///< 0〜200% 振幅スケーラー // 5
-    SaturatorUI saturator;   // 6
-    KnobUI decay;            // 7
-    KnobUI threshold;        ///< パススルーモード時に Pitch 位置へ表示 // 8
+    KnobUI pitch;          // 4
+    KnobUI amp;            ///< 0〜200% 振幅スケーラー // 5
+    SaturatorUI saturator; // 6
+    KnobUI decay;          // 7
+    KnobUI threshold; ///< パススルーモード時に Pitch 位置へ表示 // 8
     // ② Hold をまとめて 1 フィールドへ
     struct HoldUI {
       juce::Label label;
       CustomSlider slider;
     };
-    HoldUI hold;             // 9
+    HoldUI hold; // 9
     // ③ フィルターバンドをまとめて HPF / LPF へ
     struct FilterBand {
       UIConstants::SlopeSelector slope;
@@ -266,8 +269,8 @@ private:
       explicit FilterBand(const char *tag)
           : slope{tag, UIConstants::Colours::directArc} {}
     };
-    FilterBand hpf{"HP"};    // 11
-    FilterBand lpf{"LP"};    // 12
+    FilterBand hpf{"HP"}; // 11
+    FilterBand lpf{"LP"}; // 12
     // 合計: 12 フィールド（旧: 23）
   };
   DirectUI directUI;

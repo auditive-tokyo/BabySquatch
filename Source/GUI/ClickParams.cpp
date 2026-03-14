@@ -349,6 +349,7 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
     bakeLut(envDatas.clickAmp, processorRef.clickEngine().clickAmpLut(),
             effectiveLutDuration(envDatas.clickAmp, durMs));
     envelopeCurveEditor.setClickDecayMs(durMs);
+    updateDisplayDuration();
   };
   // ※ LUT は syncUIFromState() → onEnvelopeChanged() で正しい値にベイクされる
   styleKnobLabel(clickUI.sample.decay.label, "Decay", tinyFont);
@@ -501,7 +502,7 @@ void BoomBabyAudioProcessorEditor::layoutClickParams(
   // 上段4ノブ: Sample → Pitch/Amp/Drive/Decay, Noise → BP/Q/Drive/ClipType
   // Noiseモード: Decayは上段ノブ行のスロット3に移動済み—トップ行は何もなし
   if (const bool isSample = (clickUI.modeCombo.getSelectedId() ==
-                              std::to_underlying(ClickUI::Mode::Sample));
+                             std::to_underlying(ClickUI::Mode::Sample));
       isSample) {
     clickUI.sample.loadButton.setBounds(topRow);
     // スロット 0=Pitch, 1=Amp, 2=Drive/ClipType（Noiseと共用）, 3=Decay
@@ -631,7 +632,8 @@ void BoomBabyAudioProcessorEditor::ClickUI::restoreModeState(
 }
 
 void BoomBabyAudioProcessorEditor::applyClickMode(int modeId) {
-  if (const bool isSample = (modeId == std::to_underlying(ClickUI::Mode::Sample));
+  if (const bool isSample =
+          (modeId == std::to_underlying(ClickUI::Mode::Sample));
       isSample) {
     // 旧モード（Noise）の共有パラメーターを保存
     clickUI.saveModeState(clickUI.noiseState);

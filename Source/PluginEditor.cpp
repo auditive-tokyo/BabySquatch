@@ -76,13 +76,23 @@ void BoomBabyAudioProcessorEditor::setupPanelRouting(
 }
 
 // ────────────────────────────────────────────────────
+// 波形表示の長さを全チャンネル最長に合わせる
+// ────────────────────────────────────────────────────
+void BoomBabyAudioProcessorEditor::updateDisplayDuration() {
+  const auto sub = static_cast<float>(subUI.length.slider.getValue());
+  const auto click = static_cast<float>(clickUI.sample.decay.slider.getValue());
+  const auto direct = static_cast<float>(directUI.decay.slider.getValue());
+  envelopeCurveEditor.setDisplayDurationMs(std::max({sub, click, direct}));
+}
+
+// ────────────────────────────────────────────────────
 // エンベロープ変更時のノブ同期
 // ────────────────────────────────────────────────────
 void BoomBabyAudioProcessorEditor::onEnvelopeChanged() {
   // スライダー値から直接読むことで、editor 再開時に displayDurationMs が
   // デフォルト (300ms) のまま焼かれるバグを防止。
   const auto subLenMs = static_cast<float>(subUI.length.slider.getValue());
-  envelopeCurveEditor.setDisplayDurationMs(subLenMs);
+  updateDisplayDuration();
   // Sub LUT: エンベロープ実効区間に 512 点を集中させる
   bakeLut(envDatas.amp, processorRef.subEngine().envLut(),
           effectiveLutDuration(envDatas.amp, subLenMs));
