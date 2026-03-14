@@ -82,6 +82,9 @@ This project uses JUCE framework. An MCP server (`juce-docs`) is available.
 │   ├── DirectParams.cpp       // Direct パネル UI セットアップ / レイアウト
 │   ├── EnvelopeCurveEditor.cpp // エンベロープカーブエディタ実装
 │   ├── EnvelopeCurveEditor.h  // エンベロープカーブエディタ宣言
+│   ├── InfoBox.cpp            // ホバー時の説明テキスト表示コンポーネント実装
+│   ├── InfoBox.h              // InfoBox 宣言
+│   ├── InfoBoxText.h          // InfoBox表示テキスト定数集約（InfoText 名前空間、ヘッダオンリー）
 │   ├── KeyboardComponent.cpp  // 鍵盤UI実装
 │   ├── KeyboardComponent.h    // 鍵盤UI宣言
 │   ├── LutBaker.h             // Sub波形 LUT ベイク処理（ヘッダオンリー）
@@ -90,7 +93,7 @@ This project uses JUCE framework. An MCP server (`juce-docs`) is available.
 │   ├── PanelComponent.cpp     // SUB/CLICK/DIRECT共通パネル実装
 │   ├── PanelComponent.h       // 共通パネル宣言（ChannelFader・M/S ボタン）
 │   ├── SubParams.cpp          // Sub パネル UI セットアップ / レイアウト
-│   ├── UIConstants.h          // UI定数集約（色・レイアウト寸法）
+│   ├── UIConstants.h          // UI定数集約（色・レイアウト寸法・LabelSelector・SlopeSelector 等）
 │   └── WaveformUtils.h        // 波形プレビュー描画ヘルパー（ClickParams/DirectParams 共通、ヘッダオンリー）
 ├── ParamIDs.h                 // APVTSパラメーターID定数集約（ヘッダオンリー）
 ├── PluginEditor.cpp
@@ -110,15 +113,6 @@ This project uses JUCE framework. An MCP server (`juce-docs`) is available.
   - しきい値: -0.1 dBFS 固定か、MasterFader に Ceiling ノブを追加するか要検討
   - 実装箇所: `PluginProcessor::processBlock()` の `applyGain()` 直後
   - GUI: MasterFader のメーターにゲインリダクション量（GR）表示を追加できる
-
-- **Infobox（ホバー説明 UI）（検討中）**
-  - 目的: キーボード右のマスターアウトのさらに右のスペースに固定の説明エリアを設置し、各ノブ・パラメーターにホバーしたときに使い方を表示
-  - 実装方針: **中央集権型文字列テーブル + カスタム `InfoBox` コンポーネント**
-    - `Source/GUI/InfoBox.h / InfoBox.cpp`: 右端固定の表示コンポーネント
-    - `Source/GUI/InfoStrings.h`: ID → 説明文のテーブル（`std::unordered_map`、バイナリ埋め込み）
-    - 各コンポーネントに `setComponentID("sub_level")` 等を設定し、汎用 `mouseEnter` / `mouseExit` ハンドラで `infoBox.show(id)` / `infoBox.hide()` を呼ぶ
-  - 外部ファイル（.json / .txt）方式は配布・パス解決が面倒なので採用しない
-  - `juce::TooltipWindow` はスタイル固定で右端常駐 UI に不向きなので採用しない
 
 - **プリセット管理 + デフォルトプリセット**
   - 目的: 全パラメーター（エンベロープ含む）の初期値をハードコードではなく設定ファイルとして管理。ユーザーリセット・将来のプリセット追加に対応
