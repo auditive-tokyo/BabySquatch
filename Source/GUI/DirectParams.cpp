@@ -514,7 +514,8 @@ void BoomBabyAudioProcessorEditor::refreshDirectProvider() {
   }
 
   // HPF / LPF を thumb データに適用（DSP: Saturator → HPF → LPF の順）
-  const float sr = getDisplaySampleRate();
+  const double rawSr = processorRef.getSampleRate();
+  const float sr = rawSr > 0.0 ? static_cast<float>(rawSr) : 44100.0f;
   if (const auto hpfFreq = static_cast<float>(directUI.hpf.slider.getValue());
       hpfFreq > 20.5f) {
     const auto hpfQ = static_cast<float>(directUI.hpf.qSlider.getValue());

@@ -227,7 +227,7 @@ void BoomBabyAudioProcessorEditor::setupSubKnobsRow() {
           static_cast<float>(subUI.knobs[idx].getValue()) / 100.0f;
       processorRef.subEngine().oscillator().setHarmonicGain(harmonicNum, gain);
       envelopeCurveEditor.setPreviewHarmonicGain(harmonicNum, gain);
-      static constexpr const char *kToneIDs[] = {
+      static constexpr std::array<const char *, 4> kToneIDs = {
           ParamIDs::subTone1, ParamIDs::subTone2,
           ParamIDs::subTone3, ParamIDs::subTone4};
       syncParam(kToneIDs[static_cast<std::size_t>(harmonicNum - 1)],

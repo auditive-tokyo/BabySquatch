@@ -195,7 +195,8 @@ BoomBabyAudioProcessor::BoomBabyAudioProcessor()
               .withInput("Input", juce::AudioChannelSet::stereo(), true)
               .withOutput("Output", juce::AudioChannelSet::stereo(), true)),
       apvts_(*this, nullptr, "BoomBabyState", createParameterLayout()) {
-  registerParameterListeners();
+  for (const auto *id : kAllParamIDs)
+    apvts_.addParameterListener(id, this);
 }
 
 BoomBabyAudioProcessor::~BoomBabyAudioProcessor() {
@@ -205,15 +206,148 @@ BoomBabyAudioProcessor::~BoomBabyAudioProcessor() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// APVTS Listener 登録 / パラメータ→DSP 同期
+// APVTS パラメータ→DSP 同期
 // ─────────────────────────────────────────────────────────────────────────
-void BoomBabyAudioProcessor::registerParameterListeners() {
-  for (const auto *id : kAllParamIDs)
-    apvts_.addParameterListener(id, this);
-}
-
 namespace {
 constexpr std::array kSlopes = {12, 24, 48};
+
+void applySubParam(const juce::String &id, float v, int idx, SubEngine &sub,
+                   ChannelState &cs) {
+  if (id == ParamIDs::subWaveShape)
+    sub.oscillator().setWaveShape(static_cast<WaveShape>(idx + 1));
+  else if (id == ParamIDs::subLength)
+    sub.setLengthMs(v);
+  else if (id == ParamIDs::subSatClipType)
+    sub.oscillator().setClipType(idx);
+  else if (id == ParamIDs::subTone1)
+    sub.oscillator().setHarmonicGain(1, v / 100.0f);
+  else if (id == ParamIDs::subTone2)
+    sub.oscillator().setHarmonicGain(2, v / 100.0f);
+  else if (id == ParamIDs::subTone3)
+    sub.oscillator().setHarmonicGain(3, v / 100.0f);
+  else if (id == ParamIDs::subTone4)
+    sub.oscillator().setHarmonicGain(4, v / 100.0f);
+  else if (id == ParamIDs::subGain)
+    sub.setGainDb(v);
+  else if (id == ParamIDs::subMute)
+    cs.setMute(ChannelState::Channel::sub, v >= 0.5f);
+  else if (id == ParamIDs::subSolo)
+    cs.setSolo(ChannelState::Channel::sub, v >= 0.5f);
+}
+
+void applyClickParam(const juce::String &id, float v, int idx,
+                     ClickEngine &click, ChannelState &cs) {
+  if (id == ParamIDs::clickMode)
+    click.setMode(idx + 1);
+  else if (id == ParamIDs::clickNoiseDecay)
+    click.setDecayMs(v);
+  else if (id == ParamIDs::clickBpf1Freq)
+    click.setFreq1(v);
+  else if (id == ParamIDs::clickBpf1Q)
+    click.setFocus1(v);
+  else if (id == ParamIDs::clickBpf1Slope)
+    click.setBpf1Slope(kSlopes[static_cast<std::size_t>(idx)]);
+  else if (id == ParamIDs::clickSamplePitch)
+    click.setPitchSemitones(v);
+  else if (id == ParamIDs::clickDrive)
+    click.setDriveDb(v);
+  else if (id == ParamIDs::clickClipType)
+    click.setClipType(idx);
+  else if (id == ParamIDs::clickHpfFreq)
+    click.setHpfFreq(v);
+  else if (id == ParamIDs::clickHpfQ)
+    click.setHpfQ(v);
+  else if (id == ParamIDs::clickHpfSlope)
+    click.setHpfSlope(kSlopes[static_cast<std::size_t>(idx)]);
+  else if (id == ParamIDs::clickLpfFreq)
+    click.setLpfFreq(v);
+  else if (id == ParamIDs::clickLpfQ)
+    click.setLpfQ(v);
+  else if (id == ParamIDs::clickLpfSlope)
+    click.setLpfSlope(kSlopes[static_cast<std::size_t>(idx)]);
+  else if (id == ParamIDs::clickGain)
+    click.setGainDb(v);
+  else if (id == ParamIDs::clickMute)
+    cs.setMute(ChannelState::Channel::click, v >= 0.5f);
+  else if (id == ParamIDs::clickSolo)
+    cs.setSolo(ChannelState::Channel::click, v >= 0.5f);
+}
+
+void applyDirectParam(const juce::String &id, float v, int idx,
+                      DirectEngine &direct, TransientDetector &td,
+                      ChannelState &cs) {
+  if (id == ParamIDs::directPitch)
+    direct.setPitchSemitones(v);
+  else if (id == ParamIDs::directDrive)
+    direct.setDriveDb(v);
+  else if (id == ParamIDs::directClipType)
+    direct.setClipType(idx);
+  else if (id == ParamIDs::directHpfFreq)
+    direct.setHpfFreq(v);
+  else if (id == ParamIDs::directHpfQ)
+    direct.setHpfQ(v);
+  else if (id == ParamIDs::directHpfSlope)
+    direct.setHpfSlope(kSlopes[static_cast<std::size_t>(idx)]);
+  else if (id == ParamIDs::directLpfFreq)
+    direct.setLpfFreq(v);
+  else if (id == ParamIDs::directLpfQ)
+    direct.setLpfQ(v);
+  else if (id == ParamIDs::directLpfSlope)
+    direct.setLpfSlope(kSlopes[static_cast<std::size_t>(idx)]);
+  else if (id == ParamIDs::directThreshold)
+    td.setThresholdDb(v);
+  else if (id == ParamIDs::directHold)
+    td.setHoldMs(v);
+  else if (id == ParamIDs::directGain)
+    direct.setGainDb(v);
+  else if (id == ParamIDs::directMute)
+    cs.setMute(ChannelState::Channel::direct, v >= 0.5f);
+  else if (id == ParamIDs::directSolo)
+    cs.setSolo(ChannelState::Channel::direct, v >= 0.5f);
+}
+
+/// APVTS ValueTree の ENVELOPE ノードから EnvelopeData を復元。
+/// 保存データがなければ apvtsDefault で 1 点エンベロープを返す。
+EnvelopeData restoreEnvFromState(const juce::ValueTree &state, const char *name,
+                                 float apvtsDefault) {
+  // 対象の ENVELOPE ノードを検索
+  juce::ValueTree child;
+  for (int i = 0; i < state.getNumChildren(); ++i) {
+    auto c = state.getChild(i);
+    if (c.hasType(juce::Identifier{"ENVELOPE"}) &&
+        c.getProperty(juce::Identifier{"name"}).toString() ==
+            juce::String(name)) {
+      child = c;
+      break;
+    }
+  }
+
+  if (!child.isValid()) {
+    EnvelopeData env;
+    env.setDefaultValue(apvtsDefault);
+    env.addPoint(0.0f, apvtsDefault);
+    return env;
+  }
+
+  EnvelopeData env;
+  env.setDefaultValue(static_cast<float>(
+      child.getProperty(juce::Identifier{"defaultValue"}, apvtsDefault)));
+  env.clearPoints();
+  for (int j = 0; j < child.getNumChildren(); ++j) {
+    auto pt = child.getChild(j);
+    if (!pt.hasType(juce::Identifier{"POINT"}))
+      continue;
+    const float t = pt.getProperty(juce::Identifier{"timeMs"}, 0.0f);
+    const float v = pt.getProperty(juce::Identifier{"value"}, 1.0f);
+    const float c = pt.getProperty(juce::Identifier{"curve"}, 0.0f);
+    env.addPoint(t, v);
+    env.setSegmentCurve(static_cast<int>(env.getPoints().size()) - 1, c);
+  }
+  if (!env.hasPoints())
+    env.addPoint(0.0f, env.getDefaultValue());
+  return env;
+}
+
 } // namespace
 
 void BoomBabyAudioProcessor::parameterChanged(const juce::String &parameterID,
@@ -221,100 +355,17 @@ void BoomBabyAudioProcessor::parameterChanged(const juce::String &parameterID,
   const auto v = newValue;
   const auto idx = static_cast<int>(v);
 
-  // ── Sub ──
-  if (parameterID == ParamIDs::subWaveShape) {
-    subEngine_.oscillator().setWaveShape(static_cast<WaveShape>(idx + 1));
-  } else if (parameterID == ParamIDs::subLength) {
-    subEngine_.setLengthMs(v);
-  } else if (parameterID == ParamIDs::subSatClipType) {
-    subEngine_.oscillator().setClipType(idx);
-  } else if (parameterID == ParamIDs::subTone1) {
-    subEngine_.oscillator().setHarmonicGain(1, v / 100.0f);
-  } else if (parameterID == ParamIDs::subTone2) {
-    subEngine_.oscillator().setHarmonicGain(2, v / 100.0f);
-  } else if (parameterID == ParamIDs::subTone3) {
-    subEngine_.oscillator().setHarmonicGain(3, v / 100.0f);
-  } else if (parameterID == ParamIDs::subTone4) {
-    subEngine_.oscillator().setHarmonicGain(4, v / 100.0f);
-  } else if (parameterID == ParamIDs::subGain) {
-    subEngine_.setGainDb(v);
-  } else if (parameterID == ParamIDs::subMute) {
-    channelState_.setMute(ChannelState::Channel::sub, v >= 0.5f);
-  } else if (parameterID == ParamIDs::subSolo) {
-    channelState_.setSolo(ChannelState::Channel::sub, v >= 0.5f);
-  }
-  // ── Click ──
-  else if (parameterID == ParamIDs::clickMode) {
-    clickEngine_.setMode(idx + 1); // APVTS 0=Noise→1, 1=Sample→2
-  } else if (parameterID == ParamIDs::clickNoiseDecay) {
-    clickEngine_.setDecayMs(v);
-  } else if (parameterID == ParamIDs::clickBpf1Freq) {
-    clickEngine_.setFreq1(v);
-  } else if (parameterID == ParamIDs::clickBpf1Q) {
-    clickEngine_.setFocus1(v);
-  } else if (parameterID == ParamIDs::clickBpf1Slope) {
-    clickEngine_.setBpf1Slope(kSlopes[static_cast<std::size_t>(idx)]);
-  } else if (parameterID == ParamIDs::clickSamplePitch) {
-    clickEngine_.setPitchSemitones(v);
-  } else if (parameterID == ParamIDs::clickDrive) {
-    clickEngine_.setDriveDb(v);
-  } else if (parameterID == ParamIDs::clickClipType) {
-    clickEngine_.setClipType(idx);
-  } else if (parameterID == ParamIDs::clickHpfFreq) {
-    clickEngine_.setHpfFreq(v);
-  } else if (parameterID == ParamIDs::clickHpfQ) {
-    clickEngine_.setHpfQ(v);
-  } else if (parameterID == ParamIDs::clickHpfSlope) {
-    clickEngine_.setHpfSlope(kSlopes[static_cast<std::size_t>(idx)]);
-  } else if (parameterID == ParamIDs::clickLpfFreq) {
-    clickEngine_.setLpfFreq(v);
-  } else if (parameterID == ParamIDs::clickLpfQ) {
-    clickEngine_.setLpfQ(v);
-  } else if (parameterID == ParamIDs::clickLpfSlope) {
-    clickEngine_.setLpfSlope(kSlopes[static_cast<std::size_t>(idx)]);
-  } else if (parameterID == ParamIDs::clickGain) {
-    clickEngine_.setGainDb(v);
-  } else if (parameterID == ParamIDs::clickMute) {
-    channelState_.setMute(ChannelState::Channel::click, v >= 0.5f);
-  } else if (parameterID == ParamIDs::clickSolo) {
-    channelState_.setSolo(ChannelState::Channel::click, v >= 0.5f);
-  }
-  // ── Direct ──
-  else if (parameterID == ParamIDs::directMode) {
-    setDirectSampleMode(idx == 1); // 0=Direct(passthrough), 1=Sample
-  } else if (parameterID == ParamIDs::directPitch) {
-    directEngine_.setPitchSemitones(v);
-  } else if (parameterID == ParamIDs::directDrive) {
-    directEngine_.setDriveDb(v);
-  } else if (parameterID == ParamIDs::directClipType) {
-    directEngine_.setClipType(idx);
-  } else if (parameterID == ParamIDs::directHpfFreq) {
-    directEngine_.setHpfFreq(v);
-  } else if (parameterID == ParamIDs::directHpfQ) {
-    directEngine_.setHpfQ(v);
-  } else if (parameterID == ParamIDs::directHpfSlope) {
-    directEngine_.setHpfSlope(kSlopes[static_cast<std::size_t>(idx)]);
-  } else if (parameterID == ParamIDs::directLpfFreq) {
-    directEngine_.setLpfFreq(v);
-  } else if (parameterID == ParamIDs::directLpfQ) {
-    directEngine_.setLpfQ(v);
-  } else if (parameterID == ParamIDs::directLpfSlope) {
-    directEngine_.setLpfSlope(kSlopes[static_cast<std::size_t>(idx)]);
-  } else if (parameterID == ParamIDs::directThreshold) {
-    directMode_.transientDetector_.setThresholdDb(v);
-  } else if (parameterID == ParamIDs::directHold) {
-    directMode_.transientDetector_.setHoldMs(v);
-  } else if (parameterID == ParamIDs::directGain) {
-    directEngine_.setGainDb(v);
-  } else if (parameterID == ParamIDs::directMute) {
-    channelState_.setMute(ChannelState::Channel::direct, v >= 0.5f);
-  } else if (parameterID == ParamIDs::directSolo) {
-    channelState_.setSolo(ChannelState::Channel::direct, v >= 0.5f);
-  }
-  // ── Master ──
-  else if (parameterID == ParamIDs::masterGain) {
+  if (parameterID.startsWith("sub_"))
+    applySubParam(parameterID, v, idx, subEngine_, channelState_);
+  else if (parameterID == ParamIDs::directMode)
+    setDirectSampleMode(idx == 1);
+  else if (parameterID.startsWith("click_"))
+    applyClickParam(parameterID, v, idx, clickEngine_, channelState_);
+  else if (parameterID.startsWith("direct_"))
+    applyDirectParam(parameterID, v, idx, directEngine_,
+                     directMode_.transientDetector_, channelState_);
+  else if (parameterID == ParamIDs::masterGain)
     master_.setGain(v);
-  }
 }
 
 const juce::String // NOSONAR: JUCE API
@@ -500,24 +551,23 @@ void measureChannelLevels(const ChannelState::Passes &passes,
       passes.direct ? eng.direct.scratchData() : nullptr, numSamples);
 }
 
-} // namespace
-
-void BoomBabyAudioProcessor::handleMidiEvents(juce::MidiBuffer &midiMessages,
-                                              int numSamples) {
-  // GUI鍵盤のMIDIイベントをバッファにマージ
-  keyboardState.processNextMidiBuffer(midiMessages, 0, numSamples, true);
-
+/// MIDI ノートオン → 各エンジン triggerNote
+void handleMidiEvents(juce::MidiKeyboardState &kbState, SubEngine &sub,
+                      ClickEngine &click, DirectEngine &direct,
+                      juce::MidiBuffer &midiMessages, int numSamples) {
+  kbState.processNextMidiBuffer(midiMessages, 0, numSamples, true);
   for (const auto metadata : midiMessages) {
     const auto msg = metadata.getMessage();
     if (msg.isNoteOn()) {
       const int offset = metadata.samplePosition;
-      subEngine_.triggerNote(offset);
-      clickEngine_.triggerNote(offset);
-      directEngine_.triggerNote(offset);
+      sub.triggerNote(offset);
+      click.triggerNote(offset);
+      direct.triggerNote(offset);
     }
-    // NoteOff は無視: One-shot 長さは subLengthMs で決定
   }
 }
+
+} // namespace
 
 void BoomBabyAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
                                           juce::MidiBuffer &midiMessages) {
@@ -536,7 +586,8 @@ void BoomBabyAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   // addSample）
   buffer.clear();
 
-  handleMidiEvents(midiMessages, numSamples);
+  handleMidiEvents(keyboardState, subEngine_, clickEngine_, directEngine_,
+                   midiMessages, numSamples);
   subEngine_.render(buffer, numSamples, passes.sub, sr);
   clickEngine_.render(buffer, numSamples, passes.click, sr);
   renderDirectEngine(directMode_, passes, directEngine_, monoMixBuffer_, buffer,
@@ -588,38 +639,8 @@ void BoomBabyAudioProcessor::bakeAllLutsFromState() {
   const float directDecayMs =
       apvts_.getRawParameterValue(ParamIDs::directDecay)->load();
 
-  // apvts_.state の ENVELOPE 子ノードから EnvelopeData を復元するヘルパー。
-  // 保存データがなければ APVTS のデフォルト値で 1 点エンベロープを作成。
-  auto restoreEnv = [&](const char *name, float apvtsDefault) -> EnvelopeData {
-    for (int i = 0; i < apvts_.state.getNumChildren(); ++i) {
-      auto child = apvts_.state.getChild(i);
-      if (child.hasType(juce::Identifier{"ENVELOPE"}) &&
-          child.getProperty(juce::Identifier{"name"}).toString() ==
-              juce::String(name)) {
-        EnvelopeData env;
-        env.setDefaultValue(static_cast<float>(
-            child.getProperty(juce::Identifier{"defaultValue"}, apvtsDefault)));
-        env.clearPoints();
-        for (int j = 0; j < child.getNumChildren(); ++j) {
-          auto pt = child.getChild(j);
-          if (!pt.hasType(juce::Identifier{"POINT"}))
-            continue;
-          const float t = pt.getProperty(juce::Identifier{"timeMs"}, 0.0f);
-          const float v = pt.getProperty(juce::Identifier{"value"}, 1.0f);
-          const float c = pt.getProperty(juce::Identifier{"curve"}, 0.0f);
-          env.addPoint(t, v);
-          env.setSegmentCurve(static_cast<int>(env.getPoints().size()) - 1, c);
-        }
-        if (!env.hasPoints())
-          env.addPoint(0.0f, env.getDefaultValue());
-        return env;
-      }
-    }
-    // 保存データなし: デフォルト 1 点
-    EnvelopeData env;
-    env.setDefaultValue(apvtsDefault);
-    env.addPoint(0.0f, apvtsDefault);
-    return env;
+  auto env = [&](const char *name, float def) {
+    return restoreEnvFromState(apvts_.state, name, def);
   };
 
   const auto load = [&](const char *id) {
@@ -627,17 +648,16 @@ void BoomBabyAudioProcessor::bakeAllLutsFromState() {
   };
 
   // LUT → DSP 単位への変換は Editor 側の knob コールバックと対称にする
-  bakeLut(restoreEnv("amp", load(ParamIDs::subAmp) / 100.0f),
-          subEngine_.envLut(), subLenMs);
-  bakeLut(restoreEnv("freq", load(ParamIDs::subFreq)), subEngine_.freqLut(),
+  bakeLut(env("amp", load(ParamIDs::subAmp) / 100.0f), subEngine_.envLut(),
           subLenMs);
-  bakeLut(restoreEnv("dist", load(ParamIDs::subSatDrive) / 24.0f),
+  bakeLut(env("freq", load(ParamIDs::subFreq)), subEngine_.freqLut(), subLenMs);
+  bakeLut(env("dist", load(ParamIDs::subSatDrive) / 24.0f),
           subEngine_.distLut(), subLenMs);
-  bakeLut(restoreEnv("mix", load(ParamIDs::subMix) / 100.0f),
-          subEngine_.mixLut(), subLenMs);
-  bakeLut(restoreEnv("clickAmp", load(ParamIDs::clickSampleAmp) / 100.0f),
+  bakeLut(env("mix", load(ParamIDs::subMix) / 100.0f), subEngine_.mixLut(),
+          subLenMs);
+  bakeLut(env("clickAmp", load(ParamIDs::clickSampleAmp) / 100.0f),
           clickEngine_.clickAmpLut(), subLenMs);
-  bakeLut(restoreEnv("directAmp", load(ParamIDs::directAmp) / 100.0f),
+  bakeLut(env("directAmp", load(ParamIDs::directAmp) / 100.0f),
           directEngine_.directAmpLut(), directDecayMs);
 }
 

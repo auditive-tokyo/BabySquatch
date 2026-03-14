@@ -59,7 +59,6 @@ public:
   ClickEngine &clickEngine() noexcept { return clickEngine_; }
   DirectEngine &directEngine() noexcept { return directEngine_; }
   ChannelState &channelState() noexcept { return channelState_; }
-  const ChannelState &channelState() const noexcept { return channelState_; }
 
   // ── マスターセクション（ゲイン・レベル計測。将来: limiter / preset
   // 拡張用）──
@@ -74,7 +73,6 @@ public:
     }
   };
   MasterSection &master() noexcept { return master_; }
-  const MasterSection &master() const noexcept { return master_; }
 
   // ── 入力モニター（FIFO 波形表示。将来: spectrum / input gain 拡張用）──
   struct InputMonitor {
@@ -100,13 +98,9 @@ public:
   DirectMode &directMode() noexcept { return directMode_; }
 
 private:
-  void handleMidiEvents(juce::MidiBuffer &midiMessages, int numSamples);
-
   /// APVTS Listener: パラメータ変更を DSP へ反映
   void parameterChanged(const juce::String &parameterID,
                         float newValue) override;
-  /// 全パラメータの Listener 登録
-  void registerParameterListeners();
 
   juce::MidiKeyboardState keyboardState;
   SubEngine subEngine_;

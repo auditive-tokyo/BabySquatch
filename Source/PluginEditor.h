@@ -47,14 +47,8 @@ private:
   void refreshClickSampleProvider();
   void clickRepaintOrRefresh();
   void setClickModeVisible(bool isSample);
-  void applyClickSampleMode();
-  void applyClickNoiseMode(int m);
-  float computeNoiseEnvelope(float timeSec) const;
+  void applyClickMode(int modeId);
   float computeNoiseAmplitudeScale() const;
-  float getDisplaySampleRate() const {
-    const double sr = processorRef.getSampleRate();
-    return sr > 0.0 ? static_cast<float>(sr) : 44100.0f;
-  }
   void setupLengthBox();
   void setupWaveShapeCombo();
   void layoutSubKnobsRow(juce::Rectangle<int> knobRow);

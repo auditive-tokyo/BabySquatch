@@ -289,7 +289,7 @@ void BoomBabyAudioProcessorEditor::syncParam(const char *id, float value) {
 }
 
 void BoomBabyAudioProcessorEditor::syncUIFromState() {
-  auto &apvts = processorRef.getAPVTS();
+  const auto &apvts = processorRef.getAPVTS();
   auto load = [&](const char *id) {
     return apvts.getRawParameterValue(id)->load();
   };
@@ -483,7 +483,7 @@ void BoomBabyAudioProcessorEditor::saveEnvelopesToState() {
 }
 
 void BoomBabyAudioProcessorEditor::loadEnvelopesFromState() {
-  auto &state = processorRef.getAPVTS().state;
+  const auto &state = processorRef.getAPVTS().state;
 
   auto findEnv = [&](const char *name) -> juce::ValueTree {
     for (int i = 0; i < state.getNumChildren(); ++i) {
@@ -499,11 +499,11 @@ void BoomBabyAudioProcessorEditor::loadEnvelopesFromState() {
     const char *name;
     EnvelopeData &data;
   };
-  EnvEntry entries[] = {
+  std::array<EnvEntry, 6> entries = {{
       {"amp", envDatas.amp},       {"freq", envDatas.freq},
       {"dist", envDatas.dist},     {"mix", envDatas.mix},
       {"clickAmp", envDatas.clickAmp}, {"directAmp", envDatas.directAmp},
-  };
+  }};
 
   for (auto &[name, data] : entries) {
     auto tree = findEnv(name);
@@ -588,7 +588,8 @@ void BoomBabyAudioProcessorEditor::timerCallback() {
   }
 
   // HPF / LPF をピクセルデータに適用
-  const float sr = getDisplaySampleRate();
+  const double rawSr = processorRef.getSampleRate();
+  const float sr = rawSr > 0.0 ? static_cast<float>(rawSr) : 44100.0f;
   if (const auto hpfFreq = static_cast<float>(directUI.hpf.slider.getValue());
       hpfFreq > 20.5f) {
     const auto hpfQ = static_cast<float>(directUI.hpf.qSlider.getValue());

@@ -21,6 +21,12 @@ void styleClickKnob(juce::Slider &s, ColouredSliderLAF &laf) {
   s.setLookAndFeel(&laf);
 }
 
+float computeNoiseEnv(float decayMs, float timeSec) {
+  return (timeSec * 1000.0f < decayMs)
+             ? std::exp(-timeSec * 5000.0f / (decayMs + 1e-6f))
+             : 0.0f;
+}
+
 } // namespace
 
 void BoomBabyAudioProcessorEditor::clickRepaintOrRefresh() {
@@ -378,7 +384,9 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
   // プレビュープロバイダーを clickUI に保持
   // DSP = BPF(constant-skirt) × Decayエンベロープ なので形状 × 振幅スケーリング
   clickUI.noiseProvider = [this](float timeSec) {
-    return computeNoiseEnvelope(timeSec) * computeNoiseAmplitudeScale();
+    const auto decayMs =
+        static_cast<float>(clickUI.noise.decaySlider.getValue());
+    return computeNoiseEnv(decayMs, timeSec) * computeNoiseAmplitudeScale();
   };
 
   // モード変更時にコントロール表示切替 + プロバイダー更新
@@ -386,22 +394,12 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
     const int m = clickUI.modeCombo.getSelectedId();
     processorRef.clickEngine().setMode(m);
     syncParam(ParamIDs::clickMode, static_cast<float>(m - 1));
-    if (m == std::to_underlying(ClickUI::Mode::Sample))
-      applyClickSampleMode();
-    else
-      applyClickNoiseMode(m);
+    applyClickMode(m);
     resized();
   };
 
   // 起動時は Noise モード
   envelopeCurveEditor.setClickNoiseEnvProvider(clickUI.noiseProvider);
-}
-
-float BoomBabyAudioProcessorEditor::computeNoiseEnvelope(float timeSec) const {
-  const auto decayMs = static_cast<float>(clickUI.noise.decaySlider.getValue());
-  return (timeSec * 1000.0f < decayMs)
-             ? std::exp(-timeSec * 5000.0f / (decayMs + 1e-6f))
-             : 0.0f;
 }
 
 float BoomBabyAudioProcessorEditor::computeNoiseAmplitudeScale() const {
@@ -431,7 +429,8 @@ float BoomBabyAudioProcessorEditor::computeNoiseAmplitudeScale() const {
   // ── HPF / LPF: BPF 中心周波数での SVF-TPT マグニチュード応答 ──
   // Noise のエネルギーは BPF fc 付近に集中しているので、
   // HPF/LPF の fc_bpf でのゲインを掛けるだけで精確な近似。
-  const float kSr = getDisplaySampleRate();
+  const double rawSr = processorRef.getSampleRate();
+  const float kSr = rawSr > 0.0 ? static_cast<float>(rawSr) : 44100.0f;
   float filterScale = 1.0f;
 
   if (const auto hpfFreq = static_cast<float>(clickUI.hpf.slider.getValue());
@@ -629,46 +628,41 @@ void BoomBabyAudioProcessorEditor::ClickUI::restoreModeState(
   eng.setClipType(src.clipType);
 }
 
-void BoomBabyAudioProcessorEditor::applyClickSampleMode() {
-  // 旧モード（Noise）の共有パラメーターを保存
-  clickUI.saveModeState(clickUI.noiseState);
+void BoomBabyAudioProcessorEditor::applyClickMode(int modeId) {
+  const bool isSample =
+      (modeId == std::to_underlying(ClickUI::Mode::Sample));
 
-  setClickModeVisible(true);
-
-  // Sample モードの保存値を復元
-  clickUI.restoreModeState(clickUI.sampleState, processorRef.clickEngine());
-
-  // Sample 専用パラメーターを DSP へ
-  processorRef.clickEngine().setPitchSemitones(
-      static_cast<float>(clickUI.sample.pitch.slider.getValue()));
-  processorRef.clickEngine().setSampleAmpLevel(
-      static_cast<float>(clickUI.sample.amp.slider.getValue()) / 100.0f);
-
-  envelopeCurveEditor.setClickPreviewProvider(nullptr);
-  refreshClickSampleProvider();
-}
-
-void BoomBabyAudioProcessorEditor::applyClickNoiseMode(int m) {
-  // 旧モード（Sample）の共有パラメーターを保存
-  clickUI.saveModeState(clickUI.sampleState);
-
-  setClickModeVisible(false);
-
-  // Noise モードの保存値を復元
-  clickUI.restoreModeState(clickUI.noiseState, processorRef.clickEngine());
-
-  // Noise 専用パラメーターを DSP へ
-  processorRef.clickEngine().setDecayMs(
-      static_cast<float>(clickUI.noise.decaySlider.getValue()));
-  processorRef.clickEngine().setFreq1(
-      static_cast<float>(clickUI.noise.bpf1.freqSlider.getValue()));
-  processorRef.clickEngine().setFocus1(
-      static_cast<float>(clickUI.noise.bpf1.qSlider.getValue()));
-  processorRef.clickEngine().setBpf1Slope(
-      clickUI.noise.bpf1.slopeSelector.getSlope());
-
-  if (m == std::to_underlying(ClickUI::Mode::Noise))
-    envelopeCurveEditor.setClickNoiseEnvProvider(clickUI.noiseProvider);
+  if (isSample) {
+    // 旧モード（Noise）の共有パラメーターを保存
+    clickUI.saveModeState(clickUI.noiseState);
+    setClickModeVisible(true);
+    // Sample モードの保存値を復元
+    clickUI.restoreModeState(clickUI.sampleState, processorRef.clickEngine());
+    // Sample 専用パラメーターを DSP へ
+    processorRef.clickEngine().setPitchSemitones(
+        static_cast<float>(clickUI.sample.pitch.slider.getValue()));
+    processorRef.clickEngine().setSampleAmpLevel(
+        static_cast<float>(clickUI.sample.amp.slider.getValue()) / 100.0f);
+    envelopeCurveEditor.setClickPreviewProvider(nullptr);
+    refreshClickSampleProvider();
+  } else {
+    // 旧モード（Sample）の共有パラメーターを保存
+    clickUI.saveModeState(clickUI.sampleState);
+    setClickModeVisible(false);
+    // Noise モードの保存値を復元
+    clickUI.restoreModeState(clickUI.noiseState, processorRef.clickEngine());
+    // Noise 専用パラメーターを DSP へ
+    processorRef.clickEngine().setDecayMs(
+        static_cast<float>(clickUI.noise.decaySlider.getValue()));
+    processorRef.clickEngine().setFreq1(
+        static_cast<float>(clickUI.noise.bpf1.freqSlider.getValue()));
+    processorRef.clickEngine().setFocus1(
+        static_cast<float>(clickUI.noise.bpf1.qSlider.getValue()));
+    processorRef.clickEngine().setBpf1Slope(
+        clickUI.noise.bpf1.slopeSelector.getSlope());
+    if (modeId == std::to_underlying(ClickUI::Mode::Noise))
+      envelopeCurveEditor.setClickNoiseEnvProvider(clickUI.noiseProvider);
+  }
 }
 
 void BoomBabyAudioProcessorEditor::onClickSampleFileChosen(
@@ -712,7 +706,8 @@ void BoomBabyAudioProcessorEditor::refreshClickSampleProvider() {
   }
 
   // HPF / LPF を thumb データに適用（DSP: Saturator → HPF → LPF の順）
-  const float sr = getDisplaySampleRate();
+  const double rawSr = processorRef.getSampleRate();
+  const float sr = rawSr > 0.0 ? static_cast<float>(rawSr) : 44100.0f;
   if (const auto hpfFreq = static_cast<float>(clickUI.hpf.slider.getValue());
       hpfFreq > 20.5f) {
     const auto hpfQ = static_cast<float>(clickUI.hpf.qSlider.getValue());
