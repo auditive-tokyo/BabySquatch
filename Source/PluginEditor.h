@@ -44,6 +44,9 @@ private:
   void onSampleLoadClicked();
   void onSampleFileChosen(const juce::File &file);
   void refreshDirectProvider();
+  /// directUI の HPF/LPF をベクター対に適用（refreshDirectProvider / timerCallback 共通）
+  void applyDirectFilters(std::vector<float> &vecMin,
+                          std::vector<float> &vecMax) const;
   void onClickSampleLoadClicked();
   void onClickSampleFileChosen(const juce::File &file);
   void refreshClickSampleProvider();

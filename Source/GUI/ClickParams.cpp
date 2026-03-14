@@ -481,18 +481,15 @@ void BoomBabyAudioProcessorEditor::layoutClickParams(
   clickUI.modeCombo.setBounds(topRow.removeFromLeft(modeComboW));
   topRow.removeFromLeft(colGap);
 
-  const bool isSample = (clickUI.modeCombo.getSelectedId() ==
-                         std::to_underlying(ClickUI::Mode::Sample));
-  if (isSample) {
-    clickUI.sample.loadButton.setBounds(topRow);
-  }
-  // Noiseモード: Decayは上段ノブ行のスロット3に移動済み—トップ行は何もなし
-
   const int slotW = area.getWidth() / 4;
   const int rowH = area.getHeight() / 2;
 
   // 上段4ノブ: Sample → Pitch/Amp/Drive/Decay, Noise → BP/Q/Drive/ClipType
-  if (isSample) {
+  // Noiseモード: Decayは上段ノブ行のスロット3に移動済み—トップ行は何もなし
+  if (const bool isSample = (clickUI.modeCombo.getSelectedId() ==
+                              std::to_underlying(ClickUI::Mode::Sample));
+      isSample) {
+    clickUI.sample.loadButton.setBounds(topRow);
     // スロット 0=Pitch, 1=Amp, 2=Drive/ClipType（Noiseと共用）, 3=Decay
     const std::array<juce::Slider *, 4> topKnobs = {
         {&clickUI.sample.pitch.slider, &clickUI.sample.amp.slider,
@@ -620,9 +617,8 @@ void BoomBabyAudioProcessorEditor::ClickUI::restoreModeState(
 }
 
 void BoomBabyAudioProcessorEditor::applyClickMode(int modeId) {
-  const bool isSample = (modeId == std::to_underlying(ClickUI::Mode::Sample));
-
-  if (isSample) {
+  if (const bool isSample = (modeId == std::to_underlying(ClickUI::Mode::Sample));
+      isSample) {
     // 旧モード（Noise）の共有パラメーターを保存
     clickUI.saveModeState(clickUI.noiseState);
     setClickModeVisible(true);
@@ -660,18 +656,26 @@ void BoomBabyAudioProcessorEditor::applyClickMode(int modeId) {
             static_cast<float>(clickUI.hpf.slider.getValue()));
   syncParam(ParamIDs::clickHpfQ,
             static_cast<float>(clickUI.hpf.qSlider.getValue()));
-  syncParam(ParamIDs::clickHpfSlope,
-            static_cast<float>(clickUI.hpf.slope.getSlope() == 48   ? 2
-                               : clickUI.hpf.slope.getSlope() == 24 ? 1
-                                                                    : 0));
+  {
+    constexpr std::array kSlopes = {12, 24, 48};
+    int idx = 0;
+    for (int i = 0; i < 3; ++i)
+      if (kSlopes[static_cast<std::size_t>(i)] == clickUI.hpf.slope.getSlope())
+        idx = i;
+    syncParam(ParamIDs::clickHpfSlope, static_cast<float>(idx));
+  }
   syncParam(ParamIDs::clickLpfFreq,
             static_cast<float>(clickUI.lpf.slider.getValue()));
   syncParam(ParamIDs::clickLpfQ,
             static_cast<float>(clickUI.lpf.qSlider.getValue()));
-  syncParam(ParamIDs::clickLpfSlope,
-            static_cast<float>(clickUI.lpf.slope.getSlope() == 48   ? 2
-                               : clickUI.lpf.slope.getSlope() == 24 ? 1
-                                                                    : 0));
+  {
+    constexpr std::array kSlopes = {12, 24, 48};
+    int idx = 0;
+    for (int i = 0; i < 3; ++i)
+      if (kSlopes[static_cast<std::size_t>(i)] == clickUI.lpf.slope.getSlope())
+        idx = i;
+    syncParam(ParamIDs::clickLpfSlope, static_cast<float>(idx));
+  }
   syncParam(ParamIDs::clickDrive,
             static_cast<float>(clickUI.noise.saturator.driveSlider.getValue()));
   syncParam(ParamIDs::clickClipType,

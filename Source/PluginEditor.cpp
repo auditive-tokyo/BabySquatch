@@ -1,7 +1,6 @@
 #include "PluginEditor.h"
 #include "DSP/Saturator.h"
 #include "GUI/LutBaker.h"
-#include "GUI/WaveformUtils.h"
 #include "ParamIDs.h"
 #include "PluginProcessor.h"
 #include <span>
@@ -486,8 +485,8 @@ juce::ValueTree BoomBabyAudioProcessorEditor::modeStateToTree(
   return t;
 }
 
-void BoomBabyAudioProcessorEditor::treeToModeState(const juce::ValueTree &t,
-                                                   ClickUI::ModeState &ms) const {
+void BoomBabyAudioProcessorEditor::treeToModeState(
+    const juce::ValueTree &t, ClickUI::ModeState &ms) const {
   ms.hpfFreq = static_cast<double>(t.getProperty("hpfFreq", 20.0));
   ms.hpfQ = static_cast<double>(t.getProperty("hpfQ", 0.71));
   ms.hpfSlope = static_cast<int>(t.getProperty("hpfSlope", 12));
@@ -680,32 +679,7 @@ void BoomBabyAudioProcessorEditor::timerCallback() {
   }
 
   // HPF / LPF をピクセルデータに適用
-  const double rawSr = processorRef.getSampleRate();
-  const float sr = rawSr > 0.0 ? static_cast<float>(rawSr) : 44100.0f;
-  if (const auto hpfFreq = static_cast<float>(directUI.hpf.slider.getValue());
-      hpfFreq > 20.5f) {
-    const auto hpfQ = static_cast<float>(directUI.hpf.qSlider.getValue());
-    const int hpfSlope = directUI.hpf.slope.getSlope();
-    int hpfStages = 1;
-    if (hpfSlope >= 48)
-      hpfStages = 4;
-    else if (hpfSlope >= 24)
-      hpfStages = 2;
-    SvfPassUtils::applySvfPass(pxMin, hpfFreq, hpfQ, hpfStages, 0, sr);
-    SvfPassUtils::applySvfPass(pxMax, hpfFreq, hpfQ, hpfStages, 0, sr);
-  }
-  if (const auto lpfFreq = static_cast<float>(directUI.lpf.slider.getValue());
-      lpfFreq < 19999.5f) {
-    const auto lpfQ = static_cast<float>(directUI.lpf.qSlider.getValue());
-    const int lpfSlope = directUI.lpf.slope.getSlope();
-    int lpfStages = 1;
-    if (lpfSlope >= 48)
-      lpfStages = 4;
-    else if (lpfSlope >= 24)
-      lpfStages = 2;
-    SvfPassUtils::applySvfPass(pxMin, lpfFreq, lpfQ, lpfStages, 1, sr);
-    SvfPassUtils::applySvfPass(pxMax, lpfFreq, lpfQ, lpfStages, 1, sr);
-  }
+  applyDirectFilters(pxMin, pxMax);
 
   // 処理済みデータをピクセルに戻す
   for (std::size_t i = 0; i < nPx; ++i)

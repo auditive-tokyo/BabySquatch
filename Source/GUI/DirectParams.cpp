@@ -513,6 +513,17 @@ void BoomBabyAudioProcessorEditor::refreshDirectProvider() {
   }
 
   // HPF / LPF を thumb データに適用（DSP: Saturator → HPF → LPF の順）
+  applyDirectFilters(*minPtr, *maxPtr);
+
+  envelopeCurveEditor.setDirectProvider(
+      [minPtr, maxPtr, durSec, ampDurMs, ampScale](float timeSec) {
+        return WaveformUtils::computeLutPreview(*minPtr, *maxPtr, durSec,
+                                                ampDurMs, ampScale, timeSec);
+      });
+}
+
+void BoomBabyAudioProcessorEditor::applyDirectFilters(
+    std::vector<float> &vecMin, std::vector<float> &vecMax) const {
   const double rawSr = processorRef.getSampleRate();
   const float sr = rawSr > 0.0 ? static_cast<float>(rawSr) : 44100.0f;
   if (const auto hpfFreq = static_cast<float>(directUI.hpf.slider.getValue());
@@ -524,8 +535,8 @@ void BoomBabyAudioProcessorEditor::refreshDirectProvider() {
       hpfStages = 4;
     else if (hpfSlope >= 24)
       hpfStages = 2;
-    SvfPassUtils::applySvfPass(*minPtr, hpfFreq, hpfQ, hpfStages, 0, sr);
-    SvfPassUtils::applySvfPass(*maxPtr, hpfFreq, hpfQ, hpfStages, 0, sr);
+    SvfPassUtils::applySvfPass(vecMin, hpfFreq, hpfQ, hpfStages, 0, sr);
+    SvfPassUtils::applySvfPass(vecMax, hpfFreq, hpfQ, hpfStages, 0, sr);
   }
   if (const auto lpfFreq = static_cast<float>(directUI.lpf.slider.getValue());
       lpfFreq < 19999.5f) {
@@ -536,13 +547,7 @@ void BoomBabyAudioProcessorEditor::refreshDirectProvider() {
       lpfStages = 4;
     else if (lpfSlope >= 24)
       lpfStages = 2;
-    SvfPassUtils::applySvfPass(*minPtr, lpfFreq, lpfQ, lpfStages, 1, sr);
-    SvfPassUtils::applySvfPass(*maxPtr, lpfFreq, lpfQ, lpfStages, 1, sr);
+    SvfPassUtils::applySvfPass(vecMin, lpfFreq, lpfQ, lpfStages, 1, sr);
+    SvfPassUtils::applySvfPass(vecMax, lpfFreq, lpfQ, lpfStages, 1, sr);
   }
-
-  envelopeCurveEditor.setDirectProvider(
-      [minPtr, maxPtr, durSec, ampDurMs, ampScale](float timeSec) {
-        return WaveformUtils::computeLutPreview(*minPtr, *maxPtr, durSec,
-                                                ampDurMs, ampScale, timeSec);
-      });
 }

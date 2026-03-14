@@ -621,34 +621,34 @@ void BoomBabyAudioProcessor::getStateInformation(juce::MemoryBlock &destData) {
 void BoomBabyAudioProcessor::setStateInformation(
     const void *data, // NOSONAR: JUCE API
     int sizeInBytes) {
-  if (auto xml = getXmlFromBinary(data, sizeInBytes)) {
-    if (xml->hasTagName(apvts_.state.getType())) {
-      apvts_.replaceState(juce::ValueTree::fromXml(*xml));
+  auto xml = getXmlFromBinary(data, sizeInBytes);
+  if (!xml || !xml->hasTagName(apvts_.state.getType()))
+    return;
 
-      // replaceState は parameterChanged を発火しないため、
-      // 全パラメータの DSP セッターを手動で呼び出す
-      for (const auto *id : kAllParamIDs)
-        parameterChanged(id, apvts_.getRawParameterValue(id)->load());
+  apvts_.replaceState(juce::ValueTree::fromXml(*xml));
 
-      // エンベロープ LUT を保存済み状態から再ベイク
-      bakeAllLutsFromState();
+  // replaceState は parameterChanged を発火しないため、
+  // 全パラメータの DSP セッターを手動で呼び出す
+  for (const auto *id : kAllParamIDs)
+    parameterChanged(id, apvts_.getRawParameterValue(id)->load());
 
-      // サンプルファイルを復元（エディタ無しでも音が出るように）
-      const auto clickPath =
+  // エンベロープ LUT を保存済み状態から再ベイク
+  bakeAllLutsFromState();
+
+  // サンプルファイルを復元（エディタ無しでも音が出るように）
+  if (const auto clickPath =
           apvts_.state.getProperty("clickSamplePath").toString();
-      if (clickPath.isNotEmpty()) {
-        const juce::File f{clickPath};
-        if (f.existsAsFile())
-          clickEngine_.sampler().loadSample(f);
-      }
-      const auto directPath =
+      clickPath.isNotEmpty()) {
+    const juce::File f{clickPath};
+    if (f.existsAsFile())
+      clickEngine_.sampler().loadSample(f);
+  }
+  if (const auto directPath =
           apvts_.state.getProperty("directSamplePath").toString();
-      if (directPath.isNotEmpty()) {
-        const juce::File f{directPath};
-        if (f.existsAsFile())
-          directEngine_.sampler().loadSample(f);
-      }
-    }
+      directPath.isNotEmpty()) {
+    const juce::File f{directPath};
+    if (f.existsAsFile())
+      directEngine_.sampler().loadSample(f);
   }
 }
 
