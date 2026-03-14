@@ -28,15 +28,108 @@ float computeNoiseEnv(float decayMs, float timeSec) {
              : 0.0f;
 }
 
-} // namespace
-
-void BoomBabyAudioProcessorEditor::clickRepaintOrRefresh() {
-  if (clickUI.modeCombo.getSelectedId() ==
-      std::to_underlying(ClickUI::Mode::Sample))
-    refreshClickSampleProvider();
-  else
-    envelopeCurveEditor.repaint();
+void saveModeStateFromWidgets(const auto &clk, auto &dst) {
+  dst.hpfFreq = clk.hpf.slider.getValue();
+  dst.hpfQ = clk.hpf.qSlider.getValue();
+  dst.hpfSlope = clk.hpf.slope.getSlope();
+  dst.lpfFreq = clk.lpf.slider.getValue();
+  dst.lpfQ = clk.lpf.qSlider.getValue();
+  dst.lpfSlope = clk.lpf.slope.getSlope();
+  dst.drive = clk.noise.saturator.driveSlider.getValue();
+  dst.clipType = clk.noise.saturator.clipType.getSelected();
 }
+
+void restoreModeStateToWidgets(auto &clk, const auto &src, auto &eng) {
+  clk.hpf.slider.setValue(src.hpfFreq, juce::dontSendNotification);
+  clk.hpf.qSlider.setValue(src.hpfQ, juce::dontSendNotification);
+  clk.hpf.slope.setSlope(src.hpfSlope);
+  clk.lpf.slider.setValue(src.lpfFreq, juce::dontSendNotification);
+  clk.lpf.qSlider.setValue(src.lpfQ, juce::dontSendNotification);
+  clk.lpf.slope.setSlope(src.lpfSlope);
+  clk.noise.saturator.driveSlider.setValue(src.drive,
+                                           juce::dontSendNotification);
+  clk.noise.saturator.clipType.setSelected(src.clipType);
+  eng.setHpfFreq(static_cast<float>(src.hpfFreq));
+  eng.setHpfQ(static_cast<float>(src.hpfQ));
+  eng.setHpfSlope(src.hpfSlope);
+  eng.setLpfFreq(static_cast<float>(src.lpfFreq));
+  eng.setLpfQ(static_cast<float>(src.lpfQ));
+  eng.setLpfSlope(src.lpfSlope);
+  eng.setDriveDb(static_cast<float>(src.drive));
+  eng.setClipType(src.clipType);
+}
+
+float computeNoiseAmplitudeScale(const auto &clickUI, float kSr) {
+  const auto q = static_cast<float>(clickUI.noise.bpf1.qSlider.getValue());
+  const auto freq =
+      static_cast<float>(clickUI.noise.bpf1.freqSlider.getValue());
+  const int slope = clickUI.noise.bpf1.slopeSelector.getSlope();
+  float stages = 1.0f;
+  if (slope >= 48)
+    stages = 4.0f;
+  else if (slope >= 24)
+    stages = 2.0f;
+  constexpr float kDefaultQxFc = 0.71f * 5000.0f;
+  const float bpfScale = std::pow(q * freq / kDefaultQxFc, stages * 0.5f);
+
+  const auto driveDb =
+      static_cast<float>(clickUI.noise.saturator.driveSlider.getValue());
+  const int clipType = clickUI.noise.saturator.clipType.getSelected();
+  constexpr float kDefaultSat = 0.7615942f; // tanh(1.0)
+  const float afterSat =
+      Saturator::process(bpfScale, driveDb, clipType) / kDefaultSat;
+
+  float filterScale = 1.0f;
+  if (const auto hpfFreq = static_cast<float>(clickUI.hpf.slider.getValue());
+      hpfFreq > 20.5f) {
+    const auto hpfQ = static_cast<float>(clickUI.hpf.qSlider.getValue());
+    const int hpfSlope = clickUI.hpf.slope.getSlope();
+    float hpfStages = 1.0f;
+    if (hpfSlope >= 48)
+      hpfStages = 4.0f;
+    else if (hpfSlope >= 24)
+      hpfStages = 2.0f;
+    const float g = std::tan(juce::MathConstants<float>::pi * hpfFreq / kSr);
+    const float gEval = std::tan(juce::MathConstants<float>::pi * freq / kSr);
+    const float R = 1.0f / (2.0f * hpfQ);
+    const float ratio = g / gEval;
+    const float mag = 1.0f / (1.0f + 2.0f * R * ratio + ratio * ratio);
+    filterScale *= std::pow(mag, hpfStages);
+  }
+  if (const auto lpfFreq = static_cast<float>(clickUI.lpf.slider.getValue());
+      lpfFreq < 19999.5f) {
+    const auto lpfQ = static_cast<float>(clickUI.lpf.qSlider.getValue());
+    const int lpfSlope = clickUI.lpf.slope.getSlope();
+    float lpfStages = 1.0f;
+    if (lpfSlope >= 48)
+      lpfStages = 4.0f;
+    else if (lpfSlope >= 24)
+      lpfStages = 2.0f;
+    const float g = std::tan(juce::MathConstants<float>::pi * lpfFreq / kSr);
+    const float gEval = std::tan(juce::MathConstants<float>::pi * freq / kSr);
+    const float R = 1.0f / (2.0f * lpfQ);
+    const float ratio = gEval / g;
+    const float mag = 1.0f / (1.0f + 2.0f * R * ratio + ratio * ratio);
+    filterScale *= std::pow(mag, lpfStages);
+  }
+  return afterSat * filterScale;
+}
+
+void launchSampleChooser(auto &fileChooser, auto onChosen) {
+  fileChooser = std::make_unique<juce::FileChooser>(
+      "Load Sample",
+      juce::File::getSpecialLocation(juce::File::userMusicDirectory),
+      "*.wav;*.aif;*.aiff;*.flac;*.ogg");
+  fileChooser->launchAsync(
+      juce::FileBrowserComponent::openMode |
+          juce::FileBrowserComponent::canSelectFiles,
+      [cb = std::move(onChosen)](const juce::FileChooser &fc) {
+        if (const auto r = fc.getResult(); r.existsAsFile())
+          cb(r);
+      });
+}
+
+} // namespace
 
 void BoomBabyAudioProcessorEditor::setupClickParams() {
   // ── Mode label ──
@@ -89,7 +182,7 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
     for (int i = 0; i < 3; ++i)
       if (kSlopes[static_cast<std::size_t>(i)] == dboct)
         syncParam(ParamIDs::clickHpfSlope, static_cast<float>(i));
-    clickRepaintOrRefresh();
+    clickUI.repaintOrRefreshFn();
   });
   // LPF slope selector
   clickUI.lpf.slope.setOnChange([this](int dboct) {
@@ -98,7 +191,7 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
     for (int i = 0; i < 3; ++i)
       if (kSlopes[static_cast<std::size_t>(i)] == dboct)
         syncParam(ParamIDs::clickLpfSlope, static_cast<float>(i));
-    clickRepaintOrRefresh();
+    clickUI.repaintOrRefreshFn();
   });
 
   // ── Sliders ──
@@ -180,7 +273,7 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
     syncParam(
         ParamIDs::clickDrive,
         static_cast<float>(clickUI.noise.saturator.driveSlider.getValue()));
-    clickRepaintOrRefresh();
+    clickUI.repaintOrRefreshFn();
   };
   addAndMakeVisible(clickUI.noise.saturator.driveSlider);
 
@@ -188,7 +281,7 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
   clickUI.noise.saturator.clipType.setOnChange([this](int t) {
     processorRef.clickEngine().setClipType(t);
     syncParam(ParamIDs::clickClipType, static_cast<float>(t));
-    clickRepaintOrRefresh();
+    clickUI.repaintOrRefreshFn();
   });
   clickUI.noise.saturator.clipType.setOnClicked([this] {
     switchEditTarget(EnvelopeCurveEditor::EditTarget::none);
@@ -210,7 +303,7 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
         static_cast<float>(clickUI.hpf.slider.getValue()));
     syncParam(ParamIDs::clickHpfFreq,
               static_cast<float>(clickUI.hpf.slider.getValue()));
-    clickRepaintOrRefresh();
+    clickUI.repaintOrRefreshFn();
   };
   addAndMakeVisible(clickUI.hpf.slider);
 
@@ -230,7 +323,7 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
         static_cast<float>(clickUI.hpf.qSlider.getValue()));
     syncParam(ParamIDs::clickHpfQ,
               static_cast<float>(clickUI.hpf.qSlider.getValue()));
-    clickRepaintOrRefresh();
+    clickUI.repaintOrRefreshFn();
   };
   addAndMakeVisible(clickUI.hpf.qSlider);
 
@@ -250,7 +343,7 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
         static_cast<float>(clickUI.lpf.slider.getValue()));
     syncParam(ParamIDs::clickLpfFreq,
               static_cast<float>(clickUI.lpf.slider.getValue()));
-    clickRepaintOrRefresh();
+    clickUI.repaintOrRefreshFn();
   };
   addAndMakeVisible(clickUI.lpf.slider);
 
@@ -270,7 +363,7 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
         static_cast<float>(clickUI.lpf.qSlider.getValue()));
     syncParam(ParamIDs::clickLpfQ,
               static_cast<float>(clickUI.lpf.qSlider.getValue()));
-    clickRepaintOrRefresh();
+    clickUI.repaintOrRefreshFn();
   };
   addAndMakeVisible(clickUI.lpf.qSlider);
 
@@ -369,7 +462,12 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
   clickUI.sample.loadButton.setColour(juce::TextButton::textColourOffId,
                                       UIConstants::Colours::labelText);
   clickUI.sample.loadButton.setVisible(false);
-  clickUI.sample.loadButton.onClick = [this] { onClickSampleLoadClicked(); };
+  clickUI.sample.loadButton.onClick = [this] {
+    launchSampleChooser(clickUI.sample.fileChooser,
+                        [this](const juce::File &f) {
+                          onClickSampleFileChosen(f);
+                        });
+  };
   clickUI.sample.loadButton.setOnFileDropped(
       [this](const juce::File &file) { onClickSampleFileChosen(file); });
   clickUI.sample.loadButton.setOnClear([this] {
@@ -396,7 +494,10 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
   clickUI.noiseProvider = [this](float timeSec) {
     const auto decayMs =
         static_cast<float>(clickUI.noise.decaySlider.getValue());
-    return computeNoiseEnv(decayMs, timeSec) * computeNoiseAmplitudeScale();
+    const double rawSr = processorRef.getSampleRate();
+    const float kSr = rawSr > 0.0 ? static_cast<float>(rawSr) : 44100.0f;
+    return computeNoiseEnv(decayMs, timeSec) *
+           computeNoiseAmplitudeScale(clickUI, kSr);
   };
 
   // モード変更時にコントロール表示切替 + プロバイダー更新
@@ -429,79 +530,6 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
   InfoBox::setInfo(clickUI.sample.amp.slider, InfoText::clickSampleAmp);
   InfoBox::setInfo(clickUI.sample.decay.slider, InfoText::clickSampleDecay);
   InfoBox::setInfo(clickUI.sample.loadButton, InfoText::clickSampleLoad);
-}
-
-float BoomBabyAudioProcessorEditor::computeNoiseAmplitudeScale() const {
-  // ── BPF 振幅: constant-skirt SVF-TPT, 出力 ∝ √(Q × fc) ──
-  const auto q = static_cast<float>(clickUI.noise.bpf1.qSlider.getValue());
-  const auto freq =
-      static_cast<float>(clickUI.noise.bpf1.freqSlider.getValue());
-  const int slope = clickUI.noise.bpf1.slopeSelector.getSlope();
-  float stages = 1.0f;
-  if (slope >= 48)
-    stages = 4.0f;
-  else if (slope >= 24)
-    stages = 2.0f;
-  constexpr float kDefaultQxFc = 0.71f * 5000.0f;
-  const float bpfScale = std::pow(q * freq / kDefaultQxFc, stages * 0.5f);
-
-  // ── Saturator: DSP では BPF 直後・Decay 前に適用 ──
-  // 非線形なので bpfScale ごと Saturator に通す。
-  // デフォルト値 (drive=0dB, Soft, bpfScale=1.0) で 1.0 に正規化。
-  const auto driveDb =
-      static_cast<float>(clickUI.noise.saturator.driveSlider.getValue());
-  const int clipType = clickUI.noise.saturator.clipType.getSelected();
-  constexpr float kDefaultSat = 0.7615942f; // tanh(1.0)
-  const float afterSat =
-      Saturator::process(bpfScale, driveDb, clipType) / kDefaultSat;
-
-  // ── HPF / LPF: BPF 中心周波数での SVF-TPT マグニチュード応答 ──
-  // Noise のエネルギーは BPF fc 付近に集中しているので、
-  // HPF/LPF の fc_bpf でのゲインを掛けるだけで精確な近似。
-  const double rawSr = processorRef.getSampleRate();
-  const float kSr = rawSr > 0.0 ? static_cast<float>(rawSr) : 44100.0f;
-  float filterScale = 1.0f;
-
-  if (const auto hpfFreq = static_cast<float>(clickUI.hpf.slider.getValue());
-      hpfFreq > 20.5f) {
-    const auto hpfQ = static_cast<float>(clickUI.hpf.qSlider.getValue());
-    const int hpfSlope = clickUI.hpf.slope.getSlope();
-    float hpfStages = 1.0f;
-    if (hpfSlope >= 48)
-      hpfStages = 4.0f;
-    else if (hpfSlope >= 24)
-      hpfStages = 2.0f;
-    // SVF-TPT HPF: |H_hp(f)| at f=freq (BPF center)
-    const float g = std::tan(juce::MathConstants<float>::pi * hpfFreq / kSr);
-    const float gEval = std::tan(juce::MathConstants<float>::pi * freq / kSr);
-    const float R = 1.0f / (2.0f * hpfQ);
-    // H_hp(z) のマグニチュード: 1 / (1 + 2Rg/gEval + g²/gEval²)
-    const float ratio = g / gEval;
-    const float mag = 1.0f / (1.0f + 2.0f * R * ratio + ratio * ratio);
-    filterScale *= std::pow(mag, hpfStages);
-  }
-
-  if (const auto lpfFreq = static_cast<float>(clickUI.lpf.slider.getValue());
-      lpfFreq < 19999.5f) {
-    const auto lpfQ = static_cast<float>(clickUI.lpf.qSlider.getValue());
-    const int lpfSlope = clickUI.lpf.slope.getSlope();
-    float lpfStages = 1.0f;
-    if (lpfSlope >= 48)
-      lpfStages = 4.0f;
-    else if (lpfSlope >= 24)
-      lpfStages = 2.0f;
-    // SVF-TPT LPF: |H_lp(f)| at f=freq (BPF center)
-    const float g = std::tan(juce::MathConstants<float>::pi * lpfFreq / kSr);
-    const float gEval = std::tan(juce::MathConstants<float>::pi * freq / kSr);
-    const float R = 1.0f / (2.0f * lpfQ);
-    // H_lp(z) のマグニチュード: g²/gEval² / (1 + 2Rg/gEval + g²/gEval²)
-    // → 1 / (gEval²/g² + 2R·gEval/g + 1)
-    const float ratio = gEval / g;
-    const float mag = 1.0f / (1.0f + 2.0f * R * ratio + ratio * ratio);
-    filterScale *= std::pow(mag, lpfStages);
-  }
-
-  return afterSat * filterScale;
 }
 
 void BoomBabyAudioProcessorEditor::layoutClickParams(
@@ -579,21 +607,6 @@ void BoomBabyAudioProcessorEditor::layoutClickParams(
     botKnobs[idx]->setBounds(slot);
   }
 }
-void BoomBabyAudioProcessorEditor::onClickSampleLoadClicked() {
-  clickUI.sample.fileChooser = std::make_unique<juce::FileChooser>(
-      "Load Sample",
-      juce::File::getSpecialLocation(juce::File::userMusicDirectory),
-      "*.wav;*.aif;*.aiff;*.flac;*.ogg");
-  clickUI.sample.fileChooser->launchAsync(
-      juce::FileBrowserComponent::openMode |
-          juce::FileBrowserComponent::canSelectFiles,
-      [this](const juce::FileChooser &fc) {
-        const auto result = fc.getResult();
-        if (result.existsAsFile())
-          onClickSampleFileChosen(result);
-      });
-}
-
 void BoomBabyAudioProcessorEditor::setClickModeVisible(bool isSample) {
   for (juce::Component *c :
        {static_cast<juce::Component *>(&clickUI.noise.decayLabel),
@@ -619,50 +632,16 @@ void BoomBabyAudioProcessorEditor::setClickModeVisible(bool isSample) {
     c->setVisible(isSample);
 }
 
-// ── モード切替: 共有ウィジェットの状態を保存 ──
-void BoomBabyAudioProcessorEditor::ClickUI::saveModeState(
-    ModeState &dst) const {
-  dst.hpfFreq = hpf.slider.getValue();
-  dst.hpfQ = hpf.qSlider.getValue();
-  dst.hpfSlope = hpf.slope.getSlope();
-  dst.lpfFreq = lpf.slider.getValue();
-  dst.lpfQ = lpf.qSlider.getValue();
-  dst.lpfSlope = lpf.slope.getSlope();
-  dst.drive = noise.saturator.driveSlider.getValue();
-  dst.clipType = noise.saturator.clipType.getSelected();
-}
-
-// ── モード切替: 共有ウィジェットへ状態を復元し DSP へ反映 ──
-void BoomBabyAudioProcessorEditor::ClickUI::restoreModeState(
-    const ModeState &src, ClickEngine &eng) {
-  hpf.slider.setValue(src.hpfFreq, juce::dontSendNotification);
-  hpf.qSlider.setValue(src.hpfQ, juce::dontSendNotification);
-  hpf.slope.setSlope(src.hpfSlope);
-  lpf.slider.setValue(src.lpfFreq, juce::dontSendNotification);
-  lpf.qSlider.setValue(src.lpfQ, juce::dontSendNotification);
-  lpf.slope.setSlope(src.lpfSlope);
-  noise.saturator.driveSlider.setValue(src.drive, juce::dontSendNotification);
-  noise.saturator.clipType.setSelected(src.clipType);
-
-  eng.setHpfFreq(static_cast<float>(src.hpfFreq));
-  eng.setHpfQ(static_cast<float>(src.hpfQ));
-  eng.setHpfSlope(src.hpfSlope);
-  eng.setLpfFreq(static_cast<float>(src.lpfFreq));
-  eng.setLpfQ(static_cast<float>(src.lpfQ));
-  eng.setLpfSlope(src.lpfSlope);
-  eng.setDriveDb(static_cast<float>(src.drive));
-  eng.setClipType(src.clipType);
-}
-
 void BoomBabyAudioProcessorEditor::applyClickMode(int modeId) {
   if (const bool isSample =
           (modeId == std::to_underlying(ClickUI::Mode::Sample));
       isSample) {
     // 旧モード（Noise）の共有パラメーターを保存
-    clickUI.saveModeState(clickUI.noiseState);
+    saveModeStateFromWidgets(clickUI, clickUI.noiseState);
     setClickModeVisible(true);
     // Sample モードの保存値を復元
-    clickUI.restoreModeState(clickUI.sampleState, processorRef.clickEngine());
+    restoreModeStateToWidgets(clickUI, clickUI.sampleState,
+                              processorRef.clickEngine());
     // Sample 専用パラメーターを DSP へ
     processorRef.clickEngine().setPitchSemitones(
         static_cast<float>(clickUI.sample.pitch.slider.getValue()));
@@ -672,10 +651,11 @@ void BoomBabyAudioProcessorEditor::applyClickMode(int modeId) {
     refreshClickSampleProvider();
   } else {
     // 旧モード（Sample）の共有パラメーターを保存
-    clickUI.saveModeState(clickUI.sampleState);
+    saveModeStateFromWidgets(clickUI, clickUI.sampleState);
     setClickModeVisible(false);
     // Noise モードの保存値を復元
-    clickUI.restoreModeState(clickUI.noiseState, processorRef.clickEngine());
+    restoreModeStateToWidgets(clickUI, clickUI.noiseState,
+                              processorRef.clickEngine());
     // Noise 専用パラメーターを DSP へ
     processorRef.clickEngine().setDecayMs(
         static_cast<float>(clickUI.noise.decaySlider.getValue()));

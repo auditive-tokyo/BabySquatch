@@ -257,6 +257,14 @@ BoomBabyAudioProcessorEditor::BoomBabyAudioProcessorEditor(
   setupPanelRouting(p);
   setupEnvelopeCurveEditor();
   setupClickParams();
+  // repaintOrRefreshFn: Noise → 再描画、Sample → サムネイル更新
+  clickUI.repaintOrRefreshFn = [this] {
+    if (clickUI.modeCombo.getSelectedId() ==
+        std::to_underlying(ClickUI::Mode::Sample))
+      refreshClickSampleProvider();
+    else
+      envelopeCurveEditor.repaint();
+  };
   setupDirectParams();
   setupSubKnobsRow();
   setupWaveShapeCombo();
@@ -569,10 +577,7 @@ void treeToEnvelope(const juce::ValueTree &tree, EnvelopeData &env) {
 
 const juce::Identifier kClickModeStateTag{"CLICK_MODE_STATE"};
 
-} // namespace
-
-juce::ValueTree BoomBabyAudioProcessorEditor::modeStateToTree(
-    const char *name, const ClickUI::ModeState &ms) const {
+juce::ValueTree modeStateToTree(const char *name, const auto &ms) {
   juce::ValueTree t{kClickModeStateTag};
   t.setProperty("name", juce::String(name), nullptr);
   t.setProperty("hpfFreq", ms.hpfFreq, nullptr);
@@ -586,8 +591,7 @@ juce::ValueTree BoomBabyAudioProcessorEditor::modeStateToTree(
   return t;
 }
 
-void BoomBabyAudioProcessorEditor::treeToModeState(
-    const juce::ValueTree &t, ClickUI::ModeState &ms) const {
+void treeToModeState(const juce::ValueTree &t, auto &ms) {
   ms.hpfFreq = static_cast<double>(t.getProperty("hpfFreq", 20.0));
   ms.hpfQ = static_cast<double>(t.getProperty("hpfQ", 0.71));
   ms.hpfSlope = static_cast<int>(t.getProperty("hpfSlope", 12));
@@ -597,6 +601,39 @@ void BoomBabyAudioProcessorEditor::treeToModeState(
   ms.drive = static_cast<double>(t.getProperty("drive", 0.0));
   ms.clipType = static_cast<int>(t.getProperty("clipType", 0));
 }
+
+void saveModeStateFromWidgets(const auto &clk, auto &dst) {
+  dst.hpfFreq = clk.hpf.slider.getValue();
+  dst.hpfQ = clk.hpf.qSlider.getValue();
+  dst.hpfSlope = clk.hpf.slope.getSlope();
+  dst.lpfFreq = clk.lpf.slider.getValue();
+  dst.lpfQ = clk.lpf.qSlider.getValue();
+  dst.lpfSlope = clk.lpf.slope.getSlope();
+  dst.drive = clk.noise.saturator.driveSlider.getValue();
+  dst.clipType = clk.noise.saturator.clipType.getSelected();
+}
+
+void restoreModeStateToWidgets(auto &clk, const auto &src, auto &eng) {
+  clk.hpf.slider.setValue(src.hpfFreq, juce::dontSendNotification);
+  clk.hpf.qSlider.setValue(src.hpfQ, juce::dontSendNotification);
+  clk.hpf.slope.setSlope(src.hpfSlope);
+  clk.lpf.slider.setValue(src.lpfFreq, juce::dontSendNotification);
+  clk.lpf.qSlider.setValue(src.lpfQ, juce::dontSendNotification);
+  clk.lpf.slope.setSlope(src.lpfSlope);
+  clk.noise.saturator.driveSlider.setValue(src.drive,
+                                           juce::dontSendNotification);
+  clk.noise.saturator.clipType.setSelected(src.clipType);
+  eng.setHpfFreq(static_cast<float>(src.hpfFreq));
+  eng.setHpfQ(static_cast<float>(src.hpfQ));
+  eng.setHpfSlope(src.hpfSlope);
+  eng.setLpfFreq(static_cast<float>(src.lpfFreq));
+  eng.setLpfQ(static_cast<float>(src.lpfQ));
+  eng.setLpfSlope(src.lpfSlope);
+  eng.setDriveDb(static_cast<float>(src.drive));
+  eng.setClipType(src.clipType);
+}
+
+} // namespace
 
 void BoomBabyAudioProcessorEditor::saveEnvelopesToState() {
   auto &state = processorRef.getAPVTS().state;
@@ -624,10 +661,7 @@ void BoomBabyAudioProcessorEditor::saveEnvelopesToState() {
                              std::to_underlying(ClickUI::Mode::Sample);
   auto noiseSt = clickUI.noiseState;
   auto sampleSt = clickUI.sampleState;
-  if (clickIsSample)
-    clickUI.saveModeState(sampleSt);
-  else
-    clickUI.saveModeState(noiseSt);
+  saveModeStateFromWidgets(clickUI, clickIsSample ? sampleSt : noiseSt);
 
   for (int i = state.getNumChildren(); --i >= 0;)
     if (state.getChild(i).hasType(kClickModeStateTag))
@@ -699,9 +733,10 @@ void BoomBabyAudioProcessorEditor::loadEnvelopesFromState() {
   // アクティブモードのウィジェットに反映
   const bool clickIsSample = clickUI.modeCombo.getSelectedId() ==
                              std::to_underlying(ClickUI::Mode::Sample);
-  clickUI.restoreModeState(clickIsSample ? clickUI.sampleState
+  restoreModeStateToWidgets(clickUI,
+                            clickIsSample ? clickUI.sampleState
                                          : clickUI.noiseState,
-                           processorRef.clickEngine());
+                            processorRef.clickEngine());
 
   // 波形プロバイダーを正しいモードに切り替える
   // （setupClickParams が常に Noise プロバイダーをセットするため）

@@ -20,6 +20,21 @@ void styleKnobLabelDirect(juce::Label &label, const juce::String &text,
   label.setColour(juce::Label::textColourId, UIConstants::Colours::labelText);
   label.setJustificationType(juce::Justification::centred);
 }
+
+void launchSampleChooser(auto &fileChooser, auto onChosen) {
+  fileChooser = std::make_unique<juce::FileChooser>(
+      "Load Sample",
+      juce::File::getSpecialLocation(juce::File::userMusicDirectory),
+      "*.wav;*.aif;*.aiff;*.flac;*.ogg");
+  fileChooser->launchAsync(
+      juce::FileBrowserComponent::openMode |
+          juce::FileBrowserComponent::canSelectFiles,
+      [cb = std::move(onChosen)](const juce::FileChooser &fc) {
+        if (const auto r = fc.getResult(); r.existsAsFile())
+          cb(r);
+      });
+}
+
 } // namespace
 
 void BoomBabyAudioProcessorEditor::setupDirectParams() {
@@ -51,7 +66,12 @@ void BoomBabyAudioProcessorEditor::setupDirectParams() {
   directUI.sample.loadButton.setColour(juce::TextButton::textColourOffId,
                                        UIConstants::Colours::labelText);
   directUI.sample.loadButton.setVisible(false);
-  directUI.sample.loadButton.onClick = [this] { onSampleLoadClicked(); };
+  directUI.sample.loadButton.onClick = [this] {
+    launchSampleChooser(directUI.sample.fileChooser,
+                        [this](const juce::File &f) {
+                          onSampleFileChosen(f);
+                        });
+  };
   directUI.sample.loadButton.setOnFileDropped(
       [this](const juce::File &file) { onSampleFileChosen(file); });
   directUI.sample.loadButton.setOnClear([this] {
@@ -487,21 +507,6 @@ void BoomBabyAudioProcessorEditor::refreshDirectPassthroughUI() {
 
   // Auto Trigger: パススルーモード時は自動有効、サンプルモード時は無効
   processorRef.directMode().detector().setEnabled(isPassthrough);
-}
-
-void BoomBabyAudioProcessorEditor::onSampleLoadClicked() {
-  directUI.sample.fileChooser = std::make_unique<juce::FileChooser>(
-      "Load Sample",
-      juce::File::getSpecialLocation(juce::File::userMusicDirectory),
-      "*.wav;*.aif;*.aiff;*.flac;*.ogg");
-  directUI.sample.fileChooser->launchAsync(
-      juce::FileBrowserComponent::openMode |
-          juce::FileBrowserComponent::canSelectFiles,
-      [this](const juce::FileChooser &fc) {
-        const auto result = fc.getResult();
-        if (result.existsAsFile())
-          onSampleFileChosen(result);
-      });
 }
 
 void BoomBabyAudioProcessorEditor::onSampleFileChosen(const juce::File &file) {

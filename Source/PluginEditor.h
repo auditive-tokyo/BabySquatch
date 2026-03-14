@@ -11,6 +11,28 @@
 
 #include <array>
 
+/// SUB展開パネル: 波形選択（プルダウン）用 LAF
+struct DarkComboLAF : public juce::LookAndFeel_V4 {
+  DarkComboLAF() {
+    setColour(juce::ComboBox::backgroundColourId, juce::Colour(0xFF333333));
+    setColour(juce::ComboBox::textColourId, juce::Colour(0xFFDDDDDD));
+    setColour(juce::ComboBox::outlineColourId,
+              juce::Colours::white.withAlpha(0.20f));
+    setColour(juce::ComboBox::arrowColourId, juce::Colour(0xFFBBBBBB));
+    setColour(juce::PopupMenu::backgroundColourId, juce::Colour(0xFF2A2A2A));
+    setColour(juce::PopupMenu::textColourId, juce::Colour(0xFFDDDDDD));
+    setColour(juce::PopupMenu::highlightedBackgroundColourId,
+              juce::Colour(0xFF00AAFF).withAlpha(0.6f));
+    setColour(juce::PopupMenu::highlightedTextColourId, juce::Colours::white);
+  }
+  juce::Font getComboBoxFont(juce::ComboBox &) override {
+    return juce::Font(juce::FontOptions(UIConstants::fontSizeMedium));
+  }
+  juce::Font getPopupMenuFont() override {
+    return juce::Font(juce::FontOptions(UIConstants::fontSizeMedium));
+  }
+};
+
 class BoomBabyAudioProcessorEditor final : public juce::AudioProcessorEditor,
                                            private juce::Timer {
 public:
@@ -41,20 +63,16 @@ private:
   void setupDirectParams();
   void layoutDirectParams(juce::Rectangle<int> area);
   void refreshDirectPassthroughUI();
-  void onSampleLoadClicked();
   void onSampleFileChosen(const juce::File &file);
   void refreshDirectProvider();
   /// directUI の HPF/LPF をベクター対に適用（refreshDirectProvider /
   /// timerCallback 共通）
   void applyDirectFilters(std::vector<float> &vecMin,
                           std::vector<float> &vecMax) const;
-  void onClickSampleLoadClicked();
   void onClickSampleFileChosen(const juce::File &file);
   void refreshClickSampleProvider();
-  void clickRepaintOrRefresh();
   void setClickModeVisible(bool isSample);
   void applyClickMode(int modeId);
-  float computeNoiseAmplitudeScale() const;
   void updateDisplayDuration();
   void setupLengthBox();
   void setupWaveShapeCombo();
@@ -102,26 +120,6 @@ private:
   ColouredSliderLAF subKnobLAF{UIConstants::Colours::subArc,
                                UIConstants::Colours::subThumb};
   // ── SUB展開パネル: 波形選択（プルダウン）用 LAF ──
-  struct DarkComboLAF : public juce::LookAndFeel_V4 {
-    DarkComboLAF() {
-      setColour(juce::ComboBox::backgroundColourId, juce::Colour(0xFF333333));
-      setColour(juce::ComboBox::textColourId, juce::Colour(0xFFDDDDDD));
-      setColour(juce::ComboBox::outlineColourId,
-                juce::Colours::white.withAlpha(0.20f));
-      setColour(juce::ComboBox::arrowColourId, juce::Colour(0xFFBBBBBB));
-      setColour(juce::PopupMenu::backgroundColourId, juce::Colour(0xFF2A2A2A));
-      setColour(juce::PopupMenu::textColourId, juce::Colour(0xFFDDDDDD));
-      setColour(juce::PopupMenu::highlightedBackgroundColourId,
-                juce::Colour(0xFF00AAFF).withAlpha(0.6f));
-      setColour(juce::PopupMenu::highlightedTextColourId, juce::Colours::white);
-    }
-    juce::Font getComboBoxFont(juce::ComboBox &) override {
-      return juce::Font(juce::FontOptions(UIConstants::fontSizeMedium));
-    }
-    juce::Font getPopupMenuFont() override {
-      return juce::Font(juce::FontOptions(UIConstants::fontSizeMedium));
-    }
-  };
   DarkComboLAF darkComboLAF;
   // ── SUB展開パネル: Oscノブ行 / 波形選択 / Length（まとめて管理） ──
   struct SubUI {
@@ -211,18 +209,10 @@ private:
     ModeState noiseState;  ///< Noise モード保存値
     ModeState sampleState; ///< Sample モード保存値
     std::function<float(float)> noiseProvider;
-
-    /// 共有ウィジェットの状態を ModeState へ保存
-    void saveModeState(ModeState &dst) const;
-    /// ModeState から共有ウィジェット＋DSP へ復元
-    void restoreModeState(const ModeState &src, ClickEngine &eng);
+    /// Noise → repaint, Sample → refreshClickSampleProvider
+    std::function<void()> repaintOrRefreshFn;
   };
   ClickUI clickUI;
-  /// ModeState → ValueTree 変換
-  juce::ValueTree modeStateToTree(const char *name,
-                                  const ClickUI::ModeState &ms) const;
-  /// ValueTree → ModeState 変換
-  void treeToModeState(const juce::ValueTree &t, ClickUI::ModeState &ms) const;
 
   // ── DIRECTパネル ──
   struct DirectUI {
