@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <utility>
 #include <juce_core/juce_core.h>
 
 // ── 帯域境界（Hz）: 20, 40, 80, … , 10240, 20480 ──
@@ -150,7 +151,7 @@ void SubOscillator::setFrequencyHz(float hz) {
 // setWaveShape / getWaveShape
 // ────────────────────────────────────────────────────
 void SubOscillator::setWaveShape(WaveShape shape) {
-  currentShape.store(static_cast<int>(shape));
+  currentShape.store(std::to_underlying(shape));
 }
 
 WaveShape SubOscillator::getWaveShape() const {
