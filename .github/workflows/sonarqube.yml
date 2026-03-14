@@ -30,7 +30,7 @@ jobs:
 
       - name: Build with Build Wrapper
         run: >
-          build-wrapper-macosx-clang --out-dir ${{ env.BUILD_WRAPPER_OUT_DIR }}
+          build-wrapper-macosx-x86 --out-dir ${{ env.BUILD_WRAPPER_OUT_DIR }}
           cmake --build build-ci --target BoomBaby_Standalone -- -j$(sysctl -n hw.ncpu)
 
       - name: SonarQube Scan
