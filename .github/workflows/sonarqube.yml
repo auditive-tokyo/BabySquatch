@@ -1,0 +1,42 @@
+name: SonarQube
+
+on:
+  push:
+    branches-ignore:
+      - "release/**"
+    paths-ignore:
+      - "*.md"
+      - "docs/**"
+
+jobs:
+  build:
+    name: Build and analyze
+    runs-on: macos-latest
+    env:
+      BUILD_WRAPPER_OUT_DIR: build_wrapper_output_directory
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Clone JUCE
+        run: git clone --depth 1 --branch 8.0.6 https://github.com/juce-framework/JUCE.git /tmp/JUCE
+
+      - name: Configure CMake
+        run: cmake -S . -B build-ci -DJUCE_PATH=/tmp/JUCE -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
+      - name: Install Build Wrapper
+        uses: SonarSource/sonarqube-scan-action/install-build-wrapper@v6
+
+      - name: Build with Build Wrapper
+        run: >
+          build-wrapper-macosx-clang --out-dir ${{ env.BUILD_WRAPPER_OUT_DIR }}
+          cmake --build build-ci --target BoomBaby_Standalone -- -j$(sysctl -n hw.ncpu)
+
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v6
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            --define "sonar.cfamily.compile-commands=${{ env.BUILD_WRAPPER_OUT_DIR }}/compile_commands.json"

@@ -8,8 +8,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # SonarQube用のコンパイルコマンド出力
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# JUCEのパスを指定
-add_subdirectory(/Volumes/AUDITIVE/development/JUCE JUCE)
+# JUCEのパスを指定（CI では -DJUCE_PATH=... で上書き）
+set(JUCE_PATH "/Volumes/AUDITIVE/development/JUCE" CACHE PATH "Path to JUCE")
+add_subdirectory(${JUCE_PATH} JUCE)
 
 juce_add_plugin(BoomBaby
     COMPANY_NAME "Auditive"
