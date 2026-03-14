@@ -7,7 +7,7 @@ void InfoBox::paint(juce::Graphics &g) {
   if (currentText_.isEmpty())
     return;
 
-  g.setColour(UIConstants::Colours::labelText.withAlpha(0.85f));
+  g.setColour(UIConstants::Colours::infoBoxText);
   g.setFont(juce::Font(juce::FontOptions(11.0f)));
 
   const auto area = getLocalBounds().reduced(4, 2);

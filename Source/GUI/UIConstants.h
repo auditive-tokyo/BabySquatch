@@ -75,6 +75,9 @@ inline const juce::Colour knobBg{0xFF333333};
 inline const juce::Colour text{0xFFDDDDDD};
 inline const juce::Colour labelText{0xFFBBBBBB};
 
+// InfoBox
+inline const juce::Colour infoBoxText{0xFFFFFFFF};
+
 // 波形表示エリア
 inline const juce::Colour waveformBg{0xFF1E1E1E};
 

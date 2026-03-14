@@ -8,6 +8,10 @@ on:
       - "*.md"
       - "docs/**"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     name: Build and analyze
@@ -15,7 +19,7 @@ jobs:
     env:
       BUILD_WRAPPER_OUT_DIR: build_wrapper_output_directory
     steps:
-      - uses: actions/checkout@v6 # NOSONAR
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
 
@@ -26,7 +30,7 @@ jobs:
         run: cmake -S . -B build-ci -DJUCE_PATH=/tmp/JUCE -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 
       - name: Install Build Wrapper
-        uses: SonarSource/sonarqube-scan-action/install-build-wrapper@v6 # NOSONAR
+        uses: SonarSource/sonarqube-scan-action/install-build-wrapper@fd88b7d7ccbaefd23d8f36f73b59db7a3d246602 # v6
 
       - name: Build with Build Wrapper
         run: >
@@ -34,7 +38,7 @@ jobs:
           cmake --build build-ci --target BoomBaby_Standalone -- -j$(sysctl -n hw.ncpu)
 
       - name: SonarQube Scan
-        uses: SonarSource/sonarqube-scan-action@v6 # NOSONAR
+        uses: SonarSource/sonarqube-scan-action@fd88b7d7ccbaefd23d8f36f73b59db7a3d246602 # v6
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
