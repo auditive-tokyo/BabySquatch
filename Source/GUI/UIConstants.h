@@ -210,6 +210,7 @@ public:
       : labels_(labels), accent_(accentColour) {}
 
   void setOnChange(std::function<void(int)> cb) { onChange_ = std::move(cb); }
+  void setOnClicked(std::function<void()> cb) { onClicked_ = std::move(cb); }
   int getSelected() const noexcept { return selected_; }
 
   void setSelected(int idx, bool notify = false) {
@@ -243,10 +244,13 @@ public:
       if (onChange_)
         onChange_(selected_);
     }
+    if (onClicked_)
+      onClicked_();
   }
 
 private:
   std::function<void(int)> onChange_;
+  std::function<void()> onClicked_;
   Labels labels_;
   juce::Colour accent_;
   int selected_ = 0;

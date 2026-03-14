@@ -205,9 +205,11 @@ void BoomBabyAudioProcessorEditor::setupSubKnobsRow() {
 
   // ClipType セレクター（Soft / Hard / Tube）— Saturate ノブ上部ラベルを兼ねる
   subUI.saturateClipType.setOnChange([this](int t) {
-    switchEditTarget(EnvelopeCurveEditor::EditTarget::saturate);
     processorRef.subEngine().oscillator().setClipType(t);
     syncParam(ParamIDs::subSatClipType, static_cast<float>(t));
+  });
+  subUI.saturateClipType.setOnClicked([this] {
+    switchEditTarget(EnvelopeCurveEditor::EditTarget::saturate);
   });
   addAndMakeVisible(subUI.saturateClipType);
 
