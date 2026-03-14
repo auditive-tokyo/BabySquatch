@@ -10,8 +10,9 @@
 
 #include <array>
 
-class BoomBabyAudioProcessorEditor : public juce::AudioProcessorEditor,
-                                        private juce::Timer {
+class BoomBabyAudioProcessorEditor final
+    : public juce::AudioProcessorEditor,
+      private juce::Timer {
 public:
   explicit BoomBabyAudioProcessorEditor(BoomBabyAudioProcessor &);
   ~BoomBabyAudioProcessorEditor() override;
@@ -208,6 +209,11 @@ private:
     void restoreModeState(const ModeState &src, ClickEngine &eng);
   };
   ClickUI clickUI;
+  /// ModeState → ValueTree 変換
+  juce::ValueTree modeStateToTree(const char *name,
+                                  const ClickUI::ModeState &ms);
+  /// ValueTree → ModeState 変換
+  void treeToModeState(const juce::ValueTree &t, ClickUI::ModeState &ms);
 
   // ── DIRECTパネル ──
   struct DirectUI {

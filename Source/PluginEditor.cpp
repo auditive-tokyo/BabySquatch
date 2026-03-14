@@ -86,7 +86,7 @@ void BoomBabyAudioProcessorEditor::onEnvelopeChanged() {
   bakeLut(envDatas.dist, processorRef.subEngine().distLut(), durationMs);
   bakeLut(envDatas.mix, processorRef.subEngine().mixLut(), durationMs);
   bakeLut(envDatas.clickAmp, processorRef.clickEngine().clickAmpLut(),
-          durationMs);
+          static_cast<float>(clickUI.sample.decay.slider.getValue()));
   bakeLut(envDatas.directAmp, processorRef.directEngine().directAmpLut(),
           processorRef.directEngine().directAmpLut().getDurationMs());
   // 1点=ノブ制御（有効化＋ポイント値をノブに反映）、2点以上=エンベロープ制御（無効化）
@@ -419,6 +419,9 @@ void BoomBabyAudioProcessorEditor::syncUIFromState() {
 
   // ── エンベロープデータ復元＋LUT 再ベイク ──
   loadEnvelopesFromState();
+
+  // モード変更後のレイアウト更新（Sample ノブの bounds を確定させる）
+  resized();
 }
 
 // ────────────────────────────────────────────────────
@@ -463,7 +466,37 @@ void treeToEnvelope(const juce::ValueTree &tree, EnvelopeData &env) {
     env.setSegmentCurve(idx, c);
   }
 }
+
+const juce::Identifier kClickModeStateTag{"CLICK_MODE_STATE"};
+
 } // namespace
+
+juce::ValueTree BoomBabyAudioProcessorEditor::modeStateToTree(
+    const char *name, const ClickUI::ModeState &ms) {
+  juce::ValueTree t{kClickModeStateTag};
+  t.setProperty("name", juce::String(name), nullptr);
+  t.setProperty("hpfFreq", ms.hpfFreq, nullptr);
+  t.setProperty("hpfQ", ms.hpfQ, nullptr);
+  t.setProperty("hpfSlope", ms.hpfSlope, nullptr);
+  t.setProperty("lpfFreq", ms.lpfFreq, nullptr);
+  t.setProperty("lpfQ", ms.lpfQ, nullptr);
+  t.setProperty("lpfSlope", ms.lpfSlope, nullptr);
+  t.setProperty("drive", ms.drive, nullptr);
+  t.setProperty("clipType", ms.clipType, nullptr);
+  return t;
+}
+
+void BoomBabyAudioProcessorEditor::treeToModeState(
+    const juce::ValueTree &t, ClickUI::ModeState &ms) {
+  ms.hpfFreq = static_cast<double>(t.getProperty("hpfFreq", 20.0));
+  ms.hpfQ = static_cast<double>(t.getProperty("hpfQ", 0.71));
+  ms.hpfSlope = static_cast<int>(t.getProperty("hpfSlope", 12));
+  ms.lpfFreq = static_cast<double>(t.getProperty("lpfFreq", 20000.0));
+  ms.lpfQ = static_cast<double>(t.getProperty("lpfQ", 0.71));
+  ms.lpfSlope = static_cast<int>(t.getProperty("lpfSlope", 12));
+  ms.drive = static_cast<double>(t.getProperty("drive", 0.0));
+  ms.clipType = static_cast<int>(t.getProperty("clipType", 0));
+}
 
 void BoomBabyAudioProcessorEditor::saveEnvelopesToState() {
   auto &state = processorRef.getAPVTS().state;
@@ -480,6 +513,27 @@ void BoomBabyAudioProcessorEditor::saveEnvelopesToState() {
   state.addChild(envelopeToTree("mix", envDatas.mix), -1, nullptr);
   state.addChild(envelopeToTree("clickAmp", envDatas.clickAmp), -1, nullptr);
   state.addChild(envelopeToTree("directAmp", envDatas.directAmp), -1, nullptr);
+
+  // サンプルファイルパスを保存
+  state.setProperty("directSamplePath", directUI.sample.loadedFilePath,
+                    nullptr);
+  state.setProperty("clickSamplePath", clickUI.sample.loadedFilePath, nullptr);
+
+  // Click ModeState を保存（アクティブモードはウィジェットから取得）
+  const bool clickIsSample = clickUI.modeCombo.getSelectedId() ==
+                             std::to_underlying(ClickUI::Mode::Sample);
+  auto noiseSt = clickUI.noiseState;
+  auto sampleSt = clickUI.sampleState;
+  if (clickIsSample)
+    clickUI.saveModeState(sampleSt);
+  else
+    clickUI.saveModeState(noiseSt);
+
+  for (int i = state.getNumChildren(); --i >= 0;)
+    if (state.getChild(i).hasType(kClickModeStateTag))
+      state.removeChild(i, nullptr);
+  state.addChild(modeStateToTree("clickNoise", noiseSt), -1, nullptr);
+  state.addChild(modeStateToTree("clickSample", sampleSt), -1, nullptr);
 }
 
 void BoomBabyAudioProcessorEditor::loadEnvelopesFromState() {
@@ -500,9 +554,12 @@ void BoomBabyAudioProcessorEditor::loadEnvelopesFromState() {
     EnvelopeData &data;
   };
   std::array<EnvEntry, 6> entries = {{
-      {"amp", envDatas.amp},       {"freq", envDatas.freq},
-      {"dist", envDatas.dist},     {"mix", envDatas.mix},
-      {"clickAmp", envDatas.clickAmp}, {"directAmp", envDatas.directAmp},
+      {"amp", envDatas.amp},
+      {"freq", envDatas.freq},
+      {"dist", envDatas.dist},
+      {"mix", envDatas.mix},
+      {"clickAmp", envDatas.clickAmp},
+      {"directAmp", envDatas.directAmp},
   }};
 
   for (auto &[name, data] : entries) {
@@ -510,6 +567,41 @@ void BoomBabyAudioProcessorEditor::loadEnvelopesFromState() {
     if (tree.isValid())
       treeToEnvelope(tree, data);
   }
+
+  // サンプルファイルパスを先に復元（onEnvelopeChanged → saveEnvelopesToState
+  // で上書きされる前に loadedFilePath をセットしておく）
+  const auto directPath = state.getProperty("directSamplePath").toString();
+  if (directPath.isNotEmpty()) {
+    const juce::File f{directPath};
+    if (f.existsAsFile())
+      onSampleFileChosen(f);
+  }
+
+  const auto clickPath = state.getProperty("clickSamplePath").toString();
+  if (clickPath.isNotEmpty()) {
+    const juce::File f{clickPath};
+    if (f.existsAsFile())
+      onClickSampleFileChosen(f);
+  }
+
+  // Click ModeState を復元
+  for (int i = 0; i < state.getNumChildren(); ++i) {
+    auto child = state.getChild(i);
+    if (!child.hasType(kClickModeStateTag))
+      continue;
+    const auto name = child.getProperty(kPropName).toString();
+    if (name == "clickNoise")
+      treeToModeState(child, clickUI.noiseState);
+    else if (name == "clickSample")
+      treeToModeState(child, clickUI.sampleState);
+  }
+
+  // アクティブモードのウィジェットに反映
+  const bool clickIsSample = clickUI.modeCombo.getSelectedId() ==
+                             std::to_underlying(ClickUI::Mode::Sample);
+  clickUI.restoreModeState(clickIsSample ? clickUI.sampleState
+                                         : clickUI.noiseState,
+                           processorRef.clickEngine());
 
   // LUT 再ベイク＋ノブ有効/無効同期
   onEnvelopeChanged();

@@ -60,8 +60,15 @@ void BoomBabyAudioProcessorEditor::setupDirectParams() {
     const bool isSample = directUI.modeCombo.getSelectedId() ==
                           std::to_underlying(DirectUI::Mode::Sample);
     directUI.sample.loadButton.setVisible(isSample);
-    if (!isSample)
-      directUI.sample.loadButton.setButtonText("Drop or Click to Load");
+    if (isSample) {
+      // サンプルが既にロード済みならファイル名を復元
+      if (directUI.sample.loadedFilePath.isNotEmpty())
+        directUI.sample.loadButton.setButtonText(
+            juce::File(directUI.sample.loadedFilePath)
+                .getFileNameWithoutExtension());
+      else
+        directUI.sample.loadButton.setButtonText("Drop or Click to Load");
+    }
     processorRef.setDirectSampleMode(isSample);
     syncParam(ParamIDs::directMode, isSample ? 1.0f : 0.0f);
     refreshDirectPassthroughUI();
@@ -472,6 +479,9 @@ void BoomBabyAudioProcessorEditor::onSampleFileChosen(const juce::File &file) {
   directUI.sample.loadedFilePath = file.getFullPathName();
   directUI.sample.loadButton.setButtonText(file.getFileNameWithoutExtension());
   directUI.sample.loadButton.setTooltip(directUI.sample.loadedFilePath);
+  processorRef.getAPVTS().state.setProperty("directSamplePath",
+                                            directUI.sample.loadedFilePath,
+                                            nullptr);
   processorRef.directEngine().sampler().loadSample(file);
 
   // サムネイルデータをメンバーに保存してプロバイダーを登録

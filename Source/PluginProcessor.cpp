@@ -173,6 +173,7 @@ constexpr std::array kAllParamIDs = {
     ParamIDs::clickMode,      ParamIDs::clickNoiseDecay,
     ParamIDs::clickBpf1Freq,  ParamIDs::clickBpf1Q,
     ParamIDs::clickBpf1Slope, ParamIDs::clickSamplePitch,
+    ParamIDs::clickSampleAmp, ParamIDs::clickSampleDecay,
     ParamIDs::clickDrive,     ParamIDs::clickClipType,
     ParamIDs::clickHpfFreq,   ParamIDs::clickHpfQ,
     ParamIDs::clickHpfSlope,  ParamIDs::clickLpfFreq,
@@ -249,6 +250,8 @@ void applyClickParam(const juce::String &id, float v, int idx,
     click.setBpf1Slope(kSlopes[static_cast<std::size_t>(idx)]);
   else if (id == ParamIDs::clickSamplePitch)
     click.setPitchSemitones(v);
+  else if (id == ParamIDs::clickSampleAmp)
+    click.setSampleAmpLevel(v / 100.0f);
   else if (id == ParamIDs::clickDrive)
     click.setDriveDb(v);
   else if (id == ParamIDs::clickClipType)
@@ -629,6 +632,22 @@ void BoomBabyAudioProcessor::setStateInformation(
 
       // エンベロープ LUT を保存済み状態から再ベイク
       bakeAllLutsFromState();
+
+      // サンプルファイルを復元（エディタ無しでも音が出るように）
+      const auto clickPath =
+          apvts_.state.getProperty("clickSamplePath").toString();
+      if (clickPath.isNotEmpty()) {
+        const juce::File f{clickPath};
+        if (f.existsAsFile())
+          clickEngine_.sampler().loadSample(f);
+      }
+      const auto directPath =
+          apvts_.state.getProperty("directSamplePath").toString();
+      if (directPath.isNotEmpty()) {
+        const juce::File f{directPath};
+        if (f.existsAsFile())
+          directEngine_.sampler().loadSample(f);
+      }
     }
   }
 }
@@ -655,8 +674,10 @@ void BoomBabyAudioProcessor::bakeAllLutsFromState() {
           subEngine_.distLut(), subLenMs);
   bakeLut(env("mix", load(ParamIDs::subMix) / 100.0f), subEngine_.mixLut(),
           subLenMs);
+  const float clickDecayMs =
+      apvts_.getRawParameterValue(ParamIDs::clickSampleDecay)->load();
   bakeLut(env("clickAmp", load(ParamIDs::clickSampleAmp) / 100.0f),
-          clickEngine_.clickAmpLut(), subLenMs);
+          clickEngine_.clickAmpLut(), clickDecayMs);
   bakeLut(env("directAmp", load(ParamIDs::directAmp) / 100.0f),
           directEngine_.directAmpLut(), directDecayMs);
 }

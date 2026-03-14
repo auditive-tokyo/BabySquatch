@@ -663,6 +663,31 @@ void BoomBabyAudioProcessorEditor::applyClickMode(int modeId) {
     if (modeId == std::to_underlying(ClickUI::Mode::Noise))
       envelopeCurveEditor.setClickNoiseEnvProvider(clickUI.noiseProvider);
   }
+
+  // 復元した共有パラメーターを APVTS に反映（DAW 保存時に正しい値が取得されるように）
+  syncParam(ParamIDs::clickHpfFreq,
+            static_cast<float>(clickUI.hpf.slider.getValue()));
+  syncParam(ParamIDs::clickHpfQ,
+            static_cast<float>(clickUI.hpf.qSlider.getValue()));
+  syncParam(ParamIDs::clickHpfSlope,
+            static_cast<float>(clickUI.hpf.slope.getSlope() == 48   ? 2
+                               : clickUI.hpf.slope.getSlope() == 24 ? 1
+                                                                    : 0));
+  syncParam(ParamIDs::clickLpfFreq,
+            static_cast<float>(clickUI.lpf.slider.getValue()));
+  syncParam(ParamIDs::clickLpfQ,
+            static_cast<float>(clickUI.lpf.qSlider.getValue()));
+  syncParam(ParamIDs::clickLpfSlope,
+            static_cast<float>(clickUI.lpf.slope.getSlope() == 48   ? 2
+                               : clickUI.lpf.slope.getSlope() == 24 ? 1
+                                                                    : 0));
+  syncParam(ParamIDs::clickDrive,
+            static_cast<float>(clickUI.noise.saturator.driveSlider.getValue()));
+  syncParam(ParamIDs::clickClipType,
+            static_cast<float>(clickUI.noise.saturator.clipType.getSelected()));
+
+  // ModeState を ValueTree に永続化
+  saveEnvelopesToState();
 }
 
 void BoomBabyAudioProcessorEditor::onClickSampleFileChosen(
@@ -670,6 +695,9 @@ void BoomBabyAudioProcessorEditor::onClickSampleFileChosen(
   clickUI.sample.loadedFilePath = file.getFullPathName();
   clickUI.sample.loadButton.setButtonText(file.getFileNameWithoutExtension());
   clickUI.sample.loadButton.setTooltip(clickUI.sample.loadedFilePath);
+  processorRef.getAPVTS().state.setProperty("clickSamplePath",
+                                            clickUI.sample.loadedFilePath,
+                                            nullptr);
   processorRef.clickEngine().sampler().loadSample(file);
 
   if (!processorRef.clickEngine().sampler().copyThumbnail(
