@@ -183,8 +183,7 @@ public:
       return;
     const int slotsW = getWidth() - prefixW;
     const int slotW = slotsW / 3;
-    const int idx = juce::jlimit(0, 2, xInSlots / slotW);
-    if (idx != selected_) {
+    if (const int idx = juce::jlimit(0, 2, xInSlots / slotW); idx != selected_) {
       selected_ = idx;
       repaint();
       if (onChange_)
@@ -237,8 +236,7 @@ public:
 
   void mouseDown(const juce::MouseEvent &e) override {
     const int slotW = getWidth() / 3;
-    const int idx = juce::jlimit(0, 2, e.x / slotW);
-    if (idx != selected_) {
+    if (const int idx = juce::jlimit(0, 2, e.x / slotW); idx != selected_) {
       selected_ = idx;
       repaint();
       if (onChange_)

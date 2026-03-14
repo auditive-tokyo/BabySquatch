@@ -215,14 +215,8 @@ void DirectEngine::renderPassthrough(juce::AudioBuffer<float> &buffer,
 
     float s = (i < static_cast<int>(inputMono.size())) ? inputMono[static_cast<std::size_t>(i)] : 0.0f;
 
-    // amp ゼロなら何も出力しない
-    if (amp == 0.0f) {
-      scratchBuffer_[static_cast<std::size_t>(i)] = 0.0f;
-      continue;
-    }
-
-    // 入力がゼロなら Saturator / Filter をスキップ（Tube バイアス漏れ防止）
-    if (s == 0.0f) {
+    // amp または入力がゼロなら出力しない（Tube バイアス漏れ防止も兼ねる）
+    if (amp == 0.0f || s == 0.0f) {
       scratchBuffer_[static_cast<std::size_t>(i)] = 0.0f;
       continue;
     }
