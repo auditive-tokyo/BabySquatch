@@ -293,9 +293,9 @@ void BoomBabyAudioProcessorEditor::syncUIFromState() {
     return apvts.getRawParameterValue(id)->load();
   };
 
-  // sendNotificationSync を使い onValueChange / onChange を発火させて
-  // DSP セッターも同時に呼ばれるようにする
-  constexpr auto notify = juce::sendNotificationSync;
+  // dontSendNotification で onValueChange を発火させない。
+  // prepareToPlay() で DSP は初期化済みなので、ここでは表示のみ更新。
+  constexpr auto notify = juce::dontSendNotification;
 
   // ── Sub ──
   // Length を先に復元（bakeLut が表示期間に依存するため）
@@ -307,7 +307,7 @@ void BoomBabyAudioProcessorEditor::syncUIFromState() {
   subUI.knobs[2].setValue(load(ParamIDs::subMix), notify);
   subUI.knobs[3].setValue(load(ParamIDs::subSatDrive), notify);
   subUI.saturateClipType.setSelected(
-      static_cast<int>(load(ParamIDs::subSatClipType)), true);
+      static_cast<int>(load(ParamIDs::subSatClipType)), false);
   subUI.knobs[4].setValue(load(ParamIDs::subTone1), notify);
   subUI.knobs[5].setValue(load(ParamIDs::subTone2), notify);
   subUI.knobs[6].setValue(load(ParamIDs::subTone3), notify);
@@ -317,26 +317,19 @@ void BoomBabyAudioProcessorEditor::syncUIFromState() {
   subPanel.setSoloState(load(ParamIDs::subSolo) >= 0.5f);
 
   // ── Click ──
-  // Mode コンボは dontSendNotification（ModeState save/restore 回避）
   const auto clickModeIdx = static_cast<int>(load(ParamIDs::clickMode));
-  clickUI.modeCombo.setSelectedId(clickModeIdx + 1, juce::dontSendNotification);
+  clickUI.modeCombo.setSelectedId(clickModeIdx + 1, notify);
   clickUI.noise.decaySlider.setValue(load(ParamIDs::clickNoiseDecay), notify);
   clickUI.noise.bpf1.freqSlider.setValue(load(ParamIDs::clickBpf1Freq), notify);
   clickUI.noise.bpf1.qSlider.setValue(load(ParamIDs::clickBpf1Q), notify);
   {
     constexpr std::array kSlopes = {12, 24, 48};
-    clickUI.noise.bpf1.slopeSelector.setSlope(
-        kSlopes[static_cast<std::size_t>(
-            static_cast<int>(load(ParamIDs::clickBpf1Slope)))],
-        true);
-    clickUI.hpf.slope.setSlope(
-        kSlopes[static_cast<std::size_t>(
-            static_cast<int>(load(ParamIDs::clickHpfSlope)))],
-        true);
-    clickUI.lpf.slope.setSlope(
-        kSlopes[static_cast<std::size_t>(
-            static_cast<int>(load(ParamIDs::clickLpfSlope)))],
-        true);
+    clickUI.noise.bpf1.slopeSelector.setSlope(kSlopes[static_cast<std::size_t>(
+        static_cast<int>(load(ParamIDs::clickBpf1Slope)))]);
+    clickUI.hpf.slope.setSlope(kSlopes[static_cast<std::size_t>(
+        static_cast<int>(load(ParamIDs::clickHpfSlope)))]);
+    clickUI.lpf.slope.setSlope(kSlopes[static_cast<std::size_t>(
+        static_cast<int>(load(ParamIDs::clickLpfSlope)))]);
   }
   clickUI.sample.pitch.slider.setValue(load(ParamIDs::clickSamplePitch),
                                        notify);
@@ -346,7 +339,7 @@ void BoomBabyAudioProcessorEditor::syncUIFromState() {
   clickUI.noise.saturator.driveSlider.setValue(load(ParamIDs::clickDrive),
                                                notify);
   clickUI.noise.saturator.clipType.setSelected(
-      static_cast<int>(load(ParamIDs::clickClipType)), true);
+      static_cast<int>(load(ParamIDs::clickClipType)), false);
   clickUI.hpf.slider.setValue(load(ParamIDs::clickHpfFreq), notify);
   clickUI.hpf.qSlider.setValue(load(ParamIDs::clickHpfQ), notify);
   clickUI.lpf.slider.setValue(load(ParamIDs::clickLpfFreq), notify);
@@ -355,33 +348,26 @@ void BoomBabyAudioProcessorEditor::syncUIFromState() {
   clickPanel.setMuteState(load(ParamIDs::clickMute) >= 0.5f);
   clickPanel.setSoloState(load(ParamIDs::clickSolo) >= 0.5f);
 
-  // Mode → DSP + 表示切替（ModeState 経由しない直接設定）
-  processorRef.clickEngine().setMode(clickModeIdx + 1);
+  // Mode → 表示切替のみ（DSP は prepareToPlay で初期化済み）
   setClickModeVisible(clickModeIdx == 1);
 
   // ── Direct ──
-  // Mode コンボは dontSendNotification（手動でモード設定）
   const auto directModeIdx = static_cast<int>(load(ParamIDs::directMode));
-  directUI.modeCombo.setSelectedId(directModeIdx + 1,
-                                   juce::dontSendNotification);
+  directUI.modeCombo.setSelectedId(directModeIdx + 1, notify);
   directUI.pitch.slider.setValue(load(ParamIDs::directPitch), notify);
   directUI.amp.slider.setValue(load(ParamIDs::directAmp), notify);
   directUI.saturator.driveSlider.setValue(load(ParamIDs::directDrive), notify);
   directUI.saturator.clipType.setSelected(
-      static_cast<int>(load(ParamIDs::directClipType)), true);
+      static_cast<int>(load(ParamIDs::directClipType)), false);
   directUI.decay.slider.setValue(load(ParamIDs::directDecay), notify);
   directUI.hpf.slider.setValue(load(ParamIDs::directHpfFreq), notify);
   directUI.hpf.qSlider.setValue(load(ParamIDs::directHpfQ), notify);
   {
     constexpr std::array kSlopes = {12, 24, 48};
-    directUI.hpf.slope.setSlope(
-        kSlopes[static_cast<std::size_t>(
-            static_cast<int>(load(ParamIDs::directHpfSlope)))],
-        true);
-    directUI.lpf.slope.setSlope(
-        kSlopes[static_cast<std::size_t>(
-            static_cast<int>(load(ParamIDs::directLpfSlope)))],
-        true);
+    directUI.hpf.slope.setSlope(kSlopes[static_cast<std::size_t>(
+        static_cast<int>(load(ParamIDs::directHpfSlope)))]);
+    directUI.lpf.slope.setSlope(kSlopes[static_cast<std::size_t>(
+        static_cast<int>(load(ParamIDs::directLpfSlope)))]);
   }
   directUI.lpf.slider.setValue(load(ParamIDs::directLpfFreq), notify);
   directUI.lpf.qSlider.setValue(load(ParamIDs::directLpfQ), notify);
@@ -391,16 +377,13 @@ void BoomBabyAudioProcessorEditor::syncUIFromState() {
   directPanel.setMuteState(load(ParamIDs::directMute) >= 0.5f);
   directPanel.setSoloState(load(ParamIDs::directSolo) >= 0.5f);
 
-  // Mode → DSP + 表示切替
+  // Mode → 表示切替のみ（DSP は prepareToPlay で初期化済み）
   const bool isSample = directModeIdx == 1;
-  processorRef.setDirectSampleMode(isSample);
   directUI.sample.loadButton.setVisible(isSample);
   refreshDirectPassthroughUI();
 
   // ── Master ──
-  const float masterDb = load(ParamIDs::masterGain);
-  masterSection.setValueDb(masterDb);
-  processorRef.master().setGain(masterDb);
+  masterSection.setValueDb(load(ParamIDs::masterGain));
 
   // ── Mute/Solo: envelopeCurveEditor 同期 ──
   using EC = EnvelopeCurveEditor::Channel;
@@ -460,16 +443,14 @@ void BoomBabyAudioProcessorEditor::pollUIFromAPVTS() {
     const int modeId = static_cast<int>(load(ParamIDs::clickMode)) + 1;
     if (clickUI.modeCombo.getSelectedId() != modeId) {
       clickUI.modeCombo.setSelectedId(modeId, silent);
-      setClickModeVisible(modeId ==
-                          std::to_underlying(ClickUI::Mode::Sample));
+      setClickModeVisible(modeId == std::to_underlying(ClickUI::Mode::Sample));
     }
   }
   clickUI.noise.decaySlider.setValue(load(ParamIDs::clickNoiseDecay), silent);
   clickUI.noise.bpf1.freqSlider.setValue(load(ParamIDs::clickBpf1Freq), silent);
   clickUI.noise.bpf1.qSlider.setValue(load(ParamIDs::clickBpf1Q), silent);
-  clickUI.noise.bpf1.slopeSelector.setSlope(
-      kSlopes[static_cast<std::size_t>(
-          static_cast<int>(load(ParamIDs::clickBpf1Slope)))]);
+  clickUI.noise.bpf1.slopeSelector.setSlope(kSlopes[static_cast<std::size_t>(
+      static_cast<int>(load(ParamIDs::clickBpf1Slope)))]);
   clickUI.sample.pitch.slider.setValue(load(ParamIDs::clickSamplePitch),
                                        silent);
   clickUI.sample.amp.slider.setValue(load(ParamIDs::clickSampleAmp), silent);
@@ -481,14 +462,12 @@ void BoomBabyAudioProcessorEditor::pollUIFromAPVTS() {
       static_cast<int>(load(ParamIDs::clickClipType)), false);
   clickUI.hpf.slider.setValue(load(ParamIDs::clickHpfFreq), silent);
   clickUI.hpf.qSlider.setValue(load(ParamIDs::clickHpfQ), silent);
-  clickUI.hpf.slope.setSlope(
-      kSlopes[static_cast<std::size_t>(
-          static_cast<int>(load(ParamIDs::clickHpfSlope)))]);
+  clickUI.hpf.slope.setSlope(kSlopes[static_cast<std::size_t>(
+      static_cast<int>(load(ParamIDs::clickHpfSlope)))]);
   clickUI.lpf.slider.setValue(load(ParamIDs::clickLpfFreq), silent);
   clickUI.lpf.qSlider.setValue(load(ParamIDs::clickLpfQ), silent);
-  clickUI.lpf.slope.setSlope(
-      kSlopes[static_cast<std::size_t>(
-          static_cast<int>(load(ParamIDs::clickLpfSlope)))]);
+  clickUI.lpf.slope.setSlope(kSlopes[static_cast<std::size_t>(
+      static_cast<int>(load(ParamIDs::clickLpfSlope)))]);
   clickPanel.getFader().setValue(load(ParamIDs::clickGain), silent);
   clickPanel.setMuteState(load(ParamIDs::clickMute) >= 0.5f);
   clickPanel.setSoloState(load(ParamIDs::clickSolo) >= 0.5f);
@@ -498,7 +477,8 @@ void BoomBabyAudioProcessorEditor::pollUIFromAPVTS() {
     const int modeId = static_cast<int>(load(ParamIDs::directMode)) + 1;
     if (directUI.modeCombo.getSelectedId() != modeId) {
       directUI.modeCombo.setSelectedId(modeId, silent);
-      const bool isSample = (modeId == std::to_underlying(DirectUI::Mode::Sample));
+      const bool isSample =
+          (modeId == std::to_underlying(DirectUI::Mode::Sample));
       directUI.sample.loadButton.setVisible(isSample);
       refreshDirectPassthroughUI();
     }
@@ -511,14 +491,12 @@ void BoomBabyAudioProcessorEditor::pollUIFromAPVTS() {
   directUI.decay.slider.setValue(load(ParamIDs::directDecay), silent);
   directUI.hpf.slider.setValue(load(ParamIDs::directHpfFreq), silent);
   directUI.hpf.qSlider.setValue(load(ParamIDs::directHpfQ), silent);
-  directUI.hpf.slope.setSlope(
-      kSlopes[static_cast<std::size_t>(
-          static_cast<int>(load(ParamIDs::directHpfSlope)))]);
+  directUI.hpf.slope.setSlope(kSlopes[static_cast<std::size_t>(
+      static_cast<int>(load(ParamIDs::directHpfSlope)))]);
   directUI.lpf.slider.setValue(load(ParamIDs::directLpfFreq), silent);
   directUI.lpf.qSlider.setValue(load(ParamIDs::directLpfQ), silent);
-  directUI.lpf.slope.setSlope(
-      kSlopes[static_cast<std::size_t>(
-          static_cast<int>(load(ParamIDs::directLpfSlope)))]);
+  directUI.lpf.slope.setSlope(kSlopes[static_cast<std::size_t>(
+      static_cast<int>(load(ParamIDs::directLpfSlope)))]);
   directUI.threshold.slider.setValue(load(ParamIDs::directThreshold), silent);
   directUI.hold.slider.setValue(load(ParamIDs::directHold), silent);
   directPanel.getFader().setValue(load(ParamIDs::directGain), silent);
