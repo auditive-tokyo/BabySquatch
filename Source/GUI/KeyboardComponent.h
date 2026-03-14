@@ -3,26 +3,34 @@
 #include <juce_audio_utils/juce_audio_utils.h>
 
 /// MIDI 鍵盤ラッパー（トリガー専用）
-/// - PCキーボード入力可、Z/Xオクターブシフト
-class KeyboardComponent : public juce::Component {
+/// - PCキーボード入力は常時有効（フォーカス不問）
+/// - Z/Xでオクターブシフト
+class KeyboardComponent : public juce::Component, private juce::KeyListener {
 public:
   explicit KeyboardComponent(juce::MidiKeyboardState &state);
+  ~KeyboardComponent() override;
 
   void resized() override;
-  bool keyPressed(const juce::KeyPress &key) override;
+  void parentHierarchyChanged() override;
 
-  /// 内部の MidiKeyboardComponent にフォーカスを渡す
-  void grabFocus();
-
-  /// 鍵盤が実際に描画される幅（レイアウト計算用）
   int getPreferredWidth() const {
     return static_cast<int>(keyboard.getTotalKeyboardWidth());
   }
 
   juce::MidiKeyboardState &getKeyboardState() { return keyboardState; }
 
+  using juce::Component::keyPressed;      // unhide 1-arg overload
+  using juce::Component::keyStateChanged; // unhide 1-arg overload
+
 private:
+  bool keyPressed(const juce::KeyPress &key, juce::Component *origin) override;
+  bool keyStateChanged(bool isKeyDown, juce::Component *origin) override;
+
+  void registerOnTopLevel();
+  bool handleOctaveShift(const juce::KeyPress &key);
+
   int keyPressOctave = 3;
+  juce::Component *registeredTop_ = nullptr;
 
   juce::MidiKeyboardState &keyboardState;
   juce::MidiKeyboardComponent keyboard{

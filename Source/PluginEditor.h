@@ -18,6 +18,7 @@ public:
 
   void paint(juce::Graphics &) override;
   void resized() override;
+  void visibilityChanged() override;
   void mouseDown(const juce::MouseEvent &e) override;
 
 private:

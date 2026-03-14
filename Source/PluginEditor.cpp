@@ -624,6 +624,16 @@ void BoomBabyAudioProcessorEditor::timerCallback() {
   envelopeCurveEditor.repaint();
 }
 
+void BoomBabyAudioProcessorEditor::visibilityChanged() {
+  if (isVisible())
+    // peer生成完了後に実行（visibilityChanged時点ではpeerが未完成の場合がある）
+    juce::Timer::callAfterDelay(
+        100, [safe = juce::Component::SafePointer<juce::Component>(this)] {
+          if (safe != nullptr)
+            safe->grabKeyboardFocus();
+        });
+}
+
 void BoomBabyAudioProcessorEditor::paint(juce::Graphics &g) {
   g.fillAll(UIConstants::Colours::background);
 
