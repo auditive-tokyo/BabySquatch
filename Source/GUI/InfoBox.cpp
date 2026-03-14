@@ -15,7 +15,7 @@ void InfoBox::paint(juce::Graphics &g) {
 }
 
 void InfoBox::pollMouseHover() {
-  const auto mousePos = juce::Desktop::getInstance().getMousePosition();
+  const auto mousePos = juce::Desktop::getMousePosition();
 
   // このコンポーネントのトップレベル親（PluginEditor）内を走査
   auto *top = getTopLevelComponent();
@@ -27,8 +27,7 @@ void InfoBox::pollMouseHover() {
   // コンポーネント階層を上へ辿り、"info" プロパティを持つ最初のものを探す
   juce::String text;
   while (comp != nullptr && comp != top) {
-    const auto &props = comp->getProperties();
-    if (props.contains("info")) {
+    if (const auto &props = comp->getProperties(); props.contains("info")) {
       text = props["info"].toString();
       break;
     }
