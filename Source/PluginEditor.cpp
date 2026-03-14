@@ -251,14 +251,6 @@ BoomBabyAudioProcessorEditor::BoomBabyAudioProcessorEditor(
   addAndMakeVisible(masterSection);
   addAndMakeVisible(infoBox);
 
-  // infoBox 初期設定
-  infoBox.setText("", juce::dontSendNotification);
-  infoBox.setFont(juce::Font(juce::FontOptions(UIConstants::fontSizeSmall)));
-  infoBox.setColour(juce::Label::textColourId, UIConstants::Colours::labelText);
-  infoBox.setColour(juce::Label::backgroundColourId,
-                    UIConstants::Colours::panelBg.withAlpha(0.0f));
-  infoBox.setJustificationType(juce::Justification::centredLeft);
-
   envDatas.freq.setDefaultValue(200.0f);
 
   setupPanelRouting(p);
@@ -280,6 +272,7 @@ BoomBabyAudioProcessorEditor::BoomBabyAudioProcessorEditor(
   masterSection.setLevelProvider(1, [this]() {
     return processorRef.master().getLevelDb(1); // R
   });
+  InfoBox::setInfo(masterSection, "Master output level (-60 … +12 dB)");
 
   setSize(UIConstants::windowWidth, UIConstants::windowHeight +
                                         UIConstants::expandedAreaHeight +
@@ -720,6 +713,9 @@ void BoomBabyAudioProcessorEditor::loadEnvelopesFromState() {
 void BoomBabyAudioProcessorEditor::timerCallback() {
   // DAW Undo/Redo / オートメーション: APVTS 値とウィジェットを同期
   pollUIFromAPVTS();
+
+  // InfoBox: マウスホバーのパラメーター説明を更新
+  infoBox.pollMouseHover();
 
   // Direct がパススルーモードの場合のみリアルタイム入力波形を表示
   if (!processorRef.directMode().isPassthrough()) {

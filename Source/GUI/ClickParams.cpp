@@ -3,6 +3,7 @@
 #include "../DSP/Saturator.h"
 #include "../ParamIDs.h"
 #include "../PluginEditor.h"
+#include "InfoBox.h"
 #include "LutBaker.h"
 #include "WaveformUtils.h"
 
@@ -406,6 +407,25 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
 
   // 起動時は Noise モード
   envelopeCurveEditor.setClickNoiseEnvProvider(clickUI.noiseProvider);
+
+  // InfoBox descriptions
+  InfoBox::setInfo(clickUI.modeCombo, "Click source: Noise or Sample");
+  InfoBox::setInfo(clickUI.noise.decaySlider, "Noise envelope decay (1–2000 ms)");
+  InfoBox::setInfo(clickUI.noise.bpf1.freqSlider, "Bandpass centre frequency (20–20k Hz)");
+  InfoBox::setInfo(clickUI.noise.bpf1.qSlider, "Bandpass resonance (Q 0.1–18)");
+  InfoBox::setInfo(clickUI.noise.bpf1.slopeSelector, "Bandpass slope: 12 / 24 / 48 dB/oct");
+  InfoBox::setInfo(clickUI.noise.saturator.driveSlider, "Saturator drive (0–24 dB)");
+  InfoBox::setInfo(clickUI.noise.saturator.clipType, "Saturation mode: Soft / Hard / Tube");
+  InfoBox::setInfo(clickUI.hpf.slider, "High-pass cutoff (20–20k Hz)");
+  InfoBox::setInfo(clickUI.hpf.qSlider, "High-pass resonance (Q 0.1–18)");
+  InfoBox::setInfo(clickUI.hpf.slope, "HPF slope: 12 / 24 / 48 dB/oct");
+  InfoBox::setInfo(clickUI.lpf.slider, "Low-pass cutoff (20–20k Hz)");
+  InfoBox::setInfo(clickUI.lpf.qSlider, "Low-pass resonance (Q 0.1–18)");
+  InfoBox::setInfo(clickUI.lpf.slope, "LPF slope: 12 / 24 / 48 dB/oct");
+  InfoBox::setInfo(clickUI.sample.pitch.slider, "Sample pitch shift (±24 semitones)");
+  InfoBox::setInfo(clickUI.sample.amp.slider, "Sample amplitude (0–200%)");
+  InfoBox::setInfo(clickUI.sample.decay.slider, "Sample envelope duration (10–2000 ms)");
+  InfoBox::setInfo(clickUI.sample.loadButton, "Load audio sample (drop or click)");
 }
 
 float BoomBabyAudioProcessorEditor::computeNoiseAmplitudeScale() const {

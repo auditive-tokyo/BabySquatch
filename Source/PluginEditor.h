@@ -3,6 +3,7 @@
 #include "DSP/EnvelopeData.h"
 #include "GUI/CustomSliderLAF.h"
 #include "GUI/EnvelopeCurveEditor.h"
+#include "GUI/InfoBox.h"
 #include "GUI/KeyboardComponent.h"
 #include "GUI/MasterFader.h"
 #include "GUI/PanelComponent.h"
@@ -95,7 +96,7 @@ private:
 
   // ── マスターセクション（鍵盤右余白エリア） ──
   MasterFader masterSection;
-  juce::Label infoBox;
+  InfoBox infoBox;
 
   // ── SUB展開パネル: LAF（subUI より先に宣言し、後に破棄されるようにする） ──
   ColouredSliderLAF subKnobLAF{UIConstants::Colours::subArc,

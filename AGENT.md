@@ -112,7 +112,7 @@ This project uses JUCE framework. An MCP server (`juce-docs`) is available.
   - GUI: MasterFader のメーターにゲインリダクション量（GR）表示を追加できる
 
 - **Infobox（ホバー説明 UI）（検討中）**
-  - 目的: キーボード右のスペースに固定の説明エリアを設置し、各ノブ・パラメーターにホバーしたときに使い方を表示
+  - 目的: キーボード右のマスターアウトのさらに右のスペースに固定の説明エリアを設置し、各ノブ・パラメーターにホバーしたときに使い方を表示
   - 実装方針: **中央集権型文字列テーブル + カスタム `InfoBox` コンポーネント**
     - `Source/GUI/InfoBox.h / InfoBox.cpp`: 右端固定の表示コンポーネント
     - `Source/GUI/InfoStrings.h`: ID → 説明文のテーブル（`std::unordered_map`、バイナリ埋め込み）
