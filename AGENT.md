@@ -159,3 +159,8 @@ This project uses JUCE framework. An MCP server (`juce-docs`) is available.
     - プリセット読み込みと DAW セッション復元が単一コードパスで統一
     - デフォルト値の変更がコード修正不要（XML 差し替えのみ）
     - ユーザーが「Default」を選ぶだけで全パラメーターをリセット可能
+
+- **Undoが、envelopeと波形長view変更に対して効かない問題を調査する**
+  - 概要: ノブや各種パラメータにはUndoが効くが、Envelopeの編集ではUndoできない
+  - subのlengthや、click/directのdecayを変更してcmd zすると、値は正しく戻るが、波形そのもの、そして波形長が戻らない。波形長の方は単純に波形の長さに合わせてるだけかも？
+  - 見た目の問題のみ。
