@@ -58,4 +58,11 @@ tidy-fix:
 
 test:
 	cd build && xcodebuild -scheme "BoomBabyTests" -configuration Debug build 2>&1 | grep -E "(error:|Build succeeded|FAILED)" || true
-	cd build && ctest -C Debug --output-on-failure
+	@cd build && LLVM_PROFILE_FILE=cov_%p.profraw ctest -C Debug --output-on-failure
+	@echo ""
+	@echo "── Coverage Report ──────────────────────────────────"
+	@cd build && xcrun llvm-profdata merge -sparse cov_*.profraw -o cov.profdata 2>/dev/null && \
+	  xcrun llvm-cov report ./BoomBabyTests_artefacts/Debug/BoomBabyTests \
+	    -instr-profile=cov.profdata \
+	    -ignore-filename-regex='(JUCE|Catch2|_deps|Tests/)' && \
+	  rm -f cov_*.profraw cov.profdata || echo "(カバレッジデータなし)"

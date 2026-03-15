@@ -51,9 +51,12 @@ private:
   // ── 入力波形リアルタイム表示（30fps Timer）──
   void timerCallback() override;
   static constexpr int kWaveDisplayCapacity = 192000; // ~1sec @ 192kHz
-  std::vector<float> waveDisplayBuf_;
-  int waveDisplayPos_ = 0;       // 次の書き込み位置
-  int waveDisplayFilled_ = 0;    // 実際に充際されたサンプル数
+  struct WaveDisplayState {
+    std::vector<float> buf;
+    int pos = 0;    // 次の書き込み位置
+    int filled = 0; // 実際に充填されたサンプル数
+  };
+  WaveDisplayState waveDisplay_;
   int lastSeenStateVersion_ = 0; // DAW Undo/Redo 検出用
 
   // ── コンストラクター分割ヘルパー ──
@@ -67,10 +70,6 @@ private:
   void refreshDirectPassthroughUI();
   void onSampleFileChosen(const juce::File &file);
   void refreshDirectProvider();
-  /// directUI の HPF/LPF をベクター対に適用（refreshDirectProvider /
-  /// timerCallback 共通）
-  void applyDirectFilters(std::vector<float> &vecMin,
-                          std::vector<float> &vecMax) const;
   void onClickSampleFileChosen(const juce::File &file);
   void refreshClickSampleProvider();
   void setClickModeVisible(bool isSample);
@@ -122,11 +121,14 @@ private:
         onMouseDown();
     }
   };
-  EnvEditMouseListener envEditListener_;
-  std::vector<EnvelopeDatas> envUndoStack_;
-  std::vector<EnvelopeDatas> envRedoStack_;
-  EnvelopeDatas pendingPreEditState_;
-  bool hasPendingUndo_ = false;
+  struct EnvUndoState {
+    EnvEditMouseListener listener;
+    std::vector<EnvelopeDatas> undoStack;
+    std::vector<EnvelopeDatas> redoStack;
+    EnvelopeDatas pendingPreEdit;
+    bool hasPending = false;
+  };
+  EnvUndoState envUndo_;
   static constexpr int kMaxEnvUndoSteps = 100;
 
   // ── マスターセクション（鍵盤右余白エリア） ──

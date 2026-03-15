@@ -1,8 +1,12 @@
 # BoomBaby Project
 
-## プロジェクト概要
+## Overview
 
-BoomBabyは、Boz LabのSasquatchとHim DSPのKick Ninjaから自分が使う機能だけを集約したキックエンハンスプラグインです。
+BoomBaby is a personal kick enhancement plugin built for one specific use case. The developer was a long-time Sasquatch (Boz Labs) user who switched to an Apple M4 Pro Mac in mid-2025, only to find that Sasquatch required Rosetta.
+
+After searching for a native alternative, Kick Ninja (Him DSP) turned up — a genuinely great plugin, but a VST Instrument rather than a VST Effect. For a producer who frequently works with pre-bounced kicks in collabs and mixing sessions, having to route through MIDI just to process an audio file was too much friction.
+
+Rather than compromise, the developer analyzed both plugins by ear, extracted the features that actually mattered, and built a single streamlined plugin tailored exactly to the developer's own workflow. The beta is released as open source — with the hope that it might be useful to talented beatmakers and producers around the world.
 
 ## プラグイン構成
 
@@ -18,7 +22,6 @@ BoomBabyは3つのモジュールで構成されています：
 
 - AUv2
 - VST3
-- Standalone
 
 ## ビルド環境
 
@@ -33,7 +36,7 @@ BoomBabyは3つのモジュールで構成されています：
 - ユーザーが指示したことだけを実行すること。提案や代替案は提示しても、実行はユーザーの許可がある場合のみ行う。
 - 推測や勝手な想像でコードを書き換えないこと。意図が不明な場合は必ず質問して確認する。
 - 変更を行う際は、どのファイルを、なぜ、どう修正したかを簡潔に報告し、必要ならビルド／確認手順を添えること。
-- **コード改修後の必須確認手順:** 変更を行ったら必ず `make check && make lint` を実行し、問題がなければ `make run` で動作確認を行うこと。
+- **コード改修後の必須確認手順:** 変更を行ったら必ず `make check && make lint` を実行し、問題がなければ `make test` でユニットテストが通ることを確認してから `make run` で動作確認を行うこと。
 - **CMake／ファイル構成変更時の手順:** 新規ファイルの追加・削除、または `CMakeLists.txt` の変更を行った場合は、まず `make cmake` を実行してプロジェクトを再生成し、その後に `make check && make lint` → `make run` の順で確認すること。
 
 ## JUCE Documentation

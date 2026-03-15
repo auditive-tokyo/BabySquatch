@@ -3,6 +3,7 @@
 #include "GUI/ClickModeStateUtils.h"
 #include "GUI/InfoBoxText.h"
 #include "GUI/LutBaker.h"
+#include "GUI/WaveformUtils.h"
 #include "ParamIDs.h"
 #include "PluginProcessor.h"
 #include <span>
@@ -194,12 +195,12 @@ void BoomBabyAudioProcessorEditor::onEnvelopeChanged() {
 void BoomBabyAudioProcessorEditor::setupEnvelopeCurveEditor() {
   envelopeCurveEditor.setOnChange([this] {
     // 編集前スナップショットを Undo スタックに確定（ジェスチャー先頭のみ）
-    if (hasPendingUndo_) {
-      envRedoStack_.clear();
-      envUndoStack_.push_back(pendingPreEditState_);
-      if (static_cast<int>(envUndoStack_.size()) > kMaxEnvUndoSteps)
-        envUndoStack_.erase(envUndoStack_.begin());
-      hasPendingUndo_ = false;
+    if (envUndo_.hasPending) {
+      envUndo_.redoStack.clear();
+      envUndo_.undoStack.push_back(envUndo_.pendingPreEdit);
+      if (static_cast<int>(envUndo_.undoStack.size()) > kMaxEnvUndoSteps)
+        envUndo_.undoStack.erase(envUndo_.undoStack.begin());
+      envUndo_.hasPending = false;
     }
     onEnvelopeChanged();
     processorRef.updateHostDisplay(
@@ -230,25 +231,25 @@ void BoomBabyAudioProcessorEditor::mouseDown(const juce::MouseEvent &e) {
 // エンベロープ Undo/Redo（プラグイン内部スタック）
 // ────────────────────────────────────────────────────
 bool BoomBabyAudioProcessorEditor::keyPressed(const juce::KeyPress &key) {
-  const bool isCmdZ =
-      key.getModifiers().isCommandDown() && key.getKeyCode() == 'Z';
-  if (!isCmdZ)
+  if (const bool isCmdZ =
+          key.getModifiers().isCommandDown() && key.getKeyCode() == 'Z';
+      !isCmdZ)
     return false;
 
   if (key.getModifiers().isShiftDown()) {
     // ── Redo ──
-    if (envRedoStack_.empty())
-      return true;
-    envUndoStack_.push_back(envDatas);
-    envDatas = envRedoStack_.back();
-    envRedoStack_.pop_back();
+    if (envUndo_.redoStack.empty())
+      return false; // スタック空 → ホストに委譲（パラメータ Redo）
+    envUndo_.undoStack.push_back(envDatas);
+    envDatas = envUndo_.redoStack.back();
+    envUndo_.redoStack.pop_back();
   } else {
     // ── Undo ──
-    if (envUndoStack_.empty())
-      return true;
-    envRedoStack_.push_back(envDatas);
-    envDatas = envUndoStack_.back();
-    envUndoStack_.pop_back();
+    if (envUndo_.undoStack.empty())
+      return false; // スタック空 → ホストに委譲（パラメータ Undo）
+    envUndo_.redoStack.push_back(envDatas);
+    envDatas = envUndo_.undoStack.back();
+    envUndo_.undoStack.pop_back();
   }
 
   onEnvelopeChanged();
@@ -299,11 +300,11 @@ BoomBabyAudioProcessorEditor::BoomBabyAudioProcessorEditor(
   envDatas.freq.setDefaultValue(200.0f);
 
   // エンベロープ Undo: mouseDown 時に編集前スナップショットを保存
-  envEditListener_.onMouseDown = [this] {
-    pendingPreEditState_ = envDatas;
-    hasPendingUndo_ = true;
+  envUndo_.listener.onMouseDown = [this] {
+    envUndo_.pendingPreEdit = envDatas;
+    envUndo_.hasPending = true;
   };
-  envelopeCurveEditor.addMouseListener(&envEditListener_, false);
+  envelopeCurveEditor.addMouseListener(&envUndo_.listener, false);
   envelopeCurveEditor.setWantsKeyboardFocus(true);
 
   setupPanelRouting(p);
@@ -340,7 +341,7 @@ BoomBabyAudioProcessorEditor::BoomBabyAudioProcessorEditor(
                                         UIConstants::panelGap);
 
   // 入力波形 Timer 開始（30fps）
-  waveDisplayBuf_.assign(static_cast<std::size_t>(kWaveDisplayCapacity), 0.0f);
+  waveDisplay_.buf.assign(static_cast<std::size_t>(kWaveDisplayCapacity), 0.0f);
 
   // APVTS 状態から UI ウィジェットを復元（DAW が保存した値を反映）
   syncUIFromState();
@@ -350,7 +351,7 @@ BoomBabyAudioProcessorEditor::BoomBabyAudioProcessorEditor(
 }
 
 BoomBabyAudioProcessorEditor::~BoomBabyAudioProcessorEditor() {
-  envelopeCurveEditor.removeMouseListener(&envEditListener_);
+  envelopeCurveEditor.removeMouseListener(&envUndo_.listener);
   stopTimer();
   subUI.wave.combo.setLookAndFeel(nullptr);
   clickUI.modeCombo.setLookAndFeel(nullptr);
@@ -839,9 +840,9 @@ void BoomBabyAudioProcessorEditor::timerCallback() {
     const int cap = kWaveDisplayCapacity;
     auto writeToRing = [&](std::span<const float> data) {
       for (const float s : data) {
-        waveDisplayBuf_[static_cast<std::size_t>(waveDisplayPos_)] = s;
-        waveDisplayPos_ = (waveDisplayPos_ + 1) % cap;
-        waveDisplayFilled_ = std::min(waveDisplayFilled_ + 1, cap);
+        waveDisplay_.buf[static_cast<std::size_t>(waveDisplay_.pos)] = s;
+        waveDisplay_.pos = (waveDisplay_.pos + 1) % cap;
+        waveDisplay_.filled = std::min(waveDisplay_.filled + 1, cap);
       }
     };
     writeToRing(
@@ -853,15 +854,15 @@ void BoomBabyAudioProcessorEditor::timerCallback() {
   }
 
   const int w = envelopeCurveEditor.getWidth();
-  if (w <= 0 || waveDisplayFilled_ == 0)
+  if (w <= 0 || waveDisplay_.filled == 0)
     return;
 
-  // 最新 500ms 分（最大 waveDisplayFilled_ サンプル）を幅ピクセルに射影
+  // 最新 500ms 分（最大 waveDisplay_.filled サンプル）を幅ピクセルに射影
   const int cap = kWaveDisplayCapacity;
   const auto smp500ms =
       static_cast<int>(processorRef.getSampleRate() * 0.5); // SR に依存
-  const int dispSmp = std::min(waveDisplayFilled_, std::min(smp500ms, cap));
-  const int startPos = (waveDisplayPos_ - dispSmp + cap) % cap;
+  const int dispSmp = std::min(waveDisplay_.filled, std::min(smp500ms, cap));
+  const int startPos = (waveDisplay_.pos - dispSmp + cap) % cap;
   const float spf = static_cast<float>(dispSmp) / static_cast<float>(w);
 
   std::vector<std::pair<float, float>> pixels(static_cast<std::size_t>(w));
@@ -873,7 +874,7 @@ void BoomBabyAudioProcessorEditor::timerCallback() {
     float mx = 0.0f;
     for (int si = iStart; si < iEnd; ++si) {
       const float s =
-          waveDisplayBuf_[static_cast<std::size_t>((startPos + si) % cap)];
+          waveDisplay_.buf[static_cast<std::size_t>((startPos + si) % cap)];
       mn = std::min(mn, s);
       mx = std::max(mx, s);
     }
@@ -893,7 +894,11 @@ void BoomBabyAudioProcessorEditor::timerCallback() {
   }
 
   // HPF / LPF をピクセルデータに適用
-  applyDirectFilters(pxMin, pxMax);
+  {
+    const double rawSr = processorRef.getSampleRate();
+    const float sr = rawSr > 0.0 ? static_cast<float>(rawSr) : 44100.0f;
+    applyDirectFilters(directUI.hpf, directUI.lpf, sr, pxMin, pxMax);
+  }
 
   // 処理済みデータをピクセルに戻す
   for (std::size_t i = 0; i < nPx; ++i)

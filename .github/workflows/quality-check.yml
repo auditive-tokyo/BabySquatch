@@ -53,7 +53,7 @@ jobs:
             > build-ci/coverage/llvm-cov-report.txt
 
       - name: Install Build Wrapper
-        uses: SonarSource/sonarqube-scan-action/install-build-wrapper@v7
+        uses: SonarSource/sonarqube-scan-action/install-build-wrapper@a31c9398be7ace6bbfaf30c0bd5d415f843d45e9 # v7
 
       - name: Build with Build Wrapper
         run: >
@@ -61,7 +61,7 @@ jobs:
           cmake --build build-ci --target BoomBaby_Standalone -- -j$(sysctl -n hw.ncpu)
 
       - name: SonarQube Scan
-        uses: SonarSource/sonarqube-scan-action@v7
+        uses: SonarSource/sonarqube-scan-action@a31c9398be7ace6bbfaf30c0bd5d415f843d45e9 # v7
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:

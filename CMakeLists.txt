@@ -142,5 +142,11 @@ target_link_libraries(BoomBabyTests
         juce::juce_recommended_config_flags
 )
 
+# ── Coverage instrumentation (llvm source-based) ──
+target_compile_options(BoomBabyTests PRIVATE
+    -fprofile-instr-generate -fcoverage-mapping)
+target_link_options(BoomBabyTests PRIVATE
+    -fprofile-instr-generate -fcoverage-mapping)
+
 include(Catch)
 catch_discover_tests(BoomBabyTests DISCOVERY_MODE PRE_TEST)

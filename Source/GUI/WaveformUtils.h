@@ -114,3 +114,37 @@ inline void applySvfPass(std::vector<float> &data, float cutoffHz, float q,
 }
 
 } // namespace SvfPassUtils
+
+// ────────────────────────────────────────────────────────────────
+// applyDirectFilters
+//   HPF/LPF フィルターバンドの設定を min/max ベクターに適用。
+//   DirectParams.cpp / PluginEditor.cpp (timerCallback) 共通。
+// ────────────────────────────────────────────────────────────────
+inline void applyDirectFilters(const auto &hpf, const auto &lpf, float sr,
+                               std::vector<float> &vecMin,
+                               std::vector<float> &vecMax) {
+  if (const auto hpfFreq = static_cast<float>(hpf.slider.getValue());
+      hpfFreq > 20.5f) {
+    const auto hpfQ = static_cast<float>(hpf.qSlider.getValue());
+    const int hpfSlope = hpf.slope.getSlope();
+    int hpfStages = 1;
+    if (hpfSlope >= 48)
+      hpfStages = 4;
+    else if (hpfSlope >= 24)
+      hpfStages = 2;
+    SvfPassUtils::applySvfPass(vecMin, hpfFreq, hpfQ, hpfStages, 0, sr);
+    SvfPassUtils::applySvfPass(vecMax, hpfFreq, hpfQ, hpfStages, 0, sr);
+  }
+  if (const auto lpfFreq = static_cast<float>(lpf.slider.getValue());
+      lpfFreq < 19999.5f) {
+    const auto lpfQ = static_cast<float>(lpf.qSlider.getValue());
+    const int lpfSlope = lpf.slope.getSlope();
+    int lpfStages = 1;
+    if (lpfSlope >= 48)
+      lpfStages = 4;
+    else if (lpfSlope >= 24)
+      lpfStages = 2;
+    SvfPassUtils::applySvfPass(vecMin, lpfFreq, lpfQ, lpfStages, 1, sr);
+    SvfPassUtils::applySvfPass(vecMax, lpfFreq, lpfQ, lpfStages, 1, sr);
+  }
+}
