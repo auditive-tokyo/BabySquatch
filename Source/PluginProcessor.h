@@ -12,8 +12,9 @@
 #include <juce_audio_utils/juce_audio_utils.h>
 #include <juce_dsp/juce_dsp.h>
 
-class BoomBabyAudioProcessor : public juce::AudioProcessor,
-                               private juce::AudioProcessorValueTreeState::Listener {
+class BoomBabyAudioProcessor
+    : public juce::AudioProcessor,
+      private juce::AudioProcessorValueTreeState::Listener {
 public:
   BoomBabyAudioProcessor();
   ~BoomBabyAudioProcessor() override;
@@ -50,6 +51,11 @@ public:
 
   /// APVTS アクセサ
   juce::AudioProcessorValueTreeState &getAPVTS() noexcept { return apvts_; }
+
+  /// DAW Undo/Redo 検出用バージョン（setStateInformation 毎にインクリメント）
+  int nonParamStateVersion() const noexcept {
+    return nonParamStateVersion_.load(std::memory_order_acquire);
+  }
 
   /// GUI鍵盤との共有 MidiKeyboardState
   juce::MidiKeyboardState &getKeyboardState() { return keyboardState; }
@@ -116,6 +122,9 @@ private:
   static juce::AudioProcessorValueTreeState::ParameterLayout
   createParameterLayout();
   juce::AudioProcessorValueTreeState apvts_;
+
+  /// DAW Undo/Redo 検出用: setStateInformation 呼び出し毎にインクリメント
+  std::atomic<int> nonParamStateVersion_{0};
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(BoomBabyAudioProcessor)
 };

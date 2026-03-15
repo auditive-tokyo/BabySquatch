@@ -43,6 +43,7 @@ public:
   void resized() override;
   void visibilityChanged() override;
   void mouseDown(const juce::MouseEvent &e) override;
+  bool keyPressed(const juce::KeyPress &key) override;
 
 private:
   void onEnvelopeChanged();
@@ -51,8 +52,9 @@ private:
   void timerCallback() override;
   static constexpr int kWaveDisplayCapacity = 192000; // ~1sec @ 192kHz
   std::vector<float> waveDisplayBuf_;
-  int waveDisplayPos_ = 0;    // 次の書き込み位置
-  int waveDisplayFilled_ = 0; // 実際に充際されたサンプル数
+  int waveDisplayPos_ = 0;       // 次の書き込み位置
+  int waveDisplayFilled_ = 0;    // 実際に充際されたサンプル数
+  int lastSeenStateVersion_ = 0; // DAW Undo/Redo 検出用
 
   // ── コンストラクター分割ヘルパー ──
   void setupPanelRouting(BoomBabyAudioProcessor &p);
@@ -111,6 +113,21 @@ private:
   EnvelopeCurveEditor envelopeCurveEditor{
       envDatas.amp, envDatas.freq,     envDatas.dist,
       envDatas.mix, envDatas.clickAmp, envDatas.directAmp};
+
+  // ── エンベロープ編集 Undo/Redo スタック ──
+  struct EnvEditMouseListener : juce::MouseListener {
+    std::function<void()> onMouseDown;
+    void mouseDown(const juce::MouseEvent &) override {
+      if (onMouseDown)
+        onMouseDown();
+    }
+  };
+  EnvEditMouseListener envEditListener_;
+  std::vector<EnvelopeDatas> envUndoStack_;
+  std::vector<EnvelopeDatas> envRedoStack_;
+  EnvelopeDatas pendingPreEditState_;
+  bool hasPendingUndo_ = false;
+  static constexpr int kMaxEnvUndoSteps = 100;
 
   // ── マスターセクション（鍵盤右余白エリア） ──
   MasterFader masterSection;

@@ -77,6 +77,7 @@ This project uses JUCE framework. An MCP server (`juce-docs`) is available.
 ├── GUI
 │   ├── ChannelFader.cpp       // チャンネルフェーダー実装（メーター＋フェーダー一体）
 │   ├── ChannelFader.h         // チャンネルフェーダー宣言（Sub/Click/Direct 共通）
+│   ├── ClickModeStateUtils.h  // Clickモード状態保存・復元ユーティリティ（ヘッダオンリー）
 │   ├── ClickParams.cpp        // Click パネル UI セットアップ / レイアウト
 │   ├── CustomSliderLAF.h      // ノブ描画LookAndFeel（グラデーション/値表示）+ CustomSlider（自然スクロール対応）
 │   ├── DirectParams.cpp       // Direct パネル UI セットアップ / レイアウト
@@ -92,6 +93,7 @@ This project uses JUCE framework. An MCP server (`juce-docs`) is available.
 │   ├── MasterFader.h          // マスターフェーダー宣言
 │   ├── PanelComponent.cpp     // SUB/CLICK/DIRECT共通パネル実装
 │   ├── PanelComponent.h       // 共通パネル宣言（ChannelFader・M/S ボタン）
+│   ├── SampleChooserUtils.h   // サンプル選択ファイルチューザーユーティリティ（ヘッダオンリー）
 │   ├── SubParams.cpp          // Sub パネル UI セットアップ / レイアウト
 │   ├── UIConstants.h          // UI定数集約（色・レイアウト寸法・LabelSelector・SlopeSelector 等）
 │   └── WaveformUtils.h        // 波形プレビュー描画ヘルパー（ClickParams/DirectParams 共通、ヘッダオンリー）
@@ -138,13 +140,6 @@ This project uses JUCE framework. An MCP server (`juce-docs`) is available.
     - プリセット読み込みと DAW セッション復元が単一コードパスで統一
     - デフォルト値の変更がコード修正不要（XML 差し替えのみ）
     - ユーザーが「Default」を選ぶだけで全パラメーターをリセット可能
-
-- **Undo: エンベロープ編集が未対応**
-  - 波形長（length/decay）のUndo→表示追従: **修正済み**（`pollUIFromAPVTS` 末尾で `updateDisplayDuration()` 呼び出し）
-  - 波形形状（drive/HPF/LPF/tone等）のUndo→表示追従: **修正済み**（`pollUIFromAPVTS` 末尾で各チャネルの波形プレビュー再構築）
-  - エンベロープ編集のUndo: **未対応**（プリセット管理と同時に実装予定）
-    - 原因: APVTS に UndoManager が `nullptr`、`saveEnvelopesToState` も `nullptr` で書き込み、ホスト通知なし
-    - 必要な作業: UndoManager 導入、ValueTree 操作に undo 引数追加、ValueTree::Listener で `envDatas` 再読み込み
 
 - **ユニットテスト導入**
   - フレームワーク: **Catch2 v3**（`FetchContent` で取得、ヘッダ軽量、CTest/CI 親和性高）

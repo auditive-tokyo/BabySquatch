@@ -192,7 +192,20 @@ void BoomBabyAudioProcessorEditor::onEnvelopeChanged() {
 // エンベロープカーブエディタ内部配線
 // ────────────────────────────────────────────────────
 void BoomBabyAudioProcessorEditor::setupEnvelopeCurveEditor() {
-  envelopeCurveEditor.setOnChange([this] { onEnvelopeChanged(); });
+  envelopeCurveEditor.setOnChange([this] {
+    // 編集前スナップショットを Undo スタックに確定（ジェスチャー先頭のみ）
+    if (hasPendingUndo_) {
+      envRedoStack_.clear();
+      envUndoStack_.push_back(pendingPreEditState_);
+      if (static_cast<int>(envUndoStack_.size()) > kMaxEnvUndoSteps)
+        envUndoStack_.erase(envUndoStack_.begin());
+      hasPendingUndo_ = false;
+    }
+    onEnvelopeChanged();
+    processorRef.updateHostDisplay(
+        juce::AudioProcessor::ChangeDetails().withNonParameterStateChanged(
+            true));
+  });
   // 初期状態: Amp が選択済み（ラベル色を反映）
   switchEditTarget(EnvelopeCurveEditor::EditTarget::amp);
 }
@@ -211,6 +224,36 @@ void BoomBabyAudioProcessorEditor::mouseDown(const juce::MouseEvent &e) {
     switchEditTarget(clickAmp);
   else if (e.eventComponent == &directUI.amp.label)
     switchEditTarget(directAmp);
+}
+
+// ────────────────────────────────────────────────────
+// エンベロープ Undo/Redo（プラグイン内部スタック）
+// ────────────────────────────────────────────────────
+bool BoomBabyAudioProcessorEditor::keyPressed(const juce::KeyPress &key) {
+  const bool isCmdZ =
+      key.getModifiers().isCommandDown() && key.getKeyCode() == 'Z';
+  if (!isCmdZ)
+    return false;
+
+  if (key.getModifiers().isShiftDown()) {
+    // ── Redo ──
+    if (envRedoStack_.empty())
+      return true;
+    envUndoStack_.push_back(envDatas);
+    envDatas = envRedoStack_.back();
+    envRedoStack_.pop_back();
+  } else {
+    // ── Undo ──
+    if (envUndoStack_.empty())
+      return true;
+    envRedoStack_.push_back(envDatas);
+    envDatas = envUndoStack_.back();
+    envUndoStack_.pop_back();
+  }
+
+  onEnvelopeChanged();
+  envelopeCurveEditor.repaint();
+  return true;
 }
 
 void BoomBabyAudioProcessorEditor::switchEditTarget(
@@ -255,6 +298,14 @@ BoomBabyAudioProcessorEditor::BoomBabyAudioProcessorEditor(
 
   envDatas.freq.setDefaultValue(200.0f);
 
+  // エンベロープ Undo: mouseDown 時に編集前スナップショットを保存
+  envEditListener_.onMouseDown = [this] {
+    pendingPreEditState_ = envDatas;
+    hasPendingUndo_ = true;
+  };
+  envelopeCurveEditor.addMouseListener(&envEditListener_, false);
+  envelopeCurveEditor.setWantsKeyboardFocus(true);
+
   setupPanelRouting(p);
   setupEnvelopeCurveEditor();
   setupClickParams();
@@ -293,11 +344,13 @@ BoomBabyAudioProcessorEditor::BoomBabyAudioProcessorEditor(
 
   // APVTS 状態から UI ウィジェットを復元（DAW が保存した値を反映）
   syncUIFromState();
+  lastSeenStateVersion_ = processorRef.nonParamStateVersion();
 
   startTimerHz(30);
 }
 
 BoomBabyAudioProcessorEditor::~BoomBabyAudioProcessorEditor() {
+  envelopeCurveEditor.removeMouseListener(&envEditListener_);
   stopTimer();
   subUI.wave.combo.setLookAndFeel(nullptr);
   clickUI.modeCombo.setLookAndFeel(nullptr);
@@ -436,6 +489,14 @@ void BoomBabyAudioProcessorEditor::syncUIFromState() {
 // APVTS ポーリング（timerCallback 用：サイレント更新）
 // ────────────────────────────────────────────────────
 void BoomBabyAudioProcessorEditor::pollUIFromAPVTS() {
+  // DAW Undo/Redo 検出:
+  // 非パラメータ状態（エンベロープ等）が復元されたら再読み込み
+  if (const int v = processorRef.nonParamStateVersion();
+      v != lastSeenStateVersion_) {
+    lastSeenStateVersion_ = v;
+    loadEnvelopesFromState();
+  }
+
   const auto &apvts = processorRef.getAPVTS();
   auto load = [&](const char *id) {
     return apvts.getRawParameterValue(id)->load();
@@ -547,10 +608,13 @@ void BoomBabyAudioProcessorEditor::pollUIFromAPVTS() {
   clickUI.repaintOrRefreshFn();
   refreshDirectProvider();
 
-  // Sub: tone1-4 の DSP + プレビュー同期（silent 復元では onValueChange 不発火）
+  // Sub: tone1-4 の DSP + プレビュー同期（silent 復元では onValueChange
+  // 不発火）
   for (int i = 0; i < 4; ++i) {
     const auto gain =
-        static_cast<float>(subUI.knobs[static_cast<std::size_t>(i + 4)].getValue()) / 100.0f;
+        static_cast<float>(
+            subUI.knobs[static_cast<std::size_t>(i + 4)].getValue()) /
+        100.0f;
     processorRef.subEngine().oscillator().setHarmonicGain(i + 1, gain);
     envelopeCurveEditor.setPreviewHarmonicGain(i + 1, gain);
   }
@@ -694,6 +758,8 @@ void BoomBabyAudioProcessorEditor::loadEnvelopesFromState() {
     auto tree = findEnv(name);
     if (tree.isValid())
       treeToEnvelope(tree, data);
+    else
+      data.clearPoints(); // ツリーなし → デフォルト（ポイントなし）にリセット
   }
 
   // サンプルファイルパスを先に復元（onEnvelopeChanged → saveEnvelopesToState
