@@ -139,10 +139,12 @@ This project uses JUCE framework. An MCP server (`juce-docs`) is available.
     - デフォルト値の変更がコード修正不要（XML 差し替えのみ）
     - ユーザーが「Default」を選ぶだけで全パラメーターをリセット可能
 
-- **Undoが、envelopeと波形長view変更に対して効かない問題を調査する**
-  - 概要: ノブや各種パラメータにはUndoが効くが、Envelopeの編集ではUndoできない
-  - subのlengthや、click/directのdecayを変更してcmd zすると、値は正しく戻るが、波形そのもの、そして波形長が戻らない。波形長の方は単純に波形の長さに合わせてるだけかも？
-  - 見た目の問題のみ。
+- **Undo: エンベロープ編集が未対応**
+  - 波形長（length/decay）のUndo→表示追従: **修正済み**（`pollUIFromAPVTS` 末尾で `updateDisplayDuration()` 呼び出し）
+  - 波形形状（drive/HPF/LPF/tone等）のUndo→表示追従: **修正済み**（`pollUIFromAPVTS` 末尾で各チャネルの波形プレビュー再構築）
+  - エンベロープ編集のUndo: **未対応**（プリセット管理と同時に実装予定）
+    - 原因: APVTS に UndoManager が `nullptr`、`saveEnvelopesToState` も `nullptr` で書き込み、ホスト通知なし
+    - 必要な作業: UndoManager 導入、ValueTree 操作に undo 引数追加、ValueTree::Listener で `envDatas` 再読み込み
 
 - **ユニットテスト導入**
   - フレームワーク: **Catch2 v3**（`FetchContent` で取得、ヘッダ軽量、CTest/CI 親和性高）

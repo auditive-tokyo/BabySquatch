@@ -530,6 +530,30 @@ void BoomBabyAudioProcessorEditor::pollUIFromAPVTS() {
 
   // ── Master ──
   masterSection.setValueDb(load(ParamIDs::masterGain));
+
+  // ── 波形表示 duration 同期 ──
+  // DAW Undo/Redo で subLength/clickDecay/directDecay が変わった場合に
+  // 波形表示の横幅を追従させる（silent 更新では onValueChange
+  // が発火しないため）
+  updateDisplayDuration();
+
+  // ── 波形プレビュー再構築 ──
+  // Drive/HPF/LPF 等の変更が Undo されても onValueChange が発火しないため、
+  // ここで波形プレビューを更新する。
+  // - Noise: repaint だけで OK（provider が live slider 値を参照）
+  // - Sample: サムネイルに drive/filter をベイクし直す必要あり
+  //   （サンプル未ロード時は早期 return するためコスト無し）
+  clickUI.repaintOrRefreshFn();
+  refreshDirectProvider();
+
+  // Sub: tone1-4 の DSP + プレビュー同期（silent 復元では onValueChange 不発火）
+  for (int i = 0; i < 4; ++i) {
+    const auto gain =
+        static_cast<float>(subUI.knobs[static_cast<std::size_t>(i + 4)].getValue()) / 100.0f;
+    processorRef.subEngine().oscillator().setHarmonicGain(i + 1, gain);
+    envelopeCurveEditor.setPreviewHarmonicGain(i + 1, gain);
+  }
+  envelopeCurveEditor.repaint();
 }
 
 // ────────────────────────────────────────────────────
@@ -733,10 +757,9 @@ void BoomBabyAudioProcessorEditor::loadEnvelopesFromState() {
   // アクティブモードのウィジェットに反映
   const bool clickIsSample = clickUI.modeCombo.getSelectedId() ==
                              std::to_underlying(ClickUI::Mode::Sample);
-  restoreModeStateToWidgets(clickUI,
-                            clickIsSample ? clickUI.sampleState
-                                         : clickUI.noiseState,
-                            processorRef.clickEngine());
+  restoreModeStateToWidgets(
+      clickUI, clickIsSample ? clickUI.sampleState : clickUI.noiseState,
+      processorRef.clickEngine());
 
   // 波形プロバイダーを正しいモードに切り替える
   // （setupClickParams が常に Noise プロバイダーをセットするため）
