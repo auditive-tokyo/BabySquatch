@@ -197,7 +197,8 @@ void BoomBabyAudioProcessorEditor::setupEnvelopeCurveEditor() {
     // 編集前スナップショットを Undo スタックに確定（ジェスチャー先頭のみ）
     if (envUndo_.hasPending) {
       envUndo_.redoStack.clear();
-      envUndo_.undoStack.push_back(envUndo_.pendingPreEdit);
+      envUndo_.undoStack.push_back(
+          {EnvUndoState::FrameType::Envelope, envUndo_.pendingPreEdit});
       if (static_cast<int>(envUndo_.undoStack.size()) > kMaxEnvUndoSteps)
         envUndo_.undoStack.erase(envUndo_.undoStack.begin());
       envUndo_.hasPending = false;
@@ -230,6 +231,20 @@ void BoomBabyAudioProcessorEditor::mouseDown(const juce::MouseEvent &e) {
 // ────────────────────────────────────────────────────
 // エンベロープ Undo/Redo（プラグイン内部スタック）
 // ────────────────────────────────────────────────────
+// パラメータジェスチャー開始時（DAW オートメーション経由など）
+// UI ドラッグ時は syncParam 内で既に Parameter フレームが積まれるため、
+// ここでは重複チェック付きで念のため追加する。
+void BoomBabyAudioProcessorEditor::audioProcessorParameterChangeGestureBegin(
+    juce::AudioProcessor *, int) {
+  if (!envUndo_.undoStack.empty() &&
+      envUndo_.undoStack.back().type == EnvUndoState::FrameType::Parameter)
+    return;
+  envUndo_.redoStack.clear();
+  envUndo_.undoStack.push_back({EnvUndoState::FrameType::Parameter, {}});
+  if (static_cast<int>(envUndo_.undoStack.size()) > kMaxEnvUndoSteps)
+    envUndo_.undoStack.erase(envUndo_.undoStack.begin());
+}
+
 bool BoomBabyAudioProcessorEditor::keyPressed(const juce::KeyPress &key) {
   if (const bool isCmdZ =
           key.getModifiers().isCommandDown() && key.getKeyCode() == 'Z';
@@ -239,22 +254,40 @@ bool BoomBabyAudioProcessorEditor::keyPressed(const juce::KeyPress &key) {
   if (key.getModifiers().isShiftDown()) {
     // ── Redo ──
     if (envUndo_.redoStack.empty())
-      return false; // スタック空 → ホストに委譲（パラメータ Redo）
-    envUndo_.undoStack.push_back(envDatas);
-    envDatas = envUndo_.redoStack.back();
+      return false; // スタック空 → ホストに委譲
+    auto frame = envUndo_.redoStack.back();
     envUndo_.redoStack.pop_back();
+    if (frame.type == EnvUndoState::FrameType::Envelope) {
+      envUndo_.undoStack.push_back(
+          {EnvUndoState::FrameType::Envelope, envDatas});
+      envDatas = frame.snapshot;
+      onEnvelopeChanged();
+      envelopeCurveEditor.repaint();
+      return true;
+    } else {
+      // Parameter フレーム → DAWに委譲してから redo スタックに戻す
+      envUndo_.undoStack.push_back(frame);
+      return false;
+    }
   } else {
     // ── Undo ──
     if (envUndo_.undoStack.empty())
-      return false; // スタック空 → ホストに委譲（パラメータ Undo）
-    envUndo_.redoStack.push_back(envDatas);
-    envDatas = envUndo_.undoStack.back();
+      return false; // スタック空 → ホストに委譲
+    auto frame = envUndo_.undoStack.back();
     envUndo_.undoStack.pop_back();
+    if (frame.type == EnvUndoState::FrameType::Envelope) {
+      envUndo_.redoStack.push_back(
+          {EnvUndoState::FrameType::Envelope, envDatas});
+      envDatas = frame.snapshot;
+      onEnvelopeChanged();
+      envelopeCurveEditor.repaint();
+      return true;
+    } else {
+      // Parameter フレーム → redo スタックに戻して DAW に委譲
+      envUndo_.redoStack.push_back(frame);
+      return false;
+    }
   }
-
-  onEnvelopeChanged();
-  envelopeCurveEditor.repaint();
-  return true;
 }
 
 void BoomBabyAudioProcessorEditor::switchEditTarget(
@@ -307,6 +340,9 @@ BoomBabyAudioProcessorEditor::BoomBabyAudioProcessorEditor(
   envelopeCurveEditor.addMouseListener(&envUndo_.listener, false);
   envelopeCurveEditor.setWantsKeyboardFocus(true);
 
+  // パラメータジェスチャー開始/終了を受け取り、統合 Undo スタックを更新する
+  processorRef.addListener(this);
+
   setupPanelRouting(p);
   setupEnvelopeCurveEditor();
   setupClickParams();
@@ -351,6 +387,7 @@ BoomBabyAudioProcessorEditor::BoomBabyAudioProcessorEditor(
 }
 
 BoomBabyAudioProcessorEditor::~BoomBabyAudioProcessorEditor() {
+  processorRef.removeListener(this);
   envelopeCurveEditor.removeMouseListener(&envUndo_.listener);
   stopTimer();
   subUI.wave.combo.setLookAndFeel(nullptr);
@@ -363,8 +400,18 @@ BoomBabyAudioProcessorEditor::~BoomBabyAudioProcessorEditor() {
 // APVTS ↔ UI 同期ヘルパー
 // ────────────────────────────────────────────────────
 void BoomBabyAudioProcessorEditor::syncParam(const char *id, float value) {
-  if (auto *p = processorRef.getAPVTS().getParameter(id))
+  if (auto *p = processorRef.getAPVTS().getParameter(id)) {
+    // 統合 Undo スタック: パラメータ変更を記録（連続ドラッグは 1
+    // フレームにまとめる）
+    if (envUndo_.undoStack.empty() ||
+        envUndo_.undoStack.back().type != EnvUndoState::FrameType::Parameter) {
+      envUndo_.redoStack.clear();
+      envUndo_.undoStack.push_back({EnvUndoState::FrameType::Parameter, {}});
+      if (static_cast<int>(envUndo_.undoStack.size()) > kMaxEnvUndoSteps)
+        envUndo_.undoStack.erase(envUndo_.undoStack.begin());
+    }
     p->setValueNotifyingHost(p->convertTo0to1(value));
+  }
 }
 
 void BoomBabyAudioProcessorEditor::syncUIFromState() {

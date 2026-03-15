@@ -33,8 +33,10 @@ struct DarkComboLAF : public juce::LookAndFeel_V4 {
   }
 };
 
-class BoomBabyAudioProcessorEditor final : public juce::AudioProcessorEditor,
-                                           private juce::Timer {
+class BoomBabyAudioProcessorEditor final
+    : public juce::AudioProcessorEditor,
+      private juce::Timer,
+      private juce::AudioProcessorListener {
 public:
   explicit BoomBabyAudioProcessorEditor(BoomBabyAudioProcessor &);
   ~BoomBabyAudioProcessorEditor() override;
@@ -47,6 +49,16 @@ public:
 
 private:
   void onEnvelopeChanged();
+
+  // AudioProcessorListener — パラメータジェスチャー開始を検出し
+  // 統合 Undo スタックに Parameter フレームを積む
+  void audioProcessorParameterChangeGestureBegin(juce::AudioProcessor *,
+                                                 int) override;
+  void audioProcessorChanged(juce::AudioProcessor *,
+                             const juce::AudioProcessorListener::ChangeDetails &)
+      override {}
+  void audioProcessorParameterChanged(juce::AudioProcessor *, int,
+                                      float) override {}
 
   // ── 入力波形リアルタイム表示（30fps Timer）──
   void timerCallback() override;
@@ -122,9 +134,16 @@ private:
     }
   };
   struct EnvUndoState {
+    // エンベロープ編集とパラメータ編集を時系列順に1つのスタックで管理する。
+    // Cmd+Z 時にトップフレームの種類に応じて内部処理 / DAW 委譲を切り替える。
+    enum class FrameType { Envelope, Parameter };
+    struct Frame {
+      FrameType type;
+      EnvelopeDatas snapshot; // Envelope フレームのみ有効
+    };
     EnvEditMouseListener listener;
-    std::vector<EnvelopeDatas> undoStack;
-    std::vector<EnvelopeDatas> redoStack;
+    std::vector<Frame> undoStack;
+    std::vector<Frame> redoStack;
     EnvelopeDatas pendingPreEdit;
     bool hasPending = false;
   };
