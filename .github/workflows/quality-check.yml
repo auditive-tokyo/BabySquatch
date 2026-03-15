@@ -39,6 +39,7 @@ jobs:
 
       - name: Run Tests
         run: |
+          mkdir -p build-ci/coverage
           cd build-ci && LLVM_PROFILE_FILE="coverage/%p.profraw" ctest --output-on-failure
 
       - name: Generate Coverage Report
@@ -52,7 +53,7 @@ jobs:
             > build-ci/coverage/lcov.info
 
       - name: Install Build Wrapper
-        uses: SonarSource/sonarqube-scan-action/install-build-wrapper@fd88b7d7ccbaefd23d8f36f73b59db7a3d246602 # v6
+        uses: SonarSource/sonarqube-scan-action/install-build-wrapper@v7
 
       - name: Build with Build Wrapper
         run: >
@@ -60,7 +61,7 @@ jobs:
           cmake --build build-ci --target BoomBaby_Standalone -- -j$(sysctl -n hw.ncpu)
 
       - name: SonarQube Scan
-        uses: SonarSource/sonarqube-scan-action@fd88b7d7ccbaefd23d8f36f73b59db7a3d246602 # v6
+        uses: SonarSource/sonarqube-scan-action@v7
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
