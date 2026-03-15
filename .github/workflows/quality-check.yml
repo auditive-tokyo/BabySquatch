@@ -47,11 +47,10 @@ jobs:
         run: |
           xcrun llvm-profdata merge -sparse build-ci/coverage/*.profraw -o build-ci/coverage/merged.profdata
           TESTS_BIN=$(find build-ci -name BoomBabyTests -type f -perm +111 | head -1)
-          xcrun llvm-cov export "$TESTS_BIN" \
+          xcrun llvm-cov show "$TESTS_BIN" \
             -instr-profile=build-ci/coverage/merged.profdata \
-            -format=lcov \
-            -ignore-filename-regex='(JUCE|_deps|build-ci/_deps)' \
-            > build-ci/coverage/lcov.info
+            -ignore-filename-regex='(JUCE|_deps)' \
+            > build-ci/coverage/llvm-cov-report.txt
 
       - name: Install Build Wrapper
         uses: SonarSource/sonarqube-scan-action/install-build-wrapper@v7
@@ -68,4 +67,4 @@ jobs:
         with:
           args: >
             --define "sonar.cfamily.compile-commands=${{ env.BUILD_WRAPPER_OUT_DIR }}/compile_commands.json"
-            --define "sonar.coverageReportPaths=build-ci/coverage/lcov.info"
+            --define "sonar.cfamily.llvm-cov.reportPath=build-ci/coverage/llvm-cov-report.txt"
