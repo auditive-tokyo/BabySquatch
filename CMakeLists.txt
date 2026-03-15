@@ -92,3 +92,53 @@ target_link_libraries(BoomBaby
         juce::juce_recommended_lto_flags
         juce::juce_recommended_warning_flags
 )
+
+# ─── Unit Tests ───────────────────────────────────────────────
+
+include(FetchContent)
+FetchContent_Declare(
+    Catch2
+    GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+    GIT_TAG        v3.7.1
+    GIT_SHALLOW    TRUE
+)
+FetchContent_MakeAvailable(Catch2)
+
+enable_testing()
+include(CTest)
+
+# テスト実行ファイル（JUCE コンソールアプリとして設定）
+# 注意: JUCE の CMake はモジュールをターゲットごとにコンパイルするため、
+#       OBJECT ライブラリ経由で共有するとシンボル重複が発生する。
+#       DSP ソースをテストターゲットに直接列挙することで回避。
+juce_add_console_app(BoomBabyTests PRODUCT_NAME "BoomBabyTests")
+target_sources(BoomBabyTests PRIVATE
+    Source/DSP/ClickEngine.cpp
+    Source/DSP/DirectEngine.cpp
+    Source/DSP/SamplePlayer.cpp
+    Source/DSP/SubEngine.cpp
+    Source/DSP/SubOscillator.cpp
+    Tests/TestSaturator.cpp
+    Tests/TestEnvelopeLutManager.cpp
+    Tests/TestClickEngine.cpp
+    Tests/TestDirectEngine.cpp
+    Tests/TestSubEngine.cpp
+    Tests/TestLevelDetector.cpp
+)
+target_compile_definitions(BoomBabyTests PRIVATE
+    JUCE_USE_CURL=0
+    JUCE_WEB_BROWSER=0
+)
+target_include_directories(BoomBabyTests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/Source
+)
+target_link_libraries(BoomBabyTests
+    PRIVATE
+        Catch2::Catch2WithMain
+        juce::juce_audio_utils
+        juce::juce_dsp
+        juce::juce_recommended_config_flags
+)
+
+include(Catch)
+catch_discover_tests(BoomBabyTests DISCOVERY_MODE PRE_TEST)

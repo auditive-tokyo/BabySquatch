@@ -1,4 +1,4 @@
-.PHONY: build run launch install clean cmake check lint tidy tidy-fix help
+.PHONY: build run launch install clean cmake check lint tidy tidy-fix test help
 
 help:
 	@echo "使用可能なコマンド:"
@@ -9,6 +9,7 @@ help:
 	@echo "  make cmake     - CMakeプロジェクトを再生成"
 	@echo "  make check     - コンパイルをチェック（エラーのみ表示）"
 	@echo "  make lint      - コンパイラ警告をチェック"
+	@echo "  make test      - ユニットテストをビルド＆実行"
 	@echo "  make tidy      - （非推奨: JUCE では動作不安定）"
 	@echo "  make tidy-fix  - （非推奨）"
 	@echo "  make clean     - ビルドディレクトリをクリーン"
@@ -54,3 +55,7 @@ tidy:
 tidy-fix:
 	@echo "clang-tidy の自動修正は JUCE プロジェクトでは推奨されません。"
 	@echo "手動でコードを修正してください。"
+
+test:
+	cd build && xcodebuild -scheme "BoomBabyTests" -configuration Debug build 2>&1 | grep -E "(error:|Build succeeded|FAILED)" || true
+	cd build && ctest -C Debug --output-on-failure
