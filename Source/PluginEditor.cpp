@@ -197,8 +197,8 @@ void BoomBabyAudioProcessorEditor::setupEnvelopeCurveEditor() {
     // 編集前スナップショットを Undo スタックに確定（ジェスチャー先頭のみ）
     if (envUndo_.hasPending) {
       envUndo_.redoStack.clear();
-      envUndo_.undoStack.push_back(
-          {EnvUndoState::FrameType::Envelope, envUndo_.pendingPreEdit});
+      envUndo_.undoStack.emplace_back(
+          EnvUndoState::FrameType::Envelope, envUndo_.pendingPreEdit);
       if (static_cast<int>(envUndo_.undoStack.size()) > kMaxEnvUndoSteps)
         envUndo_.undoStack.erase(envUndo_.undoStack.begin());
       envUndo_.hasPending = false;
@@ -244,15 +244,15 @@ bool BoomBabyAudioProcessorEditor::keyPressed(const juce::KeyPress &key) {
     auto frame = envUndo_.redoStack.back();
     envUndo_.redoStack.pop_back();
     if (frame.type == EnvUndoState::FrameType::Envelope) {
-      envUndo_.undoStack.push_back(
-          {EnvUndoState::FrameType::Envelope, envDatas});
+      envUndo_.undoStack.emplace_back(
+          EnvUndoState::FrameType::Envelope, envDatas);
       envDatas = frame.snapshot;
       onEnvelopeChanged();
       envelopeCurveEditor.repaint();
       return true;
     } else {
       // Parameter フレーム → DAWに委譲してから redo スタックに戻す
-      envUndo_.undoStack.push_back(frame);
+      envUndo_.undoStack.emplace_back(frame);
       return false;
     }
   } else {
@@ -262,15 +262,15 @@ bool BoomBabyAudioProcessorEditor::keyPressed(const juce::KeyPress &key) {
     auto frame = envUndo_.undoStack.back();
     envUndo_.undoStack.pop_back();
     if (frame.type == EnvUndoState::FrameType::Envelope) {
-      envUndo_.redoStack.push_back(
-          {EnvUndoState::FrameType::Envelope, envDatas});
+      envUndo_.redoStack.emplace_back(
+          EnvUndoState::FrameType::Envelope, envDatas);
       envDatas = frame.snapshot;
       onEnvelopeChanged();
       envelopeCurveEditor.repaint();
       return true;
     } else {
       // Parameter フレーム → redo スタックに戻して DAW に委譲
-      envUndo_.redoStack.push_back(frame);
+      envUndo_.redoStack.emplace_back(frame);
       return false;
     }
   }
@@ -388,7 +388,7 @@ void BoomBabyAudioProcessorEditor::syncParam(const char *id, float value) {
     if (envUndo_.undoStack.empty() ||
         envUndo_.undoStack.back().type != EnvUndoState::FrameType::Parameter) {
       envUndo_.redoStack.clear();
-      envUndo_.undoStack.push_back({EnvUndoState::FrameType::Parameter, {}});
+      envUndo_.undoStack.emplace_back(EnvUndoState::FrameType::Parameter, EnvelopeDatas{});
       if (static_cast<int>(envUndo_.undoStack.size()) > kMaxEnvUndoSteps)
         envUndo_.undoStack.erase(envUndo_.undoStack.begin());
     }
