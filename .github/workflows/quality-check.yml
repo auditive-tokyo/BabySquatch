@@ -29,10 +29,27 @@ jobs:
       - name: Configure CMake
         run: cmake -S . -B build-ci -DJUCE_PATH=/tmp/JUCE -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 
-      - name: Build and Run Tests
+      - name: Build Tests with Coverage
+        run: >
+          cmake --build build-ci --target BoomBabyTests
+          --
+          -j$(sysctl -n hw.ncpu)
+          OTHER_CPLUSPLUSFLAGS="-fprofile-instr-generate -fcoverage-mapping"
+          OTHER_LDFLAGS="-fprofile-instr-generate"
+
+      - name: Run Tests
         run: |
-          cmake --build build-ci --target BoomBabyTests -- -j$(sysctl -n hw.ncpu)
-          cd build-ci && ctest --output-on-failure
+          cd build-ci && LLVM_PROFILE_FILE="coverage/%p.profraw" ctest --output-on-failure
+
+      - name: Generate Coverage Report
+        run: |
+          xcrun llvm-profdata merge -sparse build-ci/coverage/*.profraw -o build-ci/coverage/merged.profdata
+          TESTS_BIN=$(find build-ci -name BoomBabyTests -type f -perm +111 | head -1)
+          xcrun llvm-cov export "$TESTS_BIN" \
+            -instr-profile=build-ci/coverage/merged.profdata \
+            -format=lcov \
+            -ignore-filename-regex='(JUCE|_deps|build-ci/_deps)' \
+            > build-ci/coverage/lcov.info
 
       - name: Install Build Wrapper
         uses: SonarSource/sonarqube-scan-action/install-build-wrapper@fd88b7d7ccbaefd23d8f36f73b59db7a3d246602 # v6
@@ -49,3 +66,4 @@ jobs:
         with:
           args: >
             --define "sonar.cfamily.compile-commands=${{ env.BUILD_WRAPPER_OUT_DIR }}/compile_commands.json"
+            --define "sonar.coverageReportPaths=build-ci/coverage/lcov.info"
