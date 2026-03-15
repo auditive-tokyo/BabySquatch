@@ -3,6 +3,7 @@
 #include "../DSP/Saturator.h"
 #include "../ParamIDs.h"
 #include "../PluginEditor.h"
+#include "ClickModeStateUtils.h"
 #include "InfoBoxText.h"
 #include "LutBaker.h"
 #include "SampleChooserUtils.h"
@@ -27,37 +28,6 @@ float computeNoiseEnv(float decayMs, float timeSec) {
   return (timeSec * 1000.0f < decayMs)
              ? std::exp(-timeSec * 5000.0f / (decayMs + 1e-6f))
              : 0.0f;
-}
-
-void saveModeStateFromWidgets(const auto &clk, auto &dst) {
-  dst.hpfFreq = clk.hpf.slider.getValue();
-  dst.hpfQ = clk.hpf.qSlider.getValue();
-  dst.hpfSlope = clk.hpf.slope.getSlope();
-  dst.lpfFreq = clk.lpf.slider.getValue();
-  dst.lpfQ = clk.lpf.qSlider.getValue();
-  dst.lpfSlope = clk.lpf.slope.getSlope();
-  dst.drive = clk.noise.saturator.driveSlider.getValue();
-  dst.clipType = clk.noise.saturator.clipType.getSelected();
-}
-
-void restoreModeStateToWidgets(auto &clk, const auto &src, auto &eng) {
-  clk.hpf.slider.setValue(src.hpfFreq, juce::dontSendNotification);
-  clk.hpf.qSlider.setValue(src.hpfQ, juce::dontSendNotification);
-  clk.hpf.slope.setSlope(src.hpfSlope);
-  clk.lpf.slider.setValue(src.lpfFreq, juce::dontSendNotification);
-  clk.lpf.qSlider.setValue(src.lpfQ, juce::dontSendNotification);
-  clk.lpf.slope.setSlope(src.lpfSlope);
-  clk.noise.saturator.driveSlider.setValue(src.drive,
-                                           juce::dontSendNotification);
-  clk.noise.saturator.clipType.setSelected(src.clipType);
-  eng.setHpfFreq(static_cast<float>(src.hpfFreq));
-  eng.setHpfQ(static_cast<float>(src.hpfQ));
-  eng.setHpfSlope(src.hpfSlope);
-  eng.setLpfFreq(static_cast<float>(src.lpfFreq));
-  eng.setLpfQ(static_cast<float>(src.lpfQ));
-  eng.setLpfSlope(src.lpfSlope);
-  eng.setDriveDb(static_cast<float>(src.drive));
-  eng.setClipType(src.clipType);
 }
 
 float computeNoiseAmplitudeScale(const auto &clickUI, float kSr) {
