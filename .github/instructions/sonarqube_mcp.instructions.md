@@ -25,6 +25,9 @@ These are some guidelines when using the SonarQube MCP server.
 
 ## Code Issues and Violations
 - After fixing issues, do not attempt to verify them using `search_sonar_issues_in_projects`, as the server will not yet reflect the updates
+- **IMPORTANT**: To check existing Open issues reported in the SonarQube UI, use `search_sonar_issues_in_projects` (NOT `analyze_file_list`). `analyze_file_list` is a local scan and may miss issues that the full server-side analysis detects.
+- When using `search_sonar_issues_in_projects`, always read the **full result** to find all Open issues — do not assume the first few results represent the complete picture.
+- `analyze_file_list` is supplementary only; it cannot fully resolve C++ includes/templates without build info and has lower accuracy than the server-side scan.
 
 # Common Troubleshooting
 
