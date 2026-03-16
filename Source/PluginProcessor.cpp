@@ -456,8 +456,6 @@ void BoomBabyAudioProcessor::prepareToPlay(double sampleRate,
   bakeAllLutsFromState();
 }
 
-
-
 void BoomBabyAudioProcessor::releaseResources() {
   // Currently no resources to release - will be populated when adding DSP
   // processing
@@ -643,7 +641,7 @@ void BoomBabyAudioProcessor::setStateInformation(
     return;
 
   apvts_.replaceState(juce::ValueTree::fromXml(*xml));
-  nonParamStateVersion_.fetch_add(1, std::memory_order_release);
+  nonParamStateVersion_.fetch_add(1);
 
   // replaceState は parameterChanged を発火しないため、
   // 全パラメータの DSP セッターを手動で呼び出す

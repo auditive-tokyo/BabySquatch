@@ -54,7 +54,7 @@ public:
 
   /// DAW Undo/Redo 検出用バージョン（setStateInformation 毎にインクリメント）
   int nonParamStateVersion() const noexcept {
-    return nonParamStateVersion_.load(std::memory_order_acquire);
+    return nonParamStateVersion_.load();
   }
 
   /// GUI鍵盤との共有 MidiKeyboardState
