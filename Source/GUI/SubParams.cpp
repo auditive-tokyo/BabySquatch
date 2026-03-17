@@ -111,13 +111,19 @@ void BoomBabyAudioProcessorEditor::setupSubKnobsRow() {
   subUI.knobs[1].setDoubleClickReturnValue(true, 200.0);
   subUI.knobs[1].onDragStart = [this] {
     switchEditTarget(EnvelopeCurveEditor::EditTarget::freq);
+    if (subUI.knobs[1].isMouseButtonDown()) {
+      envUndo_.pendingPreEdit = envDatas;
+      envUndo_.hasPending = true;
+    }
   };
   subUI.knobs[1].onValueChange = [this] {
+    pushEnvUndoIfPending();
     const auto hz = static_cast<float>(subUI.knobs[1].getValue());
-    syncParam(ParamIDs::subFreq, hz);
     envDatas.freq.setDefaultValue(hz);
     if (!envDatas.freq.isEnvelopeControlled())
       envDatas.freq.setPointValue(0, hz);
+    saveEnvelopesToState();
+    syncParamSilent(ParamIDs::subFreq, hz);
     bakeLut(envDatas.freq, processorRef.subEngine().freqLut(),
             envelopeCurveEditor.getDisplayDurationMs());
     const float cycles =
@@ -139,13 +145,20 @@ void BoomBabyAudioProcessorEditor::setupSubKnobsRow() {
   subUI.knobs[0].setDoubleClickReturnValue(true, 100.0);
   subUI.knobs[0].onDragStart = [this] {
     switchEditTarget(EnvelopeCurveEditor::EditTarget::amp);
+    if (subUI.knobs[0].isMouseButtonDown()) {
+      envUndo_.pendingPreEdit = envDatas;
+      envUndo_.hasPending = true;
+    }
   };
   subUI.knobs[0].onValueChange = [this] {
+    pushEnvUndoIfPending();
     const float v = static_cast<float>(subUI.knobs[0].getValue()) / 100.0f;
-    syncParam(ParamIDs::subAmp, static_cast<float>(subUI.knobs[0].getValue()));
     envDatas.amp.setDefaultValue(v);
     if (!envDatas.amp.isEnvelopeControlled())
       envDatas.amp.setPointValue(0, v);
+    saveEnvelopesToState();
+    syncParamSilent(ParamIDs::subAmp,
+                    static_cast<float>(subUI.knobs[0].getValue()));
     bakeLut(envDatas.amp, processorRef.subEngine().envLut(),
             envelopeCurveEditor.getDisplayDurationMs());
     envelopeCurveEditor.repaint();
@@ -164,13 +177,20 @@ void BoomBabyAudioProcessorEditor::setupSubKnobsRow() {
   subUI.knobs[2].setDoubleClickReturnValue(true, 0.0);
   subUI.knobs[2].onDragStart = [this] {
     switchEditTarget(EnvelopeCurveEditor::EditTarget::mix);
+    if (subUI.knobs[2].isMouseButtonDown()) {
+      envUndo_.pendingPreEdit = envDatas;
+      envUndo_.hasPending = true;
+    }
   };
   subUI.knobs[2].onValueChange = [this] {
+    pushEnvUndoIfPending();
     const float v = static_cast<float>(subUI.knobs[2].getValue()) / 100.0f;
-    syncParam(ParamIDs::subMix, static_cast<float>(subUI.knobs[2].getValue()));
     envDatas.mix.setDefaultValue(v);
     if (!envDatas.mix.isEnvelopeControlled())
       envDatas.mix.setPointValue(0, v);
+    saveEnvelopesToState();
+    syncParamSilent(ParamIDs::subMix,
+                    static_cast<float>(subUI.knobs[2].getValue()));
     bakeLut(envDatas.mix, processorRef.subEngine().mixLut(),
             envelopeCurveEditor.getDisplayDurationMs());
     envelopeCurveEditor.setPreviewMix(v);
@@ -186,14 +206,20 @@ void BoomBabyAudioProcessorEditor::setupSubKnobsRow() {
   subUI.knobs[3].setDoubleClickReturnValue(true, 0.0);
   subUI.knobs[3].onDragStart = [this] {
     switchEditTarget(EnvelopeCurveEditor::EditTarget::saturate);
+    if (subUI.knobs[3].isMouseButtonDown()) {
+      envUndo_.pendingPreEdit = envDatas;
+      envUndo_.hasPending = true;
+    }
   };
   subUI.knobs[3].onValueChange = [this] {
+    pushEnvUndoIfPending();
     const float v = static_cast<float>(subUI.knobs[3].getValue()) / 24.0f;
-    syncParam(ParamIDs::subSatDrive,
-              static_cast<float>(subUI.knobs[3].getValue()));
     envDatas.dist.setDefaultValue(v);
     if (!envDatas.dist.isEnvelopeControlled())
       envDatas.dist.setPointValue(0, v);
+    saveEnvelopesToState();
+    syncParamSilent(ParamIDs::subSatDrive,
+                    static_cast<float>(subUI.knobs[3].getValue()));
     bakeLut(envDatas.dist, processorRef.subEngine().distLut(),
             envelopeCurveEditor.getDisplayDurationMs());
     envelopeCurveEditor.repaint();
@@ -208,9 +234,8 @@ void BoomBabyAudioProcessorEditor::setupSubKnobsRow() {
     processorRef.subEngine().oscillator().setClipType(t);
     syncParam(ParamIDs::subSatClipType, static_cast<float>(t));
   });
-  subUI.saturateClipType.setOnClicked([this] {
-    switchEditTarget(EnvelopeCurveEditor::EditTarget::saturate);
-  });
+  subUI.saturateClipType.setOnClicked(
+      [this] { switchEditTarget(EnvelopeCurveEditor::EditTarget::saturate); });
   addAndMakeVisible(subUI.saturateClipType);
 
   // ── Tone1〜Tone4 ノブ（subUI.knobs[4〜7]） ──

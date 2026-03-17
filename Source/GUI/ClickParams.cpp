@@ -240,9 +240,8 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
     syncParam(ParamIDs::clickClipType, static_cast<float>(t));
     clickUI.repaintOrRefreshFn();
   });
-  clickUI.noise.saturator.clipType.setOnClicked([this] {
-    switchEditTarget(EnvelopeCurveEditor::EditTarget::none);
-  });
+  clickUI.noise.saturator.clipType.setOnClicked(
+      [this] { switchEditTarget(EnvelopeCurveEditor::EditTarget::none); });
   addAndMakeVisible(clickUI.noise.saturator.clipType);
 
   // HPF freq  20–20000 Hz  log
@@ -353,15 +352,21 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
   clickUI.sample.amp.slider.setValue(100.0, juce::dontSendNotification);
   clickUI.sample.amp.slider.onDragStart = [this] {
     switchEditTarget(EnvelopeCurveEditor::EditTarget::clickAmp);
+    if (clickUI.sample.amp.slider.isMouseButtonDown()) {
+      envUndo_.pendingPreEdit = envDatas;
+      envUndo_.hasPending = true;
+    }
   };
   clickUI.sample.amp.slider.onValueChange = [this] {
+    pushEnvUndoIfPending();
     const float v =
         static_cast<float>(clickUI.sample.amp.slider.getValue()) / 100.0f;
-    syncParam(ParamIDs::clickSampleAmp,
-              static_cast<float>(clickUI.sample.amp.slider.getValue()));
     envDatas.clickAmp.setDefaultValue(v);
     if (!envDatas.clickAmp.isEnvelopeControlled())
       envDatas.clickAmp.setPointValue(0, v);
+    saveEnvelopesToState();
+    syncParamSilent(ParamIDs::clickSampleAmp,
+                    static_cast<float>(clickUI.sample.amp.slider.getValue()));
     bakeLut(envDatas.clickAmp, processorRef.clickEngine().clickAmpLut(),
             effectiveLutDuration(envDatas.clickAmp,
                                  envelopeCurveEditor.getDisplayDurationMs()));
@@ -420,10 +425,9 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
                                       UIConstants::Colours::labelText);
   clickUI.sample.loadButton.setVisible(false);
   clickUI.sample.loadButton.onClick = [this] {
-    launchSampleChooser(clickUI.sample.fileChooser,
-                        [this](const juce::File &f) {
-                          onClickSampleFileChosen(f);
-                        });
+    launchSampleChooser(
+        clickUI.sample.fileChooser,
+        [this](const juce::File &f) { onClickSampleFileChosen(f); });
   };
   clickUI.sample.loadButton.setOnFileDropped(
       [this](const juce::File &file) { onClickSampleFileChosen(file); });

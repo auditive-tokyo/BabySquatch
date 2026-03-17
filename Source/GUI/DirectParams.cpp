@@ -90,7 +90,8 @@ void BoomBabyAudioProcessorEditor::setupDirectParams() {
         directUI.sample.loadButton.setHasFile(false);
       }
     }
-    processorRef.directMode().setSampleMode(isSample, processorRef.directEngine());
+    processorRef.directMode().setSampleMode(isSample,
+                                            processorRef.directEngine());
     syncParam(ParamIDs::directMode, isSample ? 1.0f : 0.0f);
     refreshDirectPassthroughUI();
     resized();
@@ -125,14 +126,20 @@ void BoomBabyAudioProcessorEditor::setupDirectParams() {
   directUI.amp.slider.setValue(100.0, juce::dontSendNotification);
   directUI.amp.slider.onDragStart = [this] {
     switchEditTarget(EnvelopeCurveEditor::EditTarget::directAmp);
+    if (directUI.amp.slider.isMouseButtonDown()) {
+      envUndo_.pendingPreEdit = envDatas;
+      envUndo_.hasPending = true;
+    }
   };
   directUI.amp.slider.onValueChange = [this] {
+    pushEnvUndoIfPending();
     const float v = static_cast<float>(directUI.amp.slider.getValue()) / 100.0f;
-    syncParam(ParamIDs::directAmp,
-              static_cast<float>(directUI.amp.slider.getValue()));
     envDatas.directAmp.setDefaultValue(v);
     if (!envDatas.directAmp.isEnvelopeControlled())
       envDatas.directAmp.setPointValue(0, v);
+    saveEnvelopesToState();
+    syncParamSilent(ParamIDs::directAmp,
+                    static_cast<float>(directUI.amp.slider.getValue()));
     bakeLut(envDatas.directAmp, processorRef.directEngine().directAmpLut(),
             effectiveLutDuration(
                 envDatas.directAmp,

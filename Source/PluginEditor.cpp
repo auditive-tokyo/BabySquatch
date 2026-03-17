@@ -116,6 +116,10 @@ void BoomBabyAudioProcessorEditor::onEnvelopeChanged() {
           effectiveLutDuration(envDatas.directAmp, directDecayMs));
   // 1点=ノブ制御（有効化＋ポイント値をノブに反映）、2点以上=エンベロープ制御（無効化）
 
+  // ValueTree を先に保存しておく。syncParamSilent → parameterChanged →
+  // bakeAllLutsFromState が正しいデータを読めるようにするため。
+  saveEnvelopesToState();
+
   // Amp
   const bool ampCtrl = envDatas.amp.isEnvelopeControlled();
   subUI.knobs[0].setEnabled(!ampCtrl);
@@ -125,7 +129,7 @@ void BoomBabyAudioProcessorEditor::onEnvelopeChanged() {
     const float v = envDatas.amp.getPoints()[0].value;
     envDatas.amp.setDefaultValue(v);
     subUI.knobs[0].setValue(v * 100.0, juce::dontSendNotification);
-    syncParam(ParamIDs::subAmp, v * 100.0f);
+    syncParamSilent(ParamIDs::subAmp, v * 100.0f);
   }
 
   // Freq
@@ -137,7 +141,7 @@ void BoomBabyAudioProcessorEditor::onEnvelopeChanged() {
     const float hz = envDatas.freq.getPoints()[0].value;
     envDatas.freq.setDefaultValue(hz);
     subUI.knobs[1].setValue(hz, juce::dontSendNotification);
-    syncParam(ParamIDs::subFreq, hz);
+    syncParamSilent(ParamIDs::subFreq, hz);
     envelopeCurveEditor.setDisplayCycles(
         hz * envelopeCurveEditor.getDisplayDurationMs() / 1000.0f);
   }
@@ -151,7 +155,7 @@ void BoomBabyAudioProcessorEditor::onEnvelopeChanged() {
     const float v = envDatas.dist.getPoints()[0].value;
     envDatas.dist.setDefaultValue(v);
     subUI.knobs[3].setValue(v * 24.0, juce::dontSendNotification);
-    syncParam(ParamIDs::subSatDrive, v * 24.0f);
+    syncParamSilent(ParamIDs::subSatDrive, v * 24.0f);
   }
 
   // Mix
@@ -163,7 +167,7 @@ void BoomBabyAudioProcessorEditor::onEnvelopeChanged() {
     const float v = envDatas.mix.getPoints()[0].value;
     envDatas.mix.setDefaultValue(v);
     subUI.knobs[2].setValue(v * 100.0, juce::dontSendNotification);
-    syncParam(ParamIDs::subMix, v * 100.0f);
+    syncParamSilent(ParamIDs::subMix, v * 100.0f);
     envelopeCurveEditor.setPreviewMix(v);
   }
 
@@ -176,7 +180,7 @@ void BoomBabyAudioProcessorEditor::onEnvelopeChanged() {
     const float v = envDatas.clickAmp.getPoints()[0].value;
     envDatas.clickAmp.setDefaultValue(v);
     clickUI.sample.amp.slider.setValue(v * 100.0, juce::dontSendNotification);
-    syncParam(ParamIDs::clickSampleAmp, v * 100.0f);
+    syncParamSilent(ParamIDs::clickSampleAmp, v * 100.0f);
   }
 
   // Direct Amp
@@ -188,11 +192,8 @@ void BoomBabyAudioProcessorEditor::onEnvelopeChanged() {
     const float v = envDatas.directAmp.getPoints()[0].value;
     envDatas.directAmp.setDefaultValue(v);
     directUI.amp.slider.setValue(v * 100.0, juce::dontSendNotification);
-    syncParam(ParamIDs::directAmp, v * 100.0f);
+    syncParamSilent(ParamIDs::directAmp, v * 100.0f);
   }
-
-  // エンベロープデータを APVTS に保存（状態永続化）
-  saveEnvelopesToState();
 }
 
 // ────────────────────────────────────────────────────
@@ -200,15 +201,7 @@ void BoomBabyAudioProcessorEditor::onEnvelopeChanged() {
 // ────────────────────────────────────────────────────
 void BoomBabyAudioProcessorEditor::setupEnvelopeCurveEditor() {
   envelopeCurveEditor.setOnChange([this] {
-    // 編集前スナップショットを Undo スタックに確定（ジェスチャー先頭のみ）
-    if (envUndo_.hasPending) {
-      envUndo_.redoStack.clear();
-      envUndo_.undoStack.emplace_back(EnvUndoState::FrameType::Envelope,
-                                      envUndo_.pendingPreEdit);
-      if (static_cast<int>(envUndo_.undoStack.size()) > kMaxEnvUndoSteps)
-        envUndo_.undoStack.erase(envUndo_.undoStack.begin());
-      envUndo_.hasPending = false;
-    }
+    pushEnvUndoIfPending();
     onEnvelopeChanged();
     processorRef.updateHostDisplay(
         juce::AudioProcessor::ChangeDetails().withNonParameterStateChanged(
@@ -400,6 +393,35 @@ void BoomBabyAudioProcessorEditor::syncParam(const char *id, float value) {
         envUndo_.undoStack.erase(envUndo_.undoStack.begin());
     }
     p->setValueNotifyingHost(p->convertTo0to1(value));
+  }
+}
+
+void BoomBabyAudioProcessorEditor::syncParamSilent(const char *id,
+                                                   float value) {
+  if (auto *p = processorRef.getAPVTS().getParameter(id))
+    p->setValueNotifyingHost(p->convertTo0to1(value));
+}
+
+void BoomBabyAudioProcessorEditor::pushEnvUndoIfPending() {
+  if (envUndo_.hasPending) {
+    envUndo_.redoStack.clear();
+    envUndo_.undoStack.emplace_back(EnvUndoState::FrameType::Envelope,
+                                    envUndo_.pendingPreEdit);
+    if (static_cast<int>(envUndo_.undoStack.size()) > kMaxEnvUndoSteps)
+      envUndo_.undoStack.erase(envUndo_.undoStack.begin());
+    envUndo_.hasPending = false;
+  } else {
+    // ホイール操作など onDragStart なしで onValueChange が呼ばれた場合:
+    // 連続変更を 1 つの Envelope フレームにまとめる（直前が Envelope なら
+    // skip）
+    if (envUndo_.undoStack.empty() ||
+        envUndo_.undoStack.back().type != EnvUndoState::FrameType::Envelope) {
+      envUndo_.redoStack.clear();
+      envUndo_.undoStack.emplace_back(EnvUndoState::FrameType::Envelope,
+                                      envDatas);
+      if (static_cast<int>(envUndo_.undoStack.size()) > kMaxEnvUndoSteps)
+        envUndo_.undoStack.erase(envUndo_.undoStack.begin());
+    }
   }
 }
 

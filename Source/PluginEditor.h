@@ -33,9 +33,8 @@ struct DarkComboLAF : public juce::LookAndFeel_V4 {
   }
 };
 
-class BoomBabyAudioProcessorEditor final
-    : public juce::AudioProcessorEditor,
-      private juce::Timer {
+class BoomBabyAudioProcessorEditor final : public juce::AudioProcessorEditor,
+                                           private juce::Timer {
 public:
   explicit BoomBabyAudioProcessorEditor(BoomBabyAudioProcessor &);
   ~BoomBabyAudioProcessorEditor() override;
@@ -83,6 +82,9 @@ private:
 
   /// APVTS パラメータ同期ヘルパー（UI → APVTS）
   void syncParam(const char *id, float value);
+  void syncParamSilent(const char *id, float value);
+  /// ノブ onValueChange から呼び出し: 保留中の Envelope Undo フレームを確定
+  void pushEnvUndoIfPending();
   /// APVTS 値から UI ウィジェットを復元（エディタ構築時＋状態復元時）
   void syncUIFromState();
   /// APVTS
