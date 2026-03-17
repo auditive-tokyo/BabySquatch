@@ -109,7 +109,7 @@ This project uses JUCE framework. An MCP server (`juce-docs`) is available.
 
 ## TODO
 
-- **マスターリミッター（検討中）**
+- **マスターリミッター（検討中:おそらくやらないめんどい）**
   - 目的: マスター出力段にブリックウォールリミッターを挿入し、クリッピングを防止
   - 候補方式:
     1. **ソフトニー方式（推奨）**: Attack/Release エンベロープフォロワーでゲインリダクション計算。CPU 負荷ほぼゼロ、~80行。`LevelDetector` を流用可能
@@ -125,23 +125,27 @@ This project uses JUCE framework. An MCP server (`juce-docs`) is available.
   - ディレクトリ構成:
     ```
     Resources/presets/
-      default.xml       ← 出荷時デフォルト
-      // 将来: fat_kick.xml, punchy.xml ...
+      default.preset    ← 出荷時デフォルト（Standalone の Save current state で生成）
+      // 将来: fat_kick.preset, punchy.preset ...
     ```
   - CMakeLists.txt に追加:
     ```cmake
     juce_add_binary_data(BoomBabyBinaryData
-        SOURCES Resources/presets/default.xml)
+        SOURCES Resources/presets/default.preset)
     ```
   - 実装手順:
-    1. 全パラメーターを望ましい初期値にしてプラグインを起動
-    2. `getStateInformation()` で XML をダンプして `Resources/presets/default.xml` として保存（フォーマット一致が保証される）
-    3. `BinaryData` に追加
-    4. `PluginProcessor` コンストラクタで `loadPresetFromXml(BinaryData::default_xml, ...)` を呼ぶ
-    5. `setStateInformation()` に fallback: DAW データがなければ default を読む
+    1. Standalone を起動し、全パラメーターとエンベロープを望ましい初期値に設定
+    2. Standalone の「Save current state...」で `Resources/presets/default.preset` として保存（`getStateInformation()` と同一フォーマット）
+    3. `BinaryData` に追加（`make cmake` で反映）
+    4. `PluginProcessor` コンストラクタまたは `setStateInformation()` に fallback:
+       DAW データがなければ `BinaryData::default_preset` を読む
+       ```cpp
+       setStateInformation(BinaryData::default_preset,
+                           BinaryData::default_presetSize);
+       ```
   - 利点:
-    - プリセット読み込みと DAW セッション復元が単一コードパスで統一
-    - デフォルト値の変更がコード修正不要（XML 差し替えのみ）
+    - プリセット読み込みと DAW セッション復元が単一コードパスで統一（`setStateInformation` をそのまま使える）
+    - デフォルト値の変更がコード修正不要（`.preset` ファイル差し替え + `make cmake` のみ）
     - ユーザーが「Default」を選ぶだけで全パラメーターをリセット可能
 
 - **ユニットテスト導入**
