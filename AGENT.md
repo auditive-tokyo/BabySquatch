@@ -109,16 +109,6 @@ This project uses JUCE framework. An MCP server (`juce-docs`) is available.
 
 ## TODO
 
-- **マスターリミッター（検討中:おそらくやらないめんどい）**
-  - 目的: マスター出力段にブリックウォールリミッターを挿入し、クリッピングを防止
-  - 候補方式:
-    1. **ソフトニー方式（推奨）**: Attack/Release エンベロープフォロワーでゲインリダクション計算。CPU 負荷ほぼゼロ、~80行。`LevelDetector` を流用可能
-    2. **ハードクリップ**: `jlimit()` で振幅を制限。5行で実装可能だが歪みが出る
-    3. **Look-ahead 方式**: 高品質だが遅延補正が必要になり複雑度が上がる
-  - しきい値: -0.1 dBFS 固定か、MasterFader に Ceiling ノブを追加するか要検討
-  - 実装箇所: `PluginProcessor::processBlock()` の `applyGain()` 直後
-  - GUI: MasterFader のメーターにゲインリダクション量（GR）表示を追加できる
-
 - **プリセット管理 + デフォルトプリセット**
   - 目的: 全パラメーター（エンベロープ含む）の初期値をハードコードではなく設定ファイルとして管理。ユーザーリセット・将来のプリセット追加に対応
   - 方式: **JUCE `BinaryData` 埋め込み**（外部ファイル依存なし、単一バイナリ配布を維持）

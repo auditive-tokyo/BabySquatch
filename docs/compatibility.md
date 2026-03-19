@@ -48,5 +48,5 @@ Please include:
 - **DAW**: name and version (e.g. `Ableton Live 12`, `Logic Pro 11.1`)
 - **OS**: name, version, and build number (e.g. `macOS 15.3.1 (24D70)`)
 - **CPU**: architecture and model (e.g. `Apple M4 Pro`, `Intel Core i9`)
-- **Format**: `AUv2`, `VST3`, `Standalone`, or combinations (e.g. `AUv2, VST3`)
+- **Format**: `AUv2`, `VST3`, or both (e.g. `AUv2, VST3`)
 - **Status**: `✅ Works`, `⚠️ Partial` (with notes), or `❌ Broken` (with notes)

@@ -1,6 +1,7 @@
 name: Quality Check
 
 on:
+  workflow_dispatch:
   push:
     branches-ignore:
       - "release/**"

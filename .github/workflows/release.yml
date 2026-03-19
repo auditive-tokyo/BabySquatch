@@ -1,0 +1,104 @@
+name: Release
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - release
+
+jobs:
+  release:
+    name: Build and publish macOS plugins
+    runs-on: macos-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Extract version from CMakeLists.txt
+        id: version
+        run: |
+          VERSION=$(grep -m1 'project(BoomBaby VERSION' CMakeLists.txt \
+            | sed 's/.*VERSION \([0-9.]*\).*/\1/')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION"    >> "$GITHUB_OUTPUT"
+
+      - name: Clone JUCE
+        run: git clone --depth 1 --branch 8.0.6 https://github.com/juce-framework/JUCE.git /tmp/JUCE
+
+      # COPY_PLUGIN_AFTER_BUILD が有効なので、コピー先ディレクトリを事前に作成
+      - name: Create plugin install directories
+        run: |
+          mkdir -p ~/Library/Audio/Plug-Ins/VST3
+          mkdir -p ~/Library/Audio/Plug-Ins/Components
+
+      - name: Configure CMake
+        run: >
+          cmake -S . -B build-release
+          -DJUCE_PATH=/tmp/JUCE
+          -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build VST3
+        run: >
+          cmake --build build-release
+          --target BoomBaby_VST3
+          --config Release
+          -- -j$(sysctl -n hw.ncpu)
+
+      - name: Build AU
+        run: >
+          cmake --build build-release
+          --target BoomBaby_AU
+          --config Release
+          -- -j$(sysctl -n hw.ncpu)
+
+      - name: Package artifacts
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.version.outputs.version }}"
+
+          VST3=$(find build-release -name "BoomBaby.vst3" -type d | head -1)
+          AU=$(find build-release   -name "BoomBaby.component" -type d | head -1)
+
+          [[ -d "$VST3" ]] || { echo "::error::VST3 bundle not found"; exit 1; }
+          [[ -d "$AU"   ]] || { echo "::error::AU bundle not found";   exit 1; }
+
+          (cd "$(dirname "$VST3")"  && zip -r "$GITHUB_WORKSPACE/BoomBaby-${VERSION}-VST3-macOS.zip" "BoomBaby.vst3")
+          (cd "$(dirname "$AU")"    && zip -r "$GITHUB_WORKSPACE/BoomBaby-${VERSION}-AU-macOS.zip"   "BoomBaby.component")
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@c062e08bd532815e2082a7e09ce9571a6592bef0 # v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          name: BoomBaby v${{ steps.version.outputs.version }}
+          prerelease: true
+          files: |
+            BoomBaby-${{ steps.version.outputs.version }}-VST3-macOS.zip
+            BoomBaby-${{ steps.version.outputs.version }}-AU-macOS.zip
+          body: |
+            ## BoomBaby v${{ steps.version.outputs.version }} — macOS Beta
+
+            > **macOS Gatekeeper Notice**
+            > This build is not notarized. macOS may block the plugin on first use.
+            > Install the plugin first. If macOS blocks it when your DAW scans/loads it,
+            > run the following in Terminal to remove the quarantine flag:
+            > ```
+            > xattr -rd com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/BoomBaby.vst3
+            > xattr -rd com.apple.quarantine ~/Library/Audio/Plug-Ins/Components/BoomBaby.component
+            > ```
+
+            ### Installation
+
+            **VST3** — `BoomBaby-${{ steps.version.outputs.version }}-VST3-macOS.zip`
+            1. Unzip the archive
+            2. Move `BoomBaby.vst3` to `~/Library/Audio/Plug-Ins/VST3/`
+            3. Rescan plugins in your DAW
+            4. If blocked by Gatekeeper, run the `xattr` commands above and rescan
+
+            **AU (Audio Unit)** — `BoomBaby-${{ steps.version.outputs.version }}-AU-macOS.zip`
+            1. Unzip the archive
+            2. Move `BoomBaby.component` to `~/Library/Audio/Plug-Ins/Components/`
+            3. Rescan plugins in your DAW
+            4. If blocked by Gatekeeper, run the `xattr` commands above and rescan
