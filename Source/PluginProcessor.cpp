@@ -706,12 +706,10 @@ void BoomBabyAudioProcessor::bakeAllLutsFromState() {
       apvts_.getRawParameterValue(ParamIDs::clickSampleDecay)->load();
   const auto clickAmpEnv =
       env("clickAmp", load(ParamIDs::clickSampleAmp) / 100.0f);
-  bakeLut(clickAmpEnv, clickEngine_.clickAmpLut(),
-          effectiveLutDuration(clickAmpEnv, clickDecayMs));
+  bakeLut(clickAmpEnv, clickEngine_.clickAmpLut(), clickDecayMs);
   const auto directAmpEnv =
       env("directAmp", load(ParamIDs::directAmp) / 100.0f);
-  bakeLut(directAmpEnv, directEngine_.directAmpLut(),
-          effectiveLutDuration(directAmpEnv, directDecayMs));
+  bakeLut(directAmpEnv, directEngine_.directAmpLut(), directDecayMs);
 }
 
 juce::AudioProcessor *JUCE_CALLTYPE createPluginFilter() {

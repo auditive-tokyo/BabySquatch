@@ -65,13 +65,12 @@ void BoomBabyAudioProcessorEditor::setupLengthBox() {
       static_cast<float>(subUI.length.slider.getValue()); // 300 ms
   clickUI.sample.decay.slider.setValue(static_cast<double>(initLen),
                                        juce::dontSendNotification);
-  bakeLut(envDatas.clickAmp, processorRef.clickEngine().clickAmpLut(),
-          effectiveLutDuration(envDatas.clickAmp, initLen));
+  bakeLut(envDatas.clickAmp, processorRef.clickEngine().clickAmpLut(), initLen);
   envelopeCurveEditor.setClickDecayMs(initLen);
   directUI.decay.slider.setValue(static_cast<double>(initLen),
                                  juce::dontSendNotification);
   bakeLut(envDatas.directAmp, processorRef.directEngine().directAmpLut(),
-          effectiveLutDuration(envDatas.directAmp, initLen));
+          initLen);
   addAndMakeVisible(subUI.length.slider);
 
   InfoBox::setInfo(subUI.length.slider, InfoText::subLength);
@@ -157,8 +156,8 @@ void BoomBabyAudioProcessorEditor::setupSubKnobsRow() {
     if (!envDatas.amp.isEnvelopeControlled())
       envDatas.amp.setPointValue(0, v);
     saveEnvelopesToState();
-    syncParam(ParamIDs::subAmp,
-                    static_cast<float>(subUI.knobs[0].getValue()), true);
+    syncParam(ParamIDs::subAmp, static_cast<float>(subUI.knobs[0].getValue()),
+              true);
     bakeLut(envDatas.amp, processorRef.subEngine().envLut(),
             envelopeCurveEditor.getDisplayDurationMs());
     envelopeCurveEditor.repaint();
@@ -189,8 +188,8 @@ void BoomBabyAudioProcessorEditor::setupSubKnobsRow() {
     if (!envDatas.mix.isEnvelopeControlled())
       envDatas.mix.setPointValue(0, v);
     saveEnvelopesToState();
-    syncParam(ParamIDs::subMix,
-                    static_cast<float>(subUI.knobs[2].getValue()), true);
+    syncParam(ParamIDs::subMix, static_cast<float>(subUI.knobs[2].getValue()),
+              true);
     bakeLut(envDatas.mix, processorRef.subEngine().mixLut(),
             envelopeCurveEditor.getDisplayDurationMs());
     envelopeCurveEditor.setPreviewMix(v);
@@ -219,7 +218,7 @@ void BoomBabyAudioProcessorEditor::setupSubKnobsRow() {
       envDatas.dist.setPointValue(0, v);
     saveEnvelopesToState();
     syncParam(ParamIDs::subSatDrive,
-                    static_cast<float>(subUI.knobs[3].getValue()), true);
+              static_cast<float>(subUI.knobs[3].getValue()), true);
     bakeLut(envDatas.dist, processorRef.subEngine().distLut(),
             envelopeCurveEditor.getDisplayDurationMs());
     envelopeCurveEditor.repaint();

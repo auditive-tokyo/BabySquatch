@@ -83,8 +83,10 @@ void BoomBabyAudioProcessorEditor::setupPanelRouting(
 // ────────────────────────────────────────────────────
 void BoomBabyAudioProcessorEditor::updateDisplayDuration() {
   const auto sub = static_cast<float>(subUI.length.slider.getValue());
-  const auto clickSample = static_cast<float>(clickUI.sample.decay.slider.getValue());
-  const auto clickNoise = static_cast<float>(clickUI.noise.decaySlider.getValue());
+  const auto clickSample =
+      static_cast<float>(clickUI.sample.decay.slider.getValue());
+  const auto clickNoise =
+      static_cast<float>(clickUI.noise.decaySlider.getValue());
   const auto direct = static_cast<float>(directUI.decay.slider.getValue());
   envelopeCurveEditor.setDisplayDurationMs(
       std::max({sub, clickSample, clickNoise, direct}));
@@ -110,12 +112,12 @@ void BoomBabyAudioProcessorEditor::onEnvelopeChanged() {
   const auto clickDecayMs =
       static_cast<float>(clickUI.sample.decay.slider.getValue());
   bakeLut(envDatas.clickAmp, processorRef.clickEngine().clickAmpLut(),
-          effectiveLutDuration(envDatas.clickAmp, clickDecayMs));
+          clickDecayMs);
   envelopeCurveEditor.setClickDecayMs(clickDecayMs);
   const auto directDecayMs =
       static_cast<float>(directUI.decay.slider.getValue());
   bakeLut(envDatas.directAmp, processorRef.directEngine().directAmpLut(),
-          effectiveLutDuration(envDatas.directAmp, directDecayMs));
+          directDecayMs);
   // 1点=ノブ制御（有効化＋ポイント値をノブに反映）、2点以上=エンベロープ制御（無効化）
 
   // ValueTree を先に保存しておく。syncParam(silent) → parameterChanged →
