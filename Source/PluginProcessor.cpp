@@ -211,7 +211,7 @@ BoomBabyAudioProcessor::BoomBabyAudioProcessor()
     apvts_.addParameterListener(id, this);
 
   // PresetManager → Processor 状態復元コールバック
-  presetManager_.onStateReplaced = [this] { applyRestoredState(); };
+  presetManager_.setOnStateReplaced([this] { applyRestoredState(); });
 }
 
 BoomBabyAudioProcessor::~BoomBabyAudioProcessor() {

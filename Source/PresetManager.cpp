@@ -76,8 +76,7 @@ bool PresetManager::savePreset(const juce::String &name) {
   if (!xml)
     return false;
 
-  auto stateFile = presetDir.getChildFile("state.xml");
-  if (!xml->writeTo(stateFile))
+  if (auto stateFile = presetDir.getChildFile("state.xml"); !xml->writeTo(stateFile))
     return false;
 
   currentPresetName_ = name;
@@ -116,8 +115,8 @@ bool PresetManager::loadPreset(const juce::File &presetDir) {
   apvts_.replaceState(state);
   currentPresetName_ = presetDir.getFileNameWithoutExtension();
 
-  if (onStateReplaced)
-    onStateReplaced();
+  if (onStateReplaced_)
+    onStateReplaced_();
 
   return true;
 }
@@ -164,8 +163,7 @@ void PresetManager::loadPreviousPreset() {
 // ─────────────────────────────────────────────────────────────────
 juce::Array<juce::File> PresetManager::getFactoryPresets() const {
   juce::Array<juce::File> results;
-  auto factoryDir = getFactoryDirectory();
-  if (factoryDir.isDirectory()) {
+  if (auto factoryDir = getFactoryDirectory(); factoryDir.isDirectory()) {
     for (const auto &entry : juce::RangedDirectoryIterator(
              factoryDir, false, "*.bbpreset", juce::File::findDirectories))
       results.add(entry.getFile());
@@ -204,10 +202,10 @@ void PresetManager::expandFactoryPresets() const {
     int directSize = 0;
   };
 
-  const FactoryEntry entries[] = {
+  const std::array<FactoryEntry, 1> entries = {{
       {"default", BinaryData::default_state_xml,
        BinaryData::default_state_xmlSize},
-  };
+  }};
 
   auto factoryDir = getFactoryDirectory();
 

@@ -394,7 +394,7 @@ BoomBabyAudioProcessorEditor::BoomBabyAudioProcessorEditor(
 
   // APVTS 状態から UI ウィジェットを復元（DAW が保存した値を反映）
   syncUIFromState();
-  lastSeenStateVersion_ = processorRef.nonParamStateVersion();
+  waveDisplay_.lastSeenStateVersion = processorRef.nonParamStateVersion();
 
   startTimerHz(30);
 }
@@ -583,8 +583,8 @@ void BoomBabyAudioProcessorEditor::pollUIFromAPVTS() {
   // DAW Undo/Redo 検出:
   // 非パラメータ状態（エンベロープ等）が復元されたら再読み込み
   if (const int v = processorRef.nonParamStateVersion();
-      v != lastSeenStateVersion_) {
-    lastSeenStateVersion_ = v;
+      v != waveDisplay_.lastSeenStateVersion) {
+    waveDisplay_.lastSeenStateVersion = v;
     loadEnvelopesFromState();
     presetBar.refreshPresetName();
   }

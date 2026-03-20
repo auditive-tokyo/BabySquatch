@@ -61,9 +61,9 @@ private:
     std::vector<float> buf;
     int pos = 0;    // 次の書き込み位置
     int filled = 0; // 実際に充填されたサンプル数
+    int lastSeenStateVersion = 0; // DAW Undo/Redo 検出用
   };
   WaveDisplayState waveDisplay_;
-  int lastSeenStateVersion_ = 0; // DAW Undo/Redo 検出用
 
   // ── コンストラクター分割ヘルパー ──
   void setupPanelRouting(BoomBabyAudioProcessor &p);

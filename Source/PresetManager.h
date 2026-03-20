@@ -29,14 +29,14 @@ public:
     return currentPresetName_;
   }
 
-  /// APVTS state 差し替え後に呼ばれるコールバック。
-  /// Processor 側で parameterChanged / bakeAllLuts /
-  /// サンプルリロードを実行する。
-  std::function<void()> onStateReplaced;
+  void setOnStateReplaced(std::function<void()> cb) {
+    onStateReplaced_ = std::move(cb);
+  }
 
 private:
   juce::AudioProcessorValueTreeState &apvts_;
   juce::String currentPresetName_{"Init"};
+  std::function<void()> onStateReplaced_;
 
   juce::Array<juce::File> getAllPresetFolders() const;
   void ensureDirectoryExists() const;

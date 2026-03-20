@@ -46,10 +46,6 @@ public:
   void getStateInformation(juce::MemoryBlock &destData) override;
   void setStateInformation(const void *data, int sizeInBytes) override;
 
-  /// 保存済み APVTS state の ENVELOPE ノードから全 LUT を再ベイク。
-  /// setStateInformation / prepareToPlay の両方から呼ぶ。
-  void bakeAllLutsFromState();
-
   /// APVTS アクセサ
   juce::AudioProcessorValueTreeState &getAPVTS() noexcept { return apvts_; }
 
@@ -119,6 +115,9 @@ private:
   /// replaceState 後のパラメータ／LUT／サンプル再適用（共通処理）
   void applyRestoredState();
 
+  /// 保存済み APVTS state の ENVELOPE ノードから全 LUT を再ベイク。
+  void bakeAllLutsFromState();
+
   juce::MidiKeyboardState keyboardState;
   SubEngine subEngine_;
   ClickEngine clickEngine_;
@@ -140,5 +139,5 @@ private:
   /// DAW Undo/Redo 検出用: setStateInformation 呼び出し毎にインクリメント
   std::atomic<int> nonParamStateVersion_{0};
 
-  JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(BoomBabyAudioProcessor)
+  JUCE_LEAK_DETECTOR(BoomBabyAudioProcessor)
 };
