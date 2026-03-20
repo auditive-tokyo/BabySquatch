@@ -1,8 +1,8 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
-#include "PluginProcessor.h"
 #include "ParamIDs.h"
+#include "PluginProcessor.h"
 
 using Catch::Matchers::WithinAbs;
 
@@ -62,8 +62,7 @@ TEST_CASE("isBusesLayoutSupported - mismatched I/O rejects",
   CHECK_FALSE(p.isBusesLayoutSupported(layout));
 }
 
-TEST_CASE("isBusesLayoutSupported - stereo I/O accepts",
-          "[PluginProcessor]") {
+TEST_CASE("isBusesLayoutSupported - stereo I/O accepts", "[PluginProcessor]") {
   BoomBabyAudioProcessor p;
   juce::AudioProcessor::BusesLayout layout;
   layout.inputBuses.add(juce::AudioChannelSet::stereo());
@@ -180,8 +179,9 @@ TEST_CASE("processBlock - MIDI NoteOn triggers engines", "[PluginProcessor]") {
   BoomBabyAudioProcessor p;
   prepare(p);
 
-  // Sub エンジンを直接トリガー（MIDI 経路のテスト環境依存を回避）
+  // Sub / Click エンジンを直接トリガー（MIDI 経路のテスト環境依存を回避）
   p.subEngine().triggerNote(0);
+  p.clickEngine().triggerNote(0);
 
   juce::AudioBuffer<float> buffer(2, kBlock);
   buffer.clear();
@@ -376,7 +376,7 @@ TEST_CASE("program accessors", "[PluginProcessor]") {
   BoomBabyAudioProcessor p;
   CHECK(p.getNumPrograms() == 1);
   CHECK(p.getCurrentProgram() == 0);
-  p.setCurrentProgram(0);    // no-op; should not crash
+  p.setCurrentProgram(0); // no-op; should not crash
   CHECK(p.getProgramName(0).isEmpty());
   p.changeProgramName(0, "test"); // no-op; should not crash
 }

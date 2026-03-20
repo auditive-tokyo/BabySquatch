@@ -65,7 +65,7 @@ test:
 	@cd build && xcrun llvm-profdata merge -sparse cov_*.profraw -o cov.profdata 2>/dev/null && \
 	  xcrun llvm-cov report ./BoomBabyTests_artefacts/Debug/BoomBabyTests \
 	    -instr-profile=cov.profdata \
-	    -ignore-filename-regex='(JUCE|Catch2|_deps|Tests/)' && \
+	    -ignore-filename-regex='(JUCE|Catch2|_deps|Tests/|GUI/|PluginEditor|ParamIDs|PresetManager)' && \
 	  rm -f cov_*.profraw || echo "(カバレッジデータなし)"
 
 coverage:
@@ -76,7 +76,7 @@ coverage:
 	@cd build && xcrun llvm-profdata merge -sparse cov_*.profraw -o cov.profdata 2>/dev/null && \
 	  xcrun llvm-cov show ./BoomBabyTests_artefacts/Debug/BoomBabyTests \
 	    -instr-profile=cov.profdata \
-	    -ignore-filename-regex='(JUCE|Catch2|_deps|Tests/)' \
+	    -ignore-filename-regex='(JUCE|Catch2|_deps|Tests/|GUI/|PluginEditor|ParamIDs|PresetManager)' \
 	    -format=html \
 	    -output-dir=../coverage-report \
 	    -show-line-counts-or-regions \
