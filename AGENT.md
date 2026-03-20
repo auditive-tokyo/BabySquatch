@@ -96,6 +96,7 @@ This project uses JUCE framework. An MCP server (`juce-docs`) is available.
 │   ├── MasterFader.h          // マスターフェーダー宣言
 │   ├── PanelComponent.cpp     // SUB/CLICK/DIRECT共通パネル実装
 │   ├── PanelComponent.h       // 共通パネル宣言（ChannelFader・M/S ボタン）
+│   ├── PresetBar.h            // プリセットバー UI（[◀] 名前 [▶] [Save]、ヘッダオンリー）
 │   ├── SampleChooserUtils.h   // サンプル選択ファイルチューザーユーティリティ（ヘッダオンリー）
 │   ├── SubParams.cpp          // Sub パネル UI セットアップ / レイアウト
 │   ├── UIConstants.h          // UI定数集約（色・レイアウト寸法・LabelSelector・SlopeSelector 等）
@@ -104,76 +105,26 @@ This project uses JUCE framework. An MCP server (`juce-docs`) is available.
 ├── PluginEditor.cpp
 ├── PluginEditor.h
 ├── PluginProcessor.cpp
-└── PluginProcessor.h
+├── PluginProcessor.h
+├── PresetManager.cpp          // プリセット保存・読み込み・ナビゲーション・Factory展開
+└── PresetManager.h            // PresetManager 宣言
 ```
 
 ## TODO
 
-- **プリセットシステム（サンプル込み）**
-  - 目的: パラメーター＋エンベロープ＋サンプルを一括で保存・呼び出し。ファクトリープリセットとユーザープリセットの両方に対応
-  - **プリセットフォーマット: `.bbpreset` フォルダ**
+- **ファクトリープリセット追加**
+  - プラグインを起動した状態で音を作り、PresetBar の **[Save]** で保存
+  - 保存された `.bbpreset/state.xml` を `Resources/factory_presets/<名前>_state.xml` にコピー
+  - `CMakeLists.txt` の `juce_add_binary_data(BoomBabyPresets SOURCES ...)` に追加
+  - `Source/PresetManager.cpp` の `expandFactoryPresets()` 内 `entries` 配列に1行追加:
+    ```cpp
+    const std::array<FactoryEntry, N> entries = {{
+        {"default", BinaryData::default_state_xml, BinaryData::default_state_xmlSize},
+        {"<名前>",  BinaryData::<名前>_state_xml,  BinaryData::<名前>_state_xmlSize},
+    }};
     ```
-    Fat Kick.bbpreset/
-      state.xml           ← getStateInformation 同一フォーマット（サンプルパスは相対化）
-      click_sample.wav    ← あれば（元ファイルのコピー）
-      direct_sample.wav   ← あれば（元ファイルのコピー）
-    ```
-  - **保存先ディレクトリ（クロスプラットフォーム）**
-    ```
-    <userDocumentsDirectory>/Auditive/BoomBaby/Presets/
-    ```
-    `juce::File::getSpecialLocation(userDocumentsDirectory)` で OS 自動解決:
-    - macOS: `~/Documents/Auditive/BoomBaby/Presets/`
-    - Windows: `C:\Users\<name>\Documents\Auditive\BoomBaby\Presets\`
-    - 初回起動時に `createDirectory()` で作成（インストーラー不要）
-  - **ファクトリープリセット**
-    - `Resources/presets/` にソース管理
-    - `BinaryData` としてバイナリに埋め込み
-    - **バージョンチェック方式で展開** — `Factory/.version` ファイルにプラグインバージョンを記録し、不一致時に再展開:
-      ```cpp
-      auto factoryDir = presetsDir.getChildFile("Factory");
-      auto versionFile = factoryDir.getChildFile(".version");
-      const auto current = juce::String(ProjectInfo::versionString);
-
-      if (!versionFile.existsAsFile()
-          || versionFile.loadFileAsString().trim() != current) {
-          factoryDir.createDirectory();
-          expandFactoryPresets(factoryDir);  // BinaryData → .bbpreset 展開
-          versionFile.replaceWithText(current);
-      }
-      ```
-    - 動作:
-      | 状況 | `.version` | Factory フォルダ | 動作 |
-      |------|-----------|-----------------|------|
-      | 初インストール | なし | なし | 作成＆展開 |
-      | プラグイン更新 | 旧バージョン | あり | 再展開（新プリセット追加対応） |
-      | 同一バージョン起動 | 一致 | あり | **何もしない** |
-      | ユーザーが Factory 削除 | なし | なし | 再作成＆再展開 |
-    - ユーザープリセットは `<Presets>/` 直下なので Factory 再展開の影響を受けない
-  - **プリセット保存フロー（DAW 上で音作り → 保存）**
-    1. DAW でパラメーター / サンプル / エンベロープを設定
-    2. UI 上部の **[Save]** をクリック → プリセット名入力
-    3. `<Presets>/<名前>.bbpreset/` フォルダを作成
-    4. `state.xml` 書き出し（サンプルパスは `./click_sample.wav` に相対化）
-    5. Click / Direct のサンプルファイルをプリセットフォルダにコピー
-  - **プリセット読み込みフロー**
-    1. UI 上部のブラウザからプリセット選択
-    2. `state.xml` を読み込み → `setStateInformation` 相当の処理
-    3. サンプルパスを `.bbpreset/` フォルダ内の実体に解決してロード
-  - **UI: プリセットバー（プラグイン最上部）**
-    ```
-    ┌──────────────────────────────────────────────────┐
-    │ [◀] Fat Kick                          [▶] [Save] │
-    ├──────────────────────────────────────────────────┤
-    │  SUB  │  CLICK  │  DIRECT                        │
-    ```
-    - `[◀][▶]` で前後プリセット切替
-    - プリセット名クリック → ドロップダウンリスト（Factory / User セクション分け）
-    - `[Save]` で現在の状態をユーザープリセットとして保存
-  - **実装フェーズ**
-    - Phase 1: プリセットフォルダ構造 + 保存 / 読み込みロジック + UI プリセットバー
-    - Phase 2: ファクトリープリセット（BinaryData 埋め込み + 初回展開）
-    - Phase 3: プリセット削除 / リネーム / 上書き確認
+  - `std::array` のテンプレート引数 `N` をプリセット数に合わせて更新
+  - `make cmake && make check` で確認
 
 - **ユニットテスト導入**
   - フレームワーク: **Catch2 v3**（`FetchContent` で取得、ヘッダ軽量、CTest/CI 親和性高）
