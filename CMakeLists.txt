@@ -131,6 +131,18 @@ target_sources(BoomBabyTests PRIVATE
     Source/DSP/SamplePlayer.cpp
     Source/DSP/SubEngine.cpp
     Source/DSP/SubOscillator.cpp
+    Source/PluginProcessor.cpp
+    Source/PluginEditor.cpp
+    Source/PresetManager.cpp
+    Source/GUI/ChannelFader.cpp
+    Source/GUI/ClickParams.cpp
+    Source/GUI/DirectParams.cpp
+    Source/GUI/SubParams.cpp
+    Source/GUI/EnvelopeCurveEditor.cpp
+    Source/GUI/InfoBox.cpp
+    Source/GUI/KeyboardComponent.cpp
+    Source/GUI/MasterFader.cpp
+    Source/GUI/PanelComponent.cpp
     Tests/TestSaturator.cpp
     Tests/TestEnvelopeLutManager.cpp
     Tests/TestClickEngine.cpp
@@ -139,16 +151,20 @@ target_sources(BoomBabyTests PRIVATE
     Tests/TestLevelDetector.cpp
     Tests/TestSamplePlayer.cpp
     Tests/TestTransientDetector.cpp
+    Tests/TestPluginProcessor.cpp
 )
 target_compile_definitions(BoomBabyTests PRIVATE
     JUCE_USE_CURL=0
     JUCE_WEB_BROWSER=0
+    JucePlugin_Name="BoomBaby"
+    JucePlugin_VersionString="0.9.0"
 )
 target_include_directories(BoomBabyTests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/Source
 )
 target_link_libraries(BoomBabyTests
     PRIVATE
+        BoomBabyPresets
         Catch2::Catch2WithMain
         juce::juce_audio_utils
         juce::juce_dsp
