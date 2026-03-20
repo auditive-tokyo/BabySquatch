@@ -972,6 +972,13 @@ void EnvelopeCurveEditor::mouseMove(const juce::MouseEvent &e) {
     getProperties().set("info", InfoText::envelopePoint);
   } else if (HitTester::findSegment(*this, c, px, py) >= 0) {
     getProperties().set("info", InfoText::envelopeCurve);
+  } else if (!editEnvData->isEnvelopeControlled()) {
+    // ポイント1つ以下（フラットライン）: エンべロープ作成ヒント
+    const float lineY = c.valueToY(editEnvData->getDefaultValue());
+    if (std::abs(py - lineY) < 12.0f)
+      getProperties().set("info", InfoText::envelopeHint);
+    else
+      getProperties().remove("info");
   } else {
     getProperties().remove("info");
   }
