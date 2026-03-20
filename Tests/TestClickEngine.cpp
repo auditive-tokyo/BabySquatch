@@ -205,3 +205,58 @@ TEST_CASE("ClickEngine: all ClipTypes produce finite output",
       REQUIRE(std::isfinite(data[i]));
   }
 }
+
+// ─── Sample モード: computeSampleAmp が render() 経由で通る ───────
+
+// mode=2 (Sample) + LUT ベイク済みで render() を回し、
+// computeSampleAmp が正常に実行されることを確認する。
+// サンプル未ロードのため synthesizeSample は 0 を返すが、
+// computeSampleAmp は毎サンプル呼ばれる（amp 計算は synthesize より先）。
+TEST_CASE("ClickEngine: Sample mode exercises computeSampleAmp via render",
+          "[click_engine]") {
+  auto engine = makeEngine();
+  engine->setMode(2);            // Sample モード
+  engine->setSampleDecayMs(10.0f); // 10ms → ~441 samples で停止
+
+  // フラット LUT をベイク（振幅 1.0）
+  const std::array<float, 2> flatData = {1.0f, 1.0f};
+  engine->clickAmpLut().setDurationMs(10.0f);
+  engine->clickAmpLut().bake(flatData.data(), static_cast<int>(flatData.size()));
+
+  juce::AudioBuffer<float> buf(2, kBlockSize);
+  buf.clear();
+
+  engine->triggerNote(0);
+  engine->render(buf, kBlockSize, true, kSampleRate);
+
+  // クラッシュせず出力が有限であること
+  const float *scratch = engine->scratchData();
+  for (int i = 0; i < kBlockSize; ++i)
+    REQUIRE(std::isfinite(scratch[i]));
+}
+
+// ─── Sample モード: decay 経過後にエンジンが停止する ──────────────
+
+// mode=2 で sampleDecayMs を短くし、複数ブロック後にエンジンが
+// 非アクティブになることを確認する（computeMaxTimeSamples → 停止判定）
+TEST_CASE("ClickEngine: Sample mode deactivates after sampleDecayMs",
+          "[click_engine]") {
+  auto engine = makeEngine();
+  engine->setMode(2);
+  engine->setSampleDecayMs(5.0f); // 5ms → ~220 samples
+
+  const std::array<float, 2> flatData = {1.0f, 1.0f};
+  engine->clickAmpLut().setDurationMs(5.0f);
+  engine->clickAmpLut().bake(flatData.data(), static_cast<int>(flatData.size()));
+
+  juce::AudioBuffer<float> buf(2, kBlockSize);
+
+  engine->triggerNote(0);
+  for (int block = 0; block < 5; ++block) {
+    buf.clear();
+    engine->render(buf, kBlockSize, true, kSampleRate);
+  }
+
+  // 停止後は scratchBuffer がゼロ
+  REQUIRE(energy(*engine, kBlockSize) == 0.0f);
+}
