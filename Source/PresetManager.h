@@ -28,6 +28,9 @@ public:
   const juce::String &getCurrentPresetName() const noexcept {
     return currentPresetName_;
   }
+  void setCurrentPresetName(const juce::String &name) {
+    currentPresetName_ = name;
+  }
 
   void setOnStateReplaced(std::function<void()> cb) {
     onStateReplaced_ = std::move(cb);

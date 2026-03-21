@@ -633,6 +633,8 @@ juce::AudioProcessorEditor *BoomBabyAudioProcessor::createEditor() {
 
 void BoomBabyAudioProcessor::getStateInformation(juce::MemoryBlock &destData) {
   auto state = apvts_.copyState();
+  state.setProperty("presetName", presetManager_.getCurrentPresetName(),
+                    nullptr);
   auto xml = state.createXml();
   copyXmlToBinary(*xml, destData);
 }
@@ -674,6 +676,11 @@ void BoomBabyAudioProcessor::applyRestoredState() {
     if (f.existsAsFile())
       directEngine_.sampler().loadSample(f);
   }
+
+  // プリセット名を復元
+  if (const auto name = apvts_.state.getProperty("presetName").toString();
+      name.isNotEmpty())
+    presetManager_.setCurrentPresetName(name);
 }
 
 void BoomBabyAudioProcessor::bakeAllLutsFromState() {
