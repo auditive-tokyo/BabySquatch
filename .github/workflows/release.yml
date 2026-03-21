@@ -25,23 +25,18 @@ jobs:
             | sed 's/.*VERSION \([0-9.]*\).*/\1/')
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=v$VERSION"    >> "$GITHUB_OUTPUT"
-          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
-          echo "prev_tag=$PREV_TAG" >> "$GITHUB_OUTPUT"
 
-      - name: Generate changelog
+      - name: Get merged PR body
         id: changelog
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          PREV_TAG="${{ steps.version.outputs.prev_tag }}"
-          if [ -n "$PREV_TAG" ]; then
-            LOG=$(git log "${PREV_TAG}..HEAD" --pretty=format:"- %s" --no-merges)
-          else
-            LOG=$(git log --pretty=format:"- %s" --no-merges)
-          fi
-          if [ -z "$LOG" ]; then
-            LOG="- Initial release"
+          BODY=$(gh pr list --base release --state merged --limit 1 --json body --jq '.[0].body // empty')
+          if [ -z "$BODY" ]; then
+            BODY="- Initial release"
           fi
           echo "changelog<<EOF" >> "$GITHUB_OUTPUT"
-          echo "$LOG"           >> "$GITHUB_OUTPUT"
+          echo "$BODY"          >> "$GITHUB_OUTPUT"
           echo "EOF"            >> "$GITHUB_OUTPUT"
 
       - name: Clone JUCE
