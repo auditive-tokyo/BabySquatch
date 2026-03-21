@@ -17,15 +17,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
-    name: Build and analyze
+  Unit-Tests:
+    name: Build and test
     runs-on: macos-latest
-    env:
-      BUILD_WRAPPER_OUT_DIR: build_wrapper_output_directory
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-        with:
-          fetch-depth: 0
 
       - name: Clone JUCE
         run: git clone --depth 1 --branch 8.0.6 https://github.com/juce-framework/JUCE.git /tmp/JUCE
@@ -56,6 +52,33 @@ jobs:
             -ignore-filename-regex='(JUCE|_deps)' \
             > build-ci/coverage/llvm-cov-report.txt
 
+      - name: Upload coverage report
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
+        with:
+          name: coverage-report
+          path: build-ci/coverage/llvm-cov-report.txt
+          retention-days: 1
+
+  SonarCloud:
+    name: SonarQube analysis
+    needs: Unit-Tests
+    runs-on: macos-latest
+    env:
+      BUILD_WRAPPER_OUT_DIR: build_wrapper_output_directory
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
+
+      - name: Clone JUCE
+        run: git clone --depth 1 --branch 8.0.6 https://github.com/juce-framework/JUCE.git /tmp/JUCE
+
+      - name: Configure CMake
+        run: >
+          cmake -S . -B build-ci
+          -DJUCE_PATH=/tmp/JUCE
+          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
       - name: Install Build Wrapper
         uses: SonarSource/sonarqube-scan-action/install-build-wrapper@a31c9398be7ace6bbfaf30c0bd5d415f843d45e9 # v7
 
@@ -63,6 +86,12 @@ jobs:
         run: >
           build-wrapper-macosx-x86 --out-dir ${{ env.BUILD_WRAPPER_OUT_DIR }}
           cmake --build build-ci --target BoomBaby_Standalone -- -j$(sysctl -n hw.ncpu)
+
+      - name: Download coverage report
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: coverage-report
+          path: build-ci/coverage
 
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@a31c9398be7ace6bbfaf30c0bd5d415f843d45e9 # v7

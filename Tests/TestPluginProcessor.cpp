@@ -14,8 +14,12 @@ struct JuceTestInit {
     juce::MessageManager::getInstance()->setCurrentThreadAsMessageThread();
   }
   ~JuceTestInit() { juce::MessageManager::deleteInstance(); }
+  JuceTestInit(const JuceTestInit &) = delete;
+  JuceTestInit &operator=(const JuceTestInit &) = delete;
+  JuceTestInit(JuceTestInit &&) = delete;
+  JuceTestInit &operator=(JuceTestInit &&) = delete;
 };
-static JuceTestInit juceTestInit_;
+const JuceTestInit juceTestInit_;
 } // namespace
 
 namespace {

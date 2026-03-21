@@ -322,7 +322,8 @@ TEST_CASE("EnvelopeData: evaluate never returns NaN or Inf",
   env.addPoint(100.0f, 2.0f);
   env.setSegmentCurve(0, 1.0f);
 
-  for (float t = -10.0f; t <= 200.0f; t += 0.5f) {
+  for (int i = 0; i <= 420; ++i) {
+    const float t = -10.0f + static_cast<float>(i) * 0.5f;
     const float v = env.evaluate(t);
     CHECK(std::isfinite(v));
   }
