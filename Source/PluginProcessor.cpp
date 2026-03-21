@@ -205,9 +205,13 @@ BoomBabyAudioProcessor::BoomBabyAudioProcessor()
           BusesProperties()
               .withInput("Input", juce::AudioChannelSet::stereo(), true)
               .withOutput("Output", juce::AudioChannelSet::stereo(), true)),
-      apvts_(*this, nullptr, "BoomBabyState", createParameterLayout()) {
+      apvts_(*this, nullptr, "BoomBabyState", createParameterLayout()),
+      presetManager_(apvts_) {
   for (const auto *id : kAllParamIDs)
     apvts_.addParameterListener(id, this);
+
+  // PresetManager → Processor 状態復元コールバック
+  presetManager_.setOnStateReplaced([this] { applyRestoredState(); });
 }
 
 BoomBabyAudioProcessor::~BoomBabyAudioProcessor() {
@@ -629,6 +633,8 @@ juce::AudioProcessorEditor *BoomBabyAudioProcessor::createEditor() {
 
 void BoomBabyAudioProcessor::getStateInformation(juce::MemoryBlock &destData) {
   auto state = apvts_.copyState();
+  state.setProperty("presetName", presetManager_.getCurrentPresetName(),
+                    nullptr);
   auto xml = state.createXml();
   copyXmlToBinary(*xml, destData);
 }
@@ -641,6 +647,10 @@ void BoomBabyAudioProcessor::setStateInformation(
     return;
 
   apvts_.replaceState(juce::ValueTree::fromXml(*xml));
+  applyRestoredState();
+}
+
+void BoomBabyAudioProcessor::applyRestoredState() {
   nonParamStateVersion_.fetch_add(1);
 
   // replaceState は parameterChanged を発火しないため、
@@ -666,6 +676,11 @@ void BoomBabyAudioProcessor::setStateInformation(
     if (f.existsAsFile())
       directEngine_.sampler().loadSample(f);
   }
+
+  // プリセット名を復元
+  if (const auto name = apvts_.state.getProperty("presetName").toString();
+      name.isNotEmpty())
+    presetManager_.setCurrentPresetName(name);
 }
 
 void BoomBabyAudioProcessor::bakeAllLutsFromState() {
@@ -698,12 +713,10 @@ void BoomBabyAudioProcessor::bakeAllLutsFromState() {
       apvts_.getRawParameterValue(ParamIDs::clickSampleDecay)->load();
   const auto clickAmpEnv =
       env("clickAmp", load(ParamIDs::clickSampleAmp) / 100.0f);
-  bakeLut(clickAmpEnv, clickEngine_.clickAmpLut(),
-          effectiveLutDuration(clickAmpEnv, clickDecayMs));
+  bakeLut(clickAmpEnv, clickEngine_.clickAmpLut(), clickDecayMs);
   const auto directAmpEnv =
       env("directAmp", load(ParamIDs::directAmp) / 100.0f);
-  bakeLut(directAmpEnv, directEngine_.directAmpLut(),
-          effectiveLutDuration(directAmpEnv, directDecayMs));
+  bakeLut(directAmpEnv, directEngine_.directAmpLut(), directDecayMs);
 }
 
 juce::AudioProcessor *JUCE_CALLTYPE createPluginFilter() {

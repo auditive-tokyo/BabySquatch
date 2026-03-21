@@ -19,13 +19,21 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          EXISTING=$(gh pr list --base release --head main --state open --json number --jq '.[0].number')
-          if [ -n "$EXISTING" ]; then
-            echo "PR #$EXISTING already exists — skipping"
-          else
+          TODAY="Release $(date +%Y-%m-%d)"
+          EXISTING=$(gh pr list --base release --head main --state open --json number,title --jq '.[0]')
+          if [ -z "$EXISTING" ]; then
             gh pr create \
               --base release \
               --head main \
-              --title "Release $(date +%Y-%m-%d)" \
+              --title "$TODAY" \
               --body "Automated PR from main → release"
+          else
+            PR_NUMBER=$(echo "$EXISTING" | jq -r '.number')
+            PR_TITLE=$(echo "$EXISTING" | jq -r '.title')
+            if [ "$PR_TITLE" != "$TODAY" ]; then
+              gh pr edit "$PR_NUMBER" --title "$TODAY"
+              echo "PR #$PR_NUMBER title updated: '$PR_TITLE' → '$TODAY'"
+            else
+              echo "PR #$PR_NUMBER is up to date — skipping"
+            fi
           fi

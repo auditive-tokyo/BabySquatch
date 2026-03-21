@@ -1,27 +1,4 @@
-# BoomBaby Project
-
-## Overview
-
-BoomBaby is a personal kick enhancement plugin built for one specific use case. The developer was a long-time Sasquatch (Boz Labs) user who switched to an Apple M4 Pro Mac in mid-2025, only to find that Sasquatch required Rosetta.
-
-After searching for a native alternative, Kick Ninja (Him DSP) turned up — a genuinely great plugin, but a VST Instrument rather than a VST Effect. For a producer who frequently works with pre-bounced kicks in collabs and mixing sessions, having to route through MIDI just to process an audio file was too much friction.
-
-Rather than compromise, the developer analyzed both plugins by ear, extracted the features that actually mattered, and built a single streamlined plugin tailored exactly to the developer's own workflow. The beta is released as open source — with the hope that it might be useful to talented beatmakers and producers around the world.
-
-## プラグイン構成
-
-BoomBabyは3つのモジュールで構成されています：
-
-1. **Sub** - サブ周波数の生成
-2. **Click** - アタック部分の生成（Noise / Sample）
-3. **Direct** - オリジナルのキック音（入力信号）またはSample Load
-
-これらを組み合わせることで、より豊かで立体的なキックサウンドを実現します。
-
-## 対応フォーマット
-
-- AUv2
-- VST3
+# BoomBaby Project Rules
 
 ## ビルド環境
 
@@ -38,6 +15,7 @@ BoomBabyは3つのモジュールで構成されています：
 - 変更を行う際は、どのファイルを、なぜ、どう修正したかを簡潔に報告し、必要ならビルド／確認手順を添えること。
 - **コード改修後の必須確認手順:** 変更を行ったら必ず `make check && make lint` を実行し、問題がなければ `make test` でユニットテストが通ることを確認してから `make run` で動作確認を行うこと。
 - **CMake／ファイル構成変更時の手順:** 新規ファイルの追加・削除、または `CMakeLists.txt` の変更を行った場合は、まず `make cmake` を実行してプロジェクトを再生成し、その後に `make check && make lint` → `make run` の順で確認すること。
+- **BinaryData 追加後の clangd エラー解消:** `juce_add_binary_data` に新ファイルを追加した後、clangd が `No member named '...' in namespace 'BinaryData'` を報告する場合は、`cd build-clangd && make BoomBabyPresets` を実行すること。これは CMake が `build-clangd/` に生成した Makefile のターゲットで、BinaryData の `.h`/`.cpp` を生成する。プロジェクトルートの `Makefile` にはないコマンド。実行後に VS Code で「Restart Language Server」を行うと赤波線が消える。
 
 ## JUCE Documentation
 
@@ -96,6 +74,7 @@ This project uses JUCE framework. An MCP server (`juce-docs`) is available.
 │   ├── MasterFader.h          // マスターフェーダー宣言
 │   ├── PanelComponent.cpp     // SUB/CLICK/DIRECT共通パネル実装
 │   ├── PanelComponent.h       // 共通パネル宣言（ChannelFader・M/S ボタン）
+│   ├── PresetBar.h            // プリセットバー UI（[◀] 名前 [▶] [Save]、ヘッダオンリー）
 │   ├── SampleChooserUtils.h   // サンプル選択ファイルチューザーユーティリティ（ヘッダオンリー）
 │   ├── SubParams.cpp          // Sub パネル UI セットアップ / レイアウト
 │   ├── UIConstants.h          // UI定数集約（色・レイアウト寸法・LabelSelector・SlopeSelector 等）
@@ -104,93 +83,24 @@ This project uses JUCE framework. An MCP server (`juce-docs`) is available.
 ├── PluginEditor.cpp
 ├── PluginEditor.h
 ├── PluginProcessor.cpp
-└── PluginProcessor.h
+├── PluginProcessor.h
+├── PresetManager.cpp          // プリセット保存・読み込み・ナビゲーション・Factory展開
+└── PresetManager.h            // PresetManager 宣言
 ```
 
-## TODO
+## 進行中（時間があるときに進める）
 
-- **プリセットシステム（サンプル込み）**
-  - 目的: パラメーター＋エンベロープ＋サンプルを一括で保存・呼び出し。ファクトリープリセットとユーザープリセットの両方に対応
-  - **プリセットフォーマット: `.bbpreset` フォルダ**
+- **ファクトリープリセット追加**（随時追加中）
+  - プラグインを起動した状態で音を作り、PresetBar の **[Save]** で保存
+  - 保存された `.bbpreset/state.xml` を `Resources/factory_presets/<名前>_state.xml` にコピー
+  - `CMakeLists.txt` の `juce_add_binary_data(BoomBabyPresets SOURCES ...)` に追加
+  - `Source/PresetManager.cpp` の `expandFactoryPresets()` 内 `entries` 配列に1行追加:
+    ```cpp
+    const std::array<FactoryEntry, N> entries = {{
+        {"default", BinaryData::default_state_xml, BinaryData::default_state_xmlSize},
+        {"<名前>",  BinaryData::<名前>_state_xml,  BinaryData::<名前>_state_xmlSize},
+    }};
     ```
-    Fat Kick.bbpreset/
-      state.xml           ← getStateInformation 同一フォーマット（サンプルパスは相対化）
-      click_sample.wav    ← あれば（元ファイルのコピー）
-      direct_sample.wav   ← あれば（元ファイルのコピー）
-    ```
-  - **保存先ディレクトリ（クロスプラットフォーム）**
-    ```
-    <userDocumentsDirectory>/Auditive/BoomBaby/Presets/
-    ```
-    `juce::File::getSpecialLocation(userDocumentsDirectory)` で OS 自動解決:
-    - macOS: `~/Documents/Auditive/BoomBaby/Presets/`
-    - Windows: `C:\Users\<name>\Documents\Auditive\BoomBaby\Presets\`
-    - 初回起動時に `createDirectory()` で作成（インストーラー不要）
-  - **ファクトリープリセット**
-    - `Resources/presets/` にソース管理
-    - `BinaryData` としてバイナリに埋め込み
-    - **バージョンチェック方式で展開** — `Factory/.version` ファイルにプラグインバージョンを記録し、不一致時に再展開:
-      ```cpp
-      auto factoryDir = presetsDir.getChildFile("Factory");
-      auto versionFile = factoryDir.getChildFile(".version");
-      const auto current = juce::String(ProjectInfo::versionString);
-
-      if (!versionFile.existsAsFile()
-          || versionFile.loadFileAsString().trim() != current) {
-          factoryDir.createDirectory();
-          expandFactoryPresets(factoryDir);  // BinaryData → .bbpreset 展開
-          versionFile.replaceWithText(current);
-      }
-      ```
-    - 動作:
-      | 状況 | `.version` | Factory フォルダ | 動作 |
-      |------|-----------|-----------------|------|
-      | 初インストール | なし | なし | 作成＆展開 |
-      | プラグイン更新 | 旧バージョン | あり | 再展開（新プリセット追加対応） |
-      | 同一バージョン起動 | 一致 | あり | **何もしない** |
-      | ユーザーが Factory 削除 | なし | なし | 再作成＆再展開 |
-    - ユーザープリセットは `<Presets>/` 直下なので Factory 再展開の影響を受けない
-  - **プリセット保存フロー（DAW 上で音作り → 保存）**
-    1. DAW でパラメーター / サンプル / エンベロープを設定
-    2. UI 上部の **[Save]** をクリック → プリセット名入力
-    3. `<Presets>/<名前>.bbpreset/` フォルダを作成
-    4. `state.xml` 書き出し（サンプルパスは `./click_sample.wav` に相対化）
-    5. Click / Direct のサンプルファイルをプリセットフォルダにコピー
-  - **プリセット読み込みフロー**
-    1. UI 上部のブラウザからプリセット選択
-    2. `state.xml` を読み込み → `setStateInformation` 相当の処理
-    3. サンプルパスを `.bbpreset/` フォルダ内の実体に解決してロード
-  - **UI: プリセットバー（プラグイン最上部）**
-    ```
-    ┌──────────────────────────────────────────────────┐
-    │ [◀] Fat Kick                          [▶] [Save] │
-    ├──────────────────────────────────────────────────┤
-    │  SUB  │  CLICK  │  DIRECT                        │
-    ```
-    - `[◀][▶]` で前後プリセット切替
-    - プリセット名クリック → ドロップダウンリスト（Factory / User セクション分け）
-    - `[Save]` で現在の状態をユーザープリセットとして保存
-  - **実装フェーズ**
-    - Phase 1: プリセットフォルダ構造 + 保存 / 読み込みロジック + UI プリセットバー
-    - Phase 2: ファクトリープリセット（BinaryData 埋め込み + 初回展開）
-    - Phase 3: プリセット削除 / リネーム / 上書き確認
-
-- **ユニットテスト導入**
-  - フレームワーク: **Catch2 v3**（`FetchContent` で取得、ヘッダ軽量、CTest/CI 親和性高）
-  - CMake 構成:
-    - DSP ソース（`Source/DSP/*.cpp`）を `add_library(BoomBabyDSP OBJECT ...)` として分離
-    - プラグインターゲット・テストターゲット両方がリンク（ソース構造の変更なし）
-    - `Tests/` ディレクトリにテストファイルを配置
-    - `make test` で CTest 経由実行
-  - テスト対象（DSP — 必須）:
-    - `Saturator`: 零入力→零出力（Tube bias 回帰テスト）、全ClipTypeの単調性、drive=0で恒等性
-    - `EnvelopeLutManager`: `computeAmp` の値域（0〜1）、duration外は0、LUT切替の整合性
-    - `ClickEngine`: triggerNote→フィルターリセット、silence in→silence out
-    - `DirectEngine`: renderPassthrough で入力ゼロ→出力ゼロ（Tube bias 回帰テスト）
-    - `SubEngine`: render出力の値域、周波数精度
-    - `LevelDetector`: ピーク検出の正確性、リリース特性
-  - テスト対象（GUI純関数 — 推奨）:
-    - `WaveformUtils::computePreview()`: 境界値、時間外アクセス
-    - `LutBaker` のベイク関数: 入出力サイズ整合性
-    - Component 描画テスト: **スキップ**（MessageManager 依存、費用対効果低）
-  - CI: GitHub Actions で `make test` + SonarQube 連携
+  - `std::array` のテンプレート引数 `N` をプリセット数に合わせて更新
+  - `make cmake && make check` で確認
+  - clangd エラーが出る場合は `cd build-clangd && make BoomBabyPresets` → VS Code で「Restart Language Server」

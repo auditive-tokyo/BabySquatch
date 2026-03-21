@@ -125,7 +125,7 @@ void BoomBabyAudioProcessorEditor::setupDirectParams() {
       envDatas.directAmp.setPointValue(0, v);
     saveEnvelopesToState();
     syncParam(ParamIDs::directAmp,
-                    static_cast<float>(directUI.amp.slider.getValue()), true);
+              static_cast<float>(directUI.amp.slider.getValue()), true);
     bakeLut(envDatas.directAmp, processorRef.directEngine().directAmpLut(),
             effectiveLutDuration(
                 envDatas.directAmp,
@@ -192,7 +192,7 @@ void BoomBabyAudioProcessorEditor::setupDirectParams() {
     const auto durMs = static_cast<float>(directUI.decay.slider.getValue());
     syncParam(ParamIDs::directDecay, durMs);
     bakeLut(envDatas.directAmp, processorRef.directEngine().directAmpLut(),
-            effectiveLutDuration(envDatas.directAmp, durMs));
+            durMs);
     refreshDirectProvider();
     updateDisplayDuration();
   };
@@ -204,7 +204,8 @@ void BoomBabyAudioProcessorEditor::setupDirectParams() {
   // HPF: SlopeSelector (label) + freq knob + Q knob
   directUI.hpf.slope.setOnChange([this](int dboct) {
     processorRef.directEngine().setHpfSlope(dboct);
-    syncParam(ParamIDs::directHpfSlope, static_cast<float>(slopeToIndex(dboct)));
+    syncParam(ParamIDs::directHpfSlope,
+              static_cast<float>(slopeToIndex(dboct)));
     refreshDirectProvider();
   });
   addAndMakeVisible(directUI.hpf.slope);
@@ -251,7 +252,8 @@ void BoomBabyAudioProcessorEditor::setupDirectParams() {
   // LPF: SlopeSelector (label) + freq knob + Q knob
   directUI.lpf.slope.setOnChange([this](int dboct) {
     processorRef.directEngine().setLpfSlope(dboct);
-    syncParam(ParamIDs::directLpfSlope, static_cast<float>(slopeToIndex(dboct)));
+    syncParam(ParamIDs::directLpfSlope,
+              static_cast<float>(slopeToIndex(dboct)));
     refreshDirectProvider();
   });
   addAndMakeVisible(directUI.lpf.slope);

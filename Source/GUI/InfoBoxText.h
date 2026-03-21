@@ -91,5 +91,7 @@ inline constexpr const char *directSampleLoad =
 inline constexpr const char *envelopePoint =
     "Right-click: enter value / set position";
 inline constexpr const char *envelopeCurve = "Shift-drag on line to draw curve";
+inline constexpr const char *envelopeHint =
+    "Double-click to add envelope points";
 
 } // namespace InfoText

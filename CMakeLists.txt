@@ -33,6 +33,7 @@ target_sources(BoomBaby
     PRIVATE
         Source/PluginProcessor.cpp
         Source/PluginEditor.cpp
+        Source/PresetManager.cpp
         Source/GUI/SubParams.cpp
         Source/GUI/ClickParams.cpp
         Source/GUI/DirectParams.cpp
@@ -54,6 +55,8 @@ target_sources(BoomBaby
         Source/GUI/WaveformUtils.h
         Source/GUI/SampleChooserUtils.h
         Source/GUI/ClickModeStateUtils.h
+        Source/GUI/PresetBar.h
+        Source/PresetManager.h
         Source/DSP/ChannelState.h
         Source/DSP/ClickEngine.h
         Source/DSP/ClickEngine.cpp
@@ -72,6 +75,16 @@ target_sources(BoomBaby
         Source/DSP/TransientDetector.h
 )
 
+# ─── Factory Presets (BinaryData) ─────────────────────────────────
+
+juce_add_binary_data(BoomBabyPresets
+    SOURCES
+        Resources/factory_presets/default_state.xml
+        Resources/factory_presets/junglist_state.xml
+        Resources/factory_presets/junglist_direct.wav
+        Resources/factory_presets/sub_osc_only_state.xml
+)
+
 target_compile_definitions(BoomBaby
     PUBLIC
         JUCE_WEB_BROWSER=0
@@ -86,6 +99,7 @@ target_include_directories(BoomBaby
 
 target_link_libraries(BoomBaby
     PRIVATE
+        BoomBabyPresets
         juce::juce_audio_utils
         juce::juce_dsp
         juce::juce_opengl
@@ -120,6 +134,18 @@ target_sources(BoomBabyTests PRIVATE
     Source/DSP/SamplePlayer.cpp
     Source/DSP/SubEngine.cpp
     Source/DSP/SubOscillator.cpp
+    Source/PluginProcessor.cpp
+    Source/PluginEditor.cpp
+    Source/PresetManager.cpp
+    Source/GUI/ChannelFader.cpp
+    Source/GUI/ClickParams.cpp
+    Source/GUI/DirectParams.cpp
+    Source/GUI/SubParams.cpp
+    Source/GUI/EnvelopeCurveEditor.cpp
+    Source/GUI/InfoBox.cpp
+    Source/GUI/KeyboardComponent.cpp
+    Source/GUI/MasterFader.cpp
+    Source/GUI/PanelComponent.cpp
     Tests/TestSaturator.cpp
     Tests/TestEnvelopeLutManager.cpp
     Tests/TestClickEngine.cpp
@@ -127,16 +153,22 @@ target_sources(BoomBabyTests PRIVATE
     Tests/TestSubEngine.cpp
     Tests/TestLevelDetector.cpp
     Tests/TestSamplePlayer.cpp
+    Tests/TestTransientDetector.cpp
+    Tests/TestPluginProcessor.cpp
+    Tests/TestEnvelopeData.cpp
 )
 target_compile_definitions(BoomBabyTests PRIVATE
     JUCE_USE_CURL=0
     JUCE_WEB_BROWSER=0
+    JucePlugin_Name="BoomBaby"
+    JucePlugin_VersionString="0.9.0"
 )
 target_include_directories(BoomBabyTests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/Source
 )
 target_link_libraries(BoomBabyTests
     PRIVATE
+        BoomBabyPresets
         Catch2::Catch2WithMain
         juce::juce_audio_utils
         juce::juce_dsp

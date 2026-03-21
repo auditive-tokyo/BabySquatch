@@ -6,6 +6,7 @@
 #include "DSP/LevelDetector.h"
 #include "DSP/SubEngine.h"
 #include "DSP/TransientDetector.h"
+#include "PresetManager.h"
 #include <array>
 #include <atomic>
 #include <juce_audio_processors/juce_audio_processors.h>
@@ -44,10 +45,6 @@ public:
 
   void getStateInformation(juce::MemoryBlock &destData) override;
   void setStateInformation(const void *data, int sizeInBytes) override;
-
-  /// 保存済み APVTS state の ENVELOPE ノードから全 LUT を再ベイク。
-  /// setStateInformation / prepareToPlay の両方から呼ぶ。
-  void bakeAllLutsFromState();
 
   /// APVTS アクセサ
   juce::AudioProcessorValueTreeState &getAPVTS() noexcept { return apvts_; }
@@ -107,10 +104,19 @@ public:
   };
   DirectMode &directMode() noexcept { return directMode_; }
 
+  /// プリセットマネージャー
+  PresetManager &presetManager() noexcept { return presetManager_; }
+
 private:
   /// APVTS Listener: パラメータ変更を DSP へ反映
   void parameterChanged(const juce::String &parameterID,
                         float newValue) override;
+
+  /// replaceState 後のパラメータ／LUT／サンプル再適用（共通処理）
+  void applyRestoredState();
+
+  /// 保存済み APVTS state の ENVELOPE ノードから全 LUT を再ベイク。
+  void bakeAllLutsFromState();
 
   juce::MidiKeyboardState keyboardState;
   SubEngine subEngine_;
@@ -127,8 +133,11 @@ private:
   createParameterLayout();
   juce::AudioProcessorValueTreeState apvts_;
 
+  /// プリセット管理（apvts_ の後に初期化される必要がある）
+  PresetManager presetManager_;
+
   /// DAW Undo/Redo 検出用: setStateInformation 呼び出し毎にインクリメント
   std::atomic<int> nonParamStateVersion_{0};
 
-  JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(BoomBabyAudioProcessor)
+  JUCE_LEAK_DETECTOR(BoomBabyAudioProcessor)
 };

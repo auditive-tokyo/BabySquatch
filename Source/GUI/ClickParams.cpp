@@ -122,7 +122,8 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
   styleKnobLabel(clickUI.noise.decayLabel, "Decay", tinyFont);
   clickUI.noise.bpf1.slopeSelector.setOnChange([this](int dboct) {
     processorRef.clickEngine().setBpf1Slope(dboct);
-    syncParam(ParamIDs::clickBpf1Slope, static_cast<float>(slopeToIndex(dboct)));
+    syncParam(ParamIDs::clickBpf1Slope,
+              static_cast<float>(slopeToIndex(dboct)));
     envelopeCurveEditor.repaint();
   });
   styleKnobLabel(clickUI.noise.bpf1.qLabel, "Q", tinyFont);
@@ -169,7 +170,7 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
         static_cast<float>(clickUI.noise.decaySlider.getValue()));
     syncParam(ParamIDs::clickNoiseDecay,
               static_cast<float>(clickUI.noise.decaySlider.getValue()));
-    envelopeCurveEditor.repaint();
+    updateDisplayDuration();
   };
   addAndMakeVisible(clickUI.noise.decaySlider);
 
@@ -365,11 +366,9 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
       envDatas.clickAmp.setPointValue(0, v);
     saveEnvelopesToState();
     syncParam(ParamIDs::clickSampleAmp,
-                    static_cast<float>(clickUI.sample.amp.slider.getValue()),
-                    true);
+              static_cast<float>(clickUI.sample.amp.slider.getValue()), true);
     bakeLut(envDatas.clickAmp, processorRef.clickEngine().clickAmpLut(),
-            effectiveLutDuration(envDatas.clickAmp,
-                                 envelopeCurveEditor.getDisplayDurationMs()));
+            static_cast<float>(clickUI.sample.decay.slider.getValue()));
     envelopeCurveEditor.repaint();
   };
   // 初期デフォルトポイント（1点：ノブ制御状態）
@@ -405,8 +404,7 @@ void BoomBabyAudioProcessorEditor::setupClickParams() {
     const auto durMs =
         static_cast<float>(clickUI.sample.decay.slider.getValue());
     syncParam(ParamIDs::clickSampleDecay, durMs);
-    bakeLut(envDatas.clickAmp, processorRef.clickEngine().clickAmpLut(),
-            effectiveLutDuration(envDatas.clickAmp, durMs));
+    bakeLut(envDatas.clickAmp, processorRef.clickEngine().clickAmpLut(), durMs);
     envelopeCurveEditor.setClickDecayMs(durMs);
     updateDisplayDuration();
   };

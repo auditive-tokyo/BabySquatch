@@ -83,9 +83,13 @@ void BoomBabyAudioProcessorEditor::setupPanelRouting(
 // ────────────────────────────────────────────────────
 void BoomBabyAudioProcessorEditor::updateDisplayDuration() {
   const auto sub = static_cast<float>(subUI.length.slider.getValue());
-  const auto click = static_cast<float>(clickUI.sample.decay.slider.getValue());
+  const auto clickSample =
+      static_cast<float>(clickUI.sample.decay.slider.getValue());
+  const auto clickNoise =
+      static_cast<float>(clickUI.noise.decaySlider.getValue());
   const auto direct = static_cast<float>(directUI.decay.slider.getValue());
-  envelopeCurveEditor.setDisplayDurationMs(std::max({sub, click, direct}));
+  envelopeCurveEditor.setDisplayDurationMs(
+      std::max({sub, clickSample, clickNoise, direct}));
 }
 
 // ────────────────────────────────────────────────────
@@ -108,12 +112,12 @@ void BoomBabyAudioProcessorEditor::onEnvelopeChanged() {
   const auto clickDecayMs =
       static_cast<float>(clickUI.sample.decay.slider.getValue());
   bakeLut(envDatas.clickAmp, processorRef.clickEngine().clickAmpLut(),
-          effectiveLutDuration(envDatas.clickAmp, clickDecayMs));
+          clickDecayMs);
   envelopeCurveEditor.setClickDecayMs(clickDecayMs);
   const auto directDecayMs =
       static_cast<float>(directUI.decay.slider.getValue());
   bakeLut(envDatas.directAmp, processorRef.directEngine().directAmpLut(),
-          effectiveLutDuration(envDatas.directAmp, directDecayMs));
+          directDecayMs);
   // 1点=ノブ制御（有効化＋ポイント値をノブに反映）、2点以上=エンベロープ制御（無効化）
 
   // ValueTree を先に保存しておく。syncParam(silent) → parameterChanged →
@@ -334,8 +338,9 @@ void BoomBabyAudioProcessorEditor::switchEditTarget(
 // ────────────────────────────────────────────────────
 BoomBabyAudioProcessorEditor::BoomBabyAudioProcessorEditor(
     BoomBabyAudioProcessor &p)
-    : AudioProcessorEditor(&p), processorRef(p),
-      keyboard(p.getKeyboardState()) {
+    : AudioProcessorEditor(&p), processorRef(p), keyboard(p.getKeyboardState()),
+      presetBar(p.presetManager()) {
+  addAndMakeVisible(presetBar);
   addAndMakeVisible(subPanel);
   addAndMakeVisible(clickPanel);
   addAndMakeVisible(directPanel);
@@ -383,16 +388,17 @@ BoomBabyAudioProcessorEditor::BoomBabyAudioProcessorEditor(
   });
   InfoBox::setInfo(masterSection, InfoText::masterGain);
 
-  setSize(UIConstants::windowWidth, UIConstants::windowHeight +
-                                        UIConstants::expandedAreaHeight +
-                                        UIConstants::panelGap);
+  setSize(UIConstants::windowWidth,
+          UIConstants::presetBarHeight + UIConstants::panelGap +
+              UIConstants::windowHeight + UIConstants::expandedAreaHeight +
+              UIConstants::panelGap);
 
   // 入力波形 Timer 開始（30fps）
   waveDisplay_.buf.assign(static_cast<std::size_t>(kWaveDisplayCapacity), 0.0f);
 
   // APVTS 状態から UI ウィジェットを復元（DAW が保存した値を反映）
   syncUIFromState();
-  lastSeenStateVersion_ = processorRef.nonParamStateVersion();
+  waveDisplay_.lastSeenStateVersion = processorRef.nonParamStateVersion();
 
   startTimerHz(30);
 }
@@ -581,9 +587,10 @@ void BoomBabyAudioProcessorEditor::pollUIFromAPVTS() {
   // DAW Undo/Redo 検出:
   // 非パラメータ状態（エンベロープ等）が復元されたら再読み込み
   if (const int v = processorRef.nonParamStateVersion();
-      v != lastSeenStateVersion_) {
-    lastSeenStateVersion_ = v;
+      v != waveDisplay_.lastSeenStateVersion) {
+    waveDisplay_.lastSeenStateVersion = v;
     loadEnvelopesFromState();
+    presetBar.refreshPresetName();
   }
 
   const auto &apvts = processorRef.getAPVTS();
@@ -613,6 +620,10 @@ void BoomBabyAudioProcessorEditor::pollUIFromAPVTS() {
   subPanel.getFader().setValue(load(ParamIDs::subGain), silent);
   subPanel.setMuteState(load(ParamIDs::subMute) >= 0.5f);
   subPanel.setSoloState(load(ParamIDs::subSolo) >= 0.5f);
+  envelopeCurveEditor.setChannelMuted(EnvelopeCurveEditor::Channel::sub,
+                                      load(ParamIDs::subMute) >= 0.5f);
+  envelopeCurveEditor.setChannelSoloed(EnvelopeCurveEditor::Channel::sub,
+                                       load(ParamIDs::subSolo) >= 0.5f);
 
   // ── Click ──
   {
@@ -633,6 +644,7 @@ void BoomBabyAudioProcessorEditor::pollUIFromAPVTS() {
       } else {
         envelopeCurveEditor.setClickNoiseEnvProvider(clickUI.noiseProvider);
       }
+      resized(); // モード変更後のレイアウト更新（Sample ノブの bounds 確定）
     }
   }
   clickUI.noise.decaySlider.setValue(load(ParamIDs::clickNoiseDecay), silent);
@@ -660,6 +672,10 @@ void BoomBabyAudioProcessorEditor::pollUIFromAPVTS() {
   clickPanel.getFader().setValue(load(ParamIDs::clickGain), silent);
   clickPanel.setMuteState(load(ParamIDs::clickMute) >= 0.5f);
   clickPanel.setSoloState(load(ParamIDs::clickSolo) >= 0.5f);
+  envelopeCurveEditor.setChannelMuted(EnvelopeCurveEditor::Channel::click,
+                                      load(ParamIDs::clickMute) >= 0.5f);
+  envelopeCurveEditor.setChannelSoloed(EnvelopeCurveEditor::Channel::click,
+                                       load(ParamIDs::clickSolo) >= 0.5f);
 
   // ── Direct ──
   {
@@ -674,6 +690,7 @@ void BoomBabyAudioProcessorEditor::pollUIFromAPVTS() {
         directUI.applyPassthroughVisibility(isPt);
         processorRef.directMode().detector().setEnabled(isPt);
       }
+      resized(); // モード変更後のレイアウト更新
     }
   }
   directUI.pitch.slider.setValue(load(ParamIDs::directPitch), silent);
@@ -695,6 +712,10 @@ void BoomBabyAudioProcessorEditor::pollUIFromAPVTS() {
   directPanel.getFader().setValue(load(ParamIDs::directGain), silent);
   directPanel.setMuteState(load(ParamIDs::directMute) >= 0.5f);
   directPanel.setSoloState(load(ParamIDs::directSolo) >= 0.5f);
+  envelopeCurveEditor.setChannelMuted(EnvelopeCurveEditor::Channel::direct,
+                                      load(ParamIDs::directMute) >= 0.5f);
+  envelopeCurveEditor.setChannelSoloed(EnvelopeCurveEditor::Channel::direct,
+                                       load(ParamIDs::directSolo) >= 0.5f);
 
   // ── Master ──
   masterSection.setValueDb(load(ParamIDs::masterGain));
@@ -899,8 +920,15 @@ void BoomBabyAudioProcessorEditor::loadEnvelopesFromState() {
   }
 
   // アクティブモードのウィジェットに反映
-  const bool clickIsSample = clickUI.modeCombo.getSelectedId() ==
-                             std::to_underlying(ClickUI::Mode::Sample);
+  // APVTS パラメータから読み取る（pollUIFromAPVTS 経由の場合、
+  // コンボがまだ旧モードのため widget ではなくパラメータが正しい）
+  const bool clickIsSample =
+      static_cast<int>(
+          processorRef.getAPVTS()
+              .getRawParameterValue(ParamIDs::clickMode)
+              ->load()) +
+          1 ==
+      std::to_underlying(ClickUI::Mode::Sample);
   restoreModeStateToWidgets(
       clickUI, clickIsSample ? clickUI.sampleState : clickUI.noiseState,
       processorRef.clickEngine());
@@ -1036,6 +1064,10 @@ void BoomBabyAudioProcessorEditor::paint(juce::Graphics &g) {
 
 void BoomBabyAudioProcessorEditor::resized() {
   auto area = getLocalBounds().reduced(UIConstants::panelPadding);
+
+  // プリセットバー（最上部）
+  presetBar.setBounds(area.removeFromTop(UIConstants::presetBarHeight));
+  area.removeFromTop(UIConstants::panelGap);
 
   // 常時表示の展開エリア（下部）
   {
