@@ -1,12 +1,4 @@
-# BoomBaby Project
-
-## Overview
-
-BoomBaby is a personal kick enhancement plugin built for one specific use case. The developer was a long-time Sasquatch (Boz Labs) user who switched to an Apple M4 Pro Mac in mid-2025, only to find that Sasquatch required Rosetta.
-
-After searching for a native alternative, Kick Ninja (Him DSP) turned up — a genuinely great plugin, but a VST Instrument rather than a VST Effect. For a producer who frequently works with pre-bounced kicks in collabs and mixing sessions, having to route through MIDI just to process an audio file was too much friction.
-
-Rather than compromise, the developer analyzed both plugins by ear, extracted the features that actually mattered, and built a single streamlined plugin tailored exactly to the developer's own workflow. The beta is released as open source — with the hope that it might be useful to talented beatmakers and producers around the world.
+# BoomBaby Project Rules
 
 ## プラグイン構成
 
