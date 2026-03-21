@@ -1,6 +1,6 @@
 # BoomBaby Project
 
-**Free VST Plugin!** Also available as AUv2 on macOS Apple Silicon.
+**Free VST3/AU Plugin!**
 
 [![Open Source](https://img.shields.io/badge/Open%20Source-Yes-22c55e)](https://github.com/auditive-tokyo/BoomBaby)
 [![License](https://img.shields.io/badge/License-GPLv3%20or%20Commercial-2563eb)](LICENSE.md)
