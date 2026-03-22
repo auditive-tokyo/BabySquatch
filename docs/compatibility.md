@@ -15,7 +15,7 @@
 
 ---
 
-Tested environments are listed below. To add your own, see [Contributing](#contributing).
+Tested environments are listed below. If you have tested BoomBaby on a configuration not listed below, please share your results in [GitHub Discussions](https://github.com/auditive-tokyo/BoomBaby/discussions/1) — your contribution will help the community. Thank you!
 
 ## Tested Configurations
 
@@ -27,26 +27,3 @@ Tested environments are listed below. To add your own, see [Contributing](#contr
 | Bitwig Studio   | —                    | —            | VST3       | —        |
 | Reaper          | —                    | —            | AUv2, VST3 | —        |
 | Studio One      | —                    | —            | AUv2, VST3 | —        |
-
-## Contributing
-
-If you have tested BoomBaby on a configuration not listed above, please share your results — either way works:
-
-- **Quick report**: Post in [GitHub Discussions](https://github.com/auditive-tokyo/BoomBaby/discussions/1) — no fork needed, just describe your environment and whether it worked.
-- **Add to the table**: Open a pull request following the steps below.
-
-### Pull Request
-
-To add a tested configuration:
-
-1. Fork this repository.
-2. Edit `docs/compatibility.md` and append your row to the table above.
-3. Open a pull request with the title `compat: <OS> + <DAW>`.
-
-Please include:
-
-- **DAW**: name and version (e.g. `Ableton Live 12`, `Logic Pro 11.1`)
-- **OS**: name, version, and build number (e.g. `macOS 15.3.1 (24D70)`)
-- **CPU**: architecture and model (e.g. `Apple M4 Pro`, `Intel Core i9`)
-- **Format**: `AUv2`, `VST3`, or both (e.g. `AUv2, VST3`)
-- **Status**: `✅ Works`, `⚠️ Partial` (with notes), or `❌ Broken` (with notes)

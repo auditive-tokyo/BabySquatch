@@ -50,9 +50,14 @@ I'm planning a commercial version with a broader feature set and a redesigned GU
 
 ## Community and Feedback
 
-Detailed contribution guidelines will be documented in CONTRIBUTING.md (coming soon).
-
-- Compatibility reports: Please post your DAW/OS/CPU test results in [GitHub Discussions](https://github.com/auditive-tokyo/BoomBaby/discussions/1). See [docs/compatibility.md](docs/compatibility.md) for the reporting format.
-- Preset contributions: If you want to share presets, please use [GitHub Discussions](https://github.com/auditive-tokyo/BoomBaby/discussions) to propose and discuss them.
+- Compatibility reports: Reporting your DAW/OS/CPU test results in [GitHub Discussions](https://github.com/auditive-tokyo/BoomBaby/discussions/1) is highly appreciated. See the [Compatibility Page](docs/compatibility.md) for the reporting format.
+- Preset contributions: Share your presets in [GitHub Discussions #12](https://github.com/auditive-tokyo/BoomBaby/discussions/12). Presets selected for an official release will be credited by your developer or producer name in the Contributors section below.
 - Bug reports: Please open them in [GitHub Issues](https://github.com/auditive-tokyo/BoomBaby/issues).
 - Feature requests: This project is open source, but implementation scope is selective. Features that strongly improve the developer and producer workflows are more likely to be implemented.
+
+## Contributors
+
+Contributions of any kind are welcome — presets, platform ports, compatibility testing, bug fixes, and more. Contributors will be listed here by their developer or producer name.
+
+| Name | Contribution |
+| ---- | ------------ |
