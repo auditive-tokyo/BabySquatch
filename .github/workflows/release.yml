@@ -93,10 +93,6 @@ jobs:
             BoomBaby-${{ steps.version.outputs.version }}-VST3-macOS.zip
             BoomBaby-${{ steps.version.outputs.version }}-AU-macOS.zip
           body: |
-            ## BoomBaby v${{ steps.version.outputs.version }} — macOS Beta
-
-            ${{ steps.changelog.outputs.changelog }}
-
             ### Download
 
             Scroll to the **Assets** section at the bottom of this page and download the zip for your format:
@@ -132,3 +128,7 @@ jobs:
                ```
                *(The second command will ask for your login password)*
             5. Open your DAW
+
+            ### What's changed?
+
+            ${{ steps.changelog.outputs.changelog }}
