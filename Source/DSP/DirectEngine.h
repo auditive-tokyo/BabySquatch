@@ -96,6 +96,8 @@ private:
   float computeSampleAmp(float noteTimeMs) const;
   /// 停止判定用最大再生時間（サンプル数）
   float computeMaxTimeSamples(float sr, double playRate) const;
+  /// パススルーモード時の 1 サンプル分 amp 計算（ネスト削減用）
+  float computePassthroughAmp(float sr, float maxTimeSamples);
 
   struct FilterParams {
     std::atomic<float> freq{0.0f};
@@ -103,12 +105,23 @@ private:
     std::atomic<int> stages{1};
   };
 
-  SamplePlayer sampler_;
+  /// render 中のみ有効なロックビューキャッシュ
+  struct ViewCache {
+    const float *data{nullptr};
+    const float *dataR{nullptr};
+    int length{0};
+    void clear() { data = nullptr; dataR = nullptr; length = 0; }
+  };
 
-  // synthesizeSample() 用ロックビューキャッシュ（render 中のみ有効）
-  const float *viewData_{nullptr};
-  const float *viewDataR_{nullptr};
-  int viewLen_{0};
+  /// リトリガーランプ状態（エンベロープ不連続防止）
+  struct RampState {
+    float prevAmp{0.0f};
+    int counter{0};
+    int length{22};
+  };
+
+  SamplePlayer sampler_;
+  ViewCache viewCache_;
 
   // 再生状態
   std::vector<float> scratchBuffer_;
@@ -116,10 +129,7 @@ private:
   float noteTimeSamples_{0.0f};
   int startOffset_{0};
 
-  // リトリガーランプ（エンベロープ不連続防止）
-  float prevAmp_{0.0f};
-  int rampCounter_{0};
-  int rampLength_{22};
+  RampState ramp_;
   float cachedSampleRate_{44100.0f};
 
   // フィルター

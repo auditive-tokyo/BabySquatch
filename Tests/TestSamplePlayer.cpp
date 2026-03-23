@@ -33,8 +33,9 @@ static juce::File writeTestWav(int numSamples, double sr = kSampleRate) {
 
   // WAV 16bit で書き出し
   juce::WavAudioFormat wav;
-  std::unique_ptr<juce::AudioFormatWriter> writer(wav.createWriterFor(
-      new juce::FileOutputStream(file), sr, 1, 16, {}, 0)); // NOSONAR
+  std::unique_ptr<juce::OutputStream> stream(std::make_unique<juce::FileOutputStream>(file));
+  auto writer = wav.createWriterFor(stream,
+      juce::AudioFormatWriterOptions{}.withSampleRate(sr).withNumChannels(1).withBitsPerSample(16));
   REQUIRE(writer != nullptr);
   writer->writeFromAudioSampleBuffer(buf, 0, numSamples);
   writer.reset(); // flush
@@ -55,8 +56,9 @@ static juce::File writeStereoTestWav(int numSamples, double sr = kSampleRate) {
   auto file = dir.getChildFile("boombaby_test_stereo.wav");
 
   juce::WavAudioFormat wav;
-  std::unique_ptr<juce::AudioFormatWriter> writer(wav.createWriterFor(
-      new juce::FileOutputStream(file), sr, 2, 16, {}, 0)); // NOSONAR
+  std::unique_ptr<juce::OutputStream> stream(std::make_unique<juce::FileOutputStream>(file));
+  auto writer = wav.createWriterFor(stream,
+      juce::AudioFormatWriterOptions{}.withSampleRate(sr).withNumChannels(2).withBitsPerSample(16));
   REQUIRE(writer != nullptr);
   writer->writeFromAudioSampleBuffer(buf, 0, numSamples);
   writer.reset();

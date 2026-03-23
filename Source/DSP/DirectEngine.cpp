@@ -29,11 +29,11 @@ void DirectEngine::prepareToPlay(double sampleRate, int samplesPerBlock) {
   active_.store(false);
 
   cachedSampleRate_ = static_cast<float>(sampleRate);
-  rampLength_ = static_cast<int>(cachedSampleRate_ * 0.0005f);
-  if (rampLength_ < 1)
-    rampLength_ = 1;
-  prevAmp_ = 0.0f;
-  rampCounter_ = 0;
+  ramp_.length = static_cast<int>(cachedSampleRate_ * 0.0005f);
+  if (ramp_.length < 1)
+    ramp_.length = 1;
+  ramp_.prevAmp = 0.0f;
+  ramp_.counter = 0;
 
   sampler_.prepare();
   directAmpLut_.reset();
@@ -51,11 +51,11 @@ void DirectEngine::triggerNote(int sampleOffset) {
   // リトリガー時エンベロープ不連続防止: 現在の amp を保存しランプ開始
   if (active_.load() && noteTimeSamples_ > 0.0f) {
     const float noteTimeMs = noteTimeSamples_ * 1000.0f / cachedSampleRate_;
-    prevAmp_ = computeSampleAmp(noteTimeMs);
-    rampCounter_ = rampLength_;
+    ramp_.prevAmp = computeSampleAmp(noteTimeMs);
+    ramp_.counter = ramp_.length;
   } else {
-    prevAmp_ = 0.0f;
-    rampCounter_ = 0;
+    ramp_.prevAmp = 0.0f;
+    ramp_.counter = 0;
   }
 
   noteTimeSamples_ = 0.0f;
@@ -155,9 +155,9 @@ void DirectEngine::render(juce::AudioBuffer<float> &buffer, int numSamples,
     return;
   }
   // readInterpolatedStereo() からアクセスするためメンバーにキャッシュ
-  viewData_ = view.data;
-  viewDataR_ = view.dataR ? view.dataR : view.data;
-  viewLen_ = view.length;
+  viewCache_.data = view.data;
+  viewCache_.dataR = view.dataR ? view.dataR : view.data;
+  viewCache_.length = view.length;
 
   const int numCh = buffer.getNumChannels();
 
@@ -180,7 +180,7 @@ void DirectEngine::render(juce::AudioBuffer<float> &buffer, int numSamples,
 
     bool finished = false;
     auto [sL, sR] = sampler_.readInterpolatedStereo(
-        viewData_, viewDataR_, viewLen_, playRate, finished);
+        viewCache_.data, viewCache_.dataR, viewCache_.length, playRate, finished);
     if (finished) {
       sL = 0.0f;
       sR = 0.0f;
@@ -197,14 +197,41 @@ void DirectEngine::render(juce::AudioBuffer<float> &buffer, int numSamples,
     noteTimeSamples_ += 1.0f;
   }
 
-  viewData_ = nullptr;
-  viewDataR_ = nullptr;
-  viewLen_ = 0;
+  viewCache_.clear();
 }
 
 // ────────────────────────────────────────────────
 // renderPassthrough
 // ────────────────────────────────────────────────
+
+float DirectEngine::computePassthroughAmp(float sr, float maxTimeSamples) {
+  if (!active_.load())
+    return 0.0f;
+
+  if (startOffset_ > 0) {
+    --startOffset_;
+    return ramp_.prevAmp; // リトリガー時はゼロ落ちせず旧アンプを維持
+  }
+
+  if (noteTimeSamples_ >= maxTimeSamples) {
+    active_.store(false);
+    return 0.0f;
+  }
+
+  const float noteTimeMs = noteTimeSamples_ * 1000.0f / sr;
+  float amp = computeSampleAmp(noteTimeMs);
+
+  // リトリガーランプ: 旧アンプ → 新アンプへスムーズ遷移
+  if (ramp_.counter > 0) {
+    const float t =
+        static_cast<float>(ramp_.counter) / static_cast<float>(ramp_.length);
+    amp = ramp_.prevAmp * t + amp * (1.0f - t);
+    --ramp_.counter;
+  }
+
+  noteTimeSamples_ += 1.0f;
+  return amp;
+}
 
 void DirectEngine::renderPassthrough(juce::AudioBuffer<float> &buffer,
                                      std::span<const float> inputL,
@@ -221,30 +248,7 @@ void DirectEngine::renderPassthrough(juce::AudioBuffer<float> &buffer,
   const int numCh = buffer.getNumChannels();
 
   for (int i = 0; i < numSamples; ++i) {
-    float amp = 1.0f;
-
-    if (active_.load()) {
-      if (startOffset_ > 0) {
-        --startOffset_;
-        amp = prevAmp_; // リトリガー時はゼロ落ちせず旧アンプを維持
-      } else if (noteTimeSamples_ >= maxTimeSamples) {
-        active_.store(false);
-        amp = 0.0f;
-      } else {
-        const float noteTimeMs = noteTimeSamples_ * 1000.0f / sr;
-        amp = computeSampleAmp(noteTimeMs);
-        // リトリガーランプ: 旧アンプ → 新アンプへスムーズ遷移
-        if (rampCounter_ > 0) {
-          const float t = static_cast<float>(rampCounter_) /
-                          static_cast<float>(rampLength_);
-          amp = prevAmp_ * t + amp * (1.0f - t);
-          --rampCounter_;
-        }
-        noteTimeSamples_ += 1.0f;
-      }
-    } else {
-      amp = 0.0f; // Decay 終了後はミュート（Amp Envelope 制御）
-    }
+    const float amp = computePassthroughAmp(sr, maxTimeSamples);
 
     const auto idx = static_cast<std::size_t>(i);
     float sL = (i < static_cast<int>(inputL.size())) ? inputL[idx] : 0.0f;
