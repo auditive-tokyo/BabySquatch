@@ -127,6 +127,8 @@ private:
   InputMonitor inputMonitor_;
   DirectMode directMode_;
   std::vector<float> monoMixBuffer_; ///< トランジェント検出用モノ合成バッファ
+  std::vector<float> passthroughL_; ///< Direct パススルー用 L入力
+  std::vector<float> passthroughR_; ///< Direct パススルー用 R入力
 
   /// APVTS（全パラメータの一元管理 + 状態保存/復元）
   static juce::AudioProcessorValueTreeState::ParameterLayout

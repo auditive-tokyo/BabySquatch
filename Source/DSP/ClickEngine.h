@@ -110,11 +110,20 @@ private:
     int lpfStages;
   };
   FilterFlags setupFilters(float sr);
-  float synthesizeSample(int mode, const FilterFlags &flags, double playRate);
+  /// フィルタチェーン（Drive→HPF/LPF→共振整形）を 1ch 分処理
+  float processFilterChain(const FilterFlags &flags, int ch, float s);
   /// Sampleモードの停止判定用時間（サンプル数）を計算
   float computeMaxTimeSamples(float sr, int mode, double playRate) const;
   /// Sampleモードのエンベロープ振幅（LUT + 末尾フェード）を計算
   float computeSampleAmp(float noteTimeMs) const;
+  /// Sample モード 1 サンプルレンダリング
+  void renderOneSample(const FilterFlags &flags, float amp, float gain,
+                       bool clickPass, juce::AudioBuffer<float> &buffer,
+                       int sample, double playRate);
+  /// Noise モード 1 サンプルレンダリング
+  void renderOneNoise(const FilterFlags &flags, float amp, float gain,
+                      bool clickPass, juce::AudioBuffer<float> &buffer,
+                      int sample);
 
   // ── BPF（bpf1 はカスケード最大4段） ──
   std::array<juce::dsp::StateVariableTPTFilter<float>, kMaxCascade>

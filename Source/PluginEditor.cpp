@@ -83,13 +83,13 @@ void BoomBabyAudioProcessorEditor::setupPanelRouting(
 // ────────────────────────────────────────────────────
 void BoomBabyAudioProcessorEditor::updateDisplayDuration() {
   const auto sub = static_cast<float>(subUI.length.slider.getValue());
-  const auto clickSample =
-      static_cast<float>(clickUI.sample.decay.slider.getValue());
-  const auto clickNoise =
-      static_cast<float>(clickUI.noise.decaySlider.getValue());
+  const bool isSampleMode = clickUI.modeCombo.getSelectedId() ==
+                            std::to_underlying(ClickUI::Mode::Sample);
+  const auto clickDecay =
+      isSampleMode ? static_cast<float>(clickUI.sample.decay.slider.getValue())
+                   : static_cast<float>(clickUI.noise.decaySlider.getValue());
   const auto direct = static_cast<float>(directUI.decay.slider.getValue());
-  envelopeCurveEditor.setDisplayDurationMs(
-      std::max({sub, clickSample, clickNoise, direct}));
+  envelopeCurveEditor.setDisplayDurationMs(std::max({sub, clickDecay, direct}));
 }
 
 // ────────────────────────────────────────────────────
@@ -774,8 +774,7 @@ juce::ValueTree envelopeToTree(const char *name, const EnvelopeData &env) {
   return tree;
 }
 
-juce::ValueTree findEnvInState(const juce::ValueTree &state,
-                               const char *name) {
+juce::ValueTree findEnvInState(const juce::ValueTree &state, const char *name) {
   for (int i = 0; i < state.getNumChildren(); ++i) {
     auto child = state.getChild(i);
     if (child.hasType(kEnvelopeTag) &&
@@ -938,10 +937,9 @@ void BoomBabyAudioProcessorEditor::loadEnvelopesFromState() {
   // APVTS パラメータから読み取る（pollUIFromAPVTS 経由の場合、
   // コンボがまだ旧モードのため widget ではなくパラメータが正しい）
   const bool clickIsSample =
-      static_cast<int>(
-          processorRef.getAPVTS()
-              .getRawParameterValue(ParamIDs::clickMode)
-              ->load()) +
+      static_cast<int>(processorRef.getAPVTS()
+                           .getRawParameterValue(ParamIDs::clickMode)
+                           ->load()) +
           1 ==
       std::to_underlying(ClickUI::Mode::Sample);
   restoreModeStateToWidgets(

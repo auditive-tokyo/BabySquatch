@@ -2,19 +2,23 @@
 #include "Saturator.h"
 #include <cmath>
 
-void ClickEngine::prepareToPlay(double /*sampleRate*/, int samplesPerBlock) {
+void ClickEngine::prepareToPlay(double sampleRate, int samplesPerBlock) {
   // ── BPF / HPF / LPF 初期化 ──
   using enum juce::dsp::StateVariableTPTFilterType;
+  juce::dsp::ProcessSpec spec{};
+  spec.sampleRate = sampleRate;
+  spec.maximumBlockSize = static_cast<juce::uint32>(samplesPerBlock);
+  spec.numChannels = 2;
   for (auto &f : bpf1s_) {
-    f.reset();
+    f.prepare(spec);
     f.setType(bandpass);
   }
   for (auto &f : hpfs_) {
-    f.reset();
+    f.prepare(spec);
     f.setType(highpass);
   }
   for (auto &f : lpfs_) {
-    f.reset();
+    f.prepare(spec);
     f.setType(lowpass);
   }
 
@@ -78,38 +82,20 @@ auto ClickEngine::setupFilters(float sr) -> FilterFlags {
   return flags;
 }
 
-float ClickEngine::synthesizeSample(int mode, const FilterFlags &flags,
-                                    double playRate) {
-  float s = 0.0f;
-  if (mode == 1) {
-    // ── Noise: ホワイトノイズ → BPF 励起 ──
-    s = random_.nextFloat() * 2.0f - 1.0f;
-    if (flags.bpf1)
-      for (int i = 0; i < flags.bpf1Stages; ++i)
-        s = bpf1s_[static_cast<std::size_t>(i)].processSample(0, s);
-  } else if (mode == 2) {
-    // ── Sample: SamplePlayer から読み出し ──
-    bool finished = false;
-    s = sampler_.readNext(playRate, finished);
-    if (finished)
-      return 0.0f; // render 側で active を落とす
-  }
-  // ── Drive + Clip（BPF 後・HPF/LPF 前）──
+float ClickEngine::processFilterChain(const FilterFlags &flags, int ch,
+                                      float s) {
   s = Saturator::process(s, saturatorParams_.driveDb.load(),
                          saturatorParams_.clipType.load());
-  // ── ポスト HPF / LPF ──
   if (flags.hpf) {
     for (int i = 0; i < flags.hpfStages; ++i)
-      s = hpfs_[static_cast<std::size_t>(i)].processSample(0, s);
+      s = hpfs_[static_cast<std::size_t>(i)].processSample(ch, s);
   }
   if (flags.lpf) {
     for (int i = 0; i < flags.lpfStages; ++i)
-      s = lpfs_[static_cast<std::size_t>(i)].processSample(0, s);
+      s = lpfs_[static_cast<std::size_t>(i)].processSample(ch, s);
   }
   if (flags.hpf || flags.lpf)
-    s = Saturator::process(
-        s, 0.0f,
-        saturatorParams_.clipType.load()); // 共振ピークを ClipType で整形
+    s = Saturator::process(s, 0.0f, saturatorParams_.clipType.load());
   return s;
 }
 
@@ -133,6 +119,43 @@ float ClickEngine::computeSampleAmp(float noteTimeMs) const {
       clickAmpLut_.getActiveLut(), clickAmpLut_.getDurationMs(), noteTimeMs);
 }
 
+void ClickEngine::renderOneSample(const FilterFlags &flags, float amp,
+                                  float gain, bool clickPass,
+                                  juce::AudioBuffer<float> &buffer, int sample,
+                                  double playRate) {
+  const int numChannels = buffer.getNumChannels();
+  bool finished = false;
+  auto [sL, sR] = sampler_.readNextStereo(playRate, finished);
+  if (finished) {
+    sL = 0.0f;
+    sR = 0.0f;
+  }
+  sL = processFilterChain(flags, 0, sL) * amp * gain;
+  sR = processFilterChain(flags, 1, sR) * amp * gain;
+  scratchBuffer_[static_cast<size_t>(sample)] = (sL + sR) * 0.5f;
+  if (clickPass) {
+    buffer.addSample(0, sample, sL);
+    if (numChannels >= 2)
+      buffer.addSample(1, sample, sR);
+  }
+}
+
+void ClickEngine::renderOneNoise(const FilterFlags &flags, float amp,
+                                 float gain, bool clickPass,
+                                 juce::AudioBuffer<float> &buffer, int sample) {
+  const int numChannels = buffer.getNumChannels();
+  float s = random_.nextFloat() * 2.0f - 1.0f;
+  if (flags.bpf1)
+    for (int fi = 0; fi < flags.bpf1Stages; ++fi)
+      s = bpf1s_[static_cast<std::size_t>(fi)].processSample(0, s);
+  s = processFilterChain(flags, 0, s);
+  const float out = s * amp * gain;
+  scratchBuffer_[static_cast<size_t>(sample)] = out;
+  if (clickPass)
+    for (int ch = 0; ch < numChannels; ++ch)
+      buffer.addSample(ch, sample, out);
+}
+
 void ClickEngine::render(juce::AudioBuffer<float> &buffer, int numSamples,
                          bool clickPass, double sampleRate) {
   if (!active_.load()) {
@@ -140,7 +163,6 @@ void ClickEngine::render(juce::AudioBuffer<float> &buffer, int numSamples,
     return;
   }
 
-  const int numChannels = buffer.getNumChannels();
   const auto sr = static_cast<float>(sampleRate);
   const float clickGain = juce::Decibels::decibelsToGain(gainDb_.load());
   const float decayMs = decayMs_.load();
@@ -149,16 +171,12 @@ void ClickEngine::render(juce::AudioBuffer<float> &buffer, int numSamples,
   const double fileSr = sampler_.sampleRate();
   const double srRatio = (fileSr > 0) ? fileSr / sampleRate : 1.0;
 
-  double playRate;
-  if (mode == 2)
-    playRate =
-        std::pow(2.0, sampleParams_.pitchSemitones.load() / 12.0) * srRatio;
-  else
-    playRate = 1.0;
+  const double playRate =
+      (mode == 2)
+          ? std::pow(2.0, sampleParams_.pitchSemitones.load() / 12.0) * srRatio
+          : 1.0;
 
-  // 全体再生時間（停止判定用）
   const float maxTimeSamples = computeMaxTimeSamples(sr, mode, playRate);
-
   const FilterFlags flags = setupFilters(sr);
 
   for (int sample = 0; sample < numSamples; ++sample) {
@@ -175,20 +193,17 @@ void ClickEngine::render(juce::AudioBuffer<float> &buffer, int numSamples,
       break;
     }
 
-    float amp;
-    if (mode == 2) {
-      const float noteTimeMs = noteTimeSamples_ * 1000.0f / sr;
-      amp = computeSampleAmp(noteTimeMs);
-    } else {
-      amp = std::exp(-noteTimeSamples_ * 5000.0f / (decayMs * sr + 1e-6f));
-    }
-    const float out = synthesizeSample(mode, flags, playRate) * amp * clickGain;
+    const float amp =
+        (mode == 2)
+            ? computeSampleAmp(noteTimeSamples_ * 1000.0f / sr)
+            : std::exp(-noteTimeSamples_ * 5000.0f / (decayMs * sr + 1e-6f));
 
-    scratchBuffer_[static_cast<size_t>(sample)] = out;
-    if (clickPass) {
-      for (int ch = 0; ch < numChannels; ++ch)
-        buffer.addSample(ch, sample, out);
-    }
+    if (mode == 2)
+      renderOneSample(flags, amp, clickGain, clickPass, buffer, sample,
+                      playRate);
+    else
+      renderOneNoise(flags, amp, clickGain, clickPass, buffer, sample);
+
     noteTimeSamples_ += 1.0f;
   }
 }

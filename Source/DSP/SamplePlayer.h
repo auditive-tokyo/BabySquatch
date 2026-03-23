@@ -4,6 +4,7 @@
 #include <juce_audio_formats/juce_audio_formats.h>
 
 #include <atomic>
+#include <utility>
 #include <vector>
 
 /// WAV/AIFF サンプルのロード・再生を管理する共通クラス。
@@ -34,15 +35,25 @@ public:
   /// srcData/srcLen が有効な間、readInterpolated を直接呼べる。
   struct LockedView {
     const float *data = nullptr;
-    int          length = 0;
+    const float *dataR = nullptr;
+    int length = 0;
     std::unique_ptr<juce::SpinLock::ScopedTryLockType> lock;
     explicit operator bool() const noexcept { return data != nullptr; }
   };
   LockedView lock() noexcept;
 
   /// ロック済みバッファに対する線形補間読み出し。プレイヘッドを進める。
-  float readInterpolated(const float *srcData, int srcLen,
-                         double playRate, bool &finished);
+  float readInterpolated(const float *srcData, int srcLen, double playRate,
+                         bool &finished);
+
+  /// ステレオ版: L/R ペアで線形補間読み出し。
+  std::pair<float, float> readInterpolatedStereo(const float *srcL,
+                                                 const float *srcR, int srcLen,
+                                                 double playRate,
+                                                 bool &finished);
+
+  /// ステレオ版: ロック取得 + readInterpolatedStereo。
+  std::pair<float, float> readNextStereo(double playRate, bool &finished);
 
   // ── メタ情報 ──
   double sampleRate() const noexcept { return sampleSampleRate_; }
@@ -51,15 +62,15 @@ public:
                      std::vector<float> &outMax) const noexcept;
 
 private:
-  juce::AudioFormatManager  formatManager_;
-  juce::SpinLock            sampleLock_;
-  juce::AudioBuffer<float>  buffer_;
-  std::atomic<bool>         loaded_{false};
-  double                    sampleSampleRate_{44100.0};
-  double                    playheadSamples_{0.0};
+  juce::AudioFormatManager formatManager_;
+  juce::SpinLock sampleLock_;
+  juce::AudioBuffer<float> buffer_;
+  std::atomic<bool> loaded_{false};
+  double sampleSampleRate_{44100.0};
+  double playheadSamples_{0.0};
 
   // 波形サムネイル（メッセージスレッド専用）
-  std::vector<float>        thumbMin_;
-  std::vector<float>        thumbMax_;
-  std::atomic<double>       durationSec_{0.0};
+  std::vector<float> thumbMin_;
+  std::vector<float> thumbMax_;
+  std::atomic<double> durationSec_{0.0};
 };

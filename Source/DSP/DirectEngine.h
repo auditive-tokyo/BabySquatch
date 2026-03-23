@@ -30,7 +30,8 @@ public:
 
   /// パススルーモード時の入力処理（フィルター/Drive/Amp を入力信号に適用）
   void renderPassthrough(juce::AudioBuffer<float> &buffer,
-                         std::span<const float> inputMono, int numSamples,
+                         std::span<const float> inputL,
+                         std::span<const float> inputR, int numSamples,
                          double sampleRate);
 
   /// 内部 SamplePlayer への参照（UI からのロード / サムネイル取得用）
@@ -89,12 +90,14 @@ private:
   };
 
   FilterState prepareFilters(float sr);
-  /// サンプル合成（読み出し→Saturator→フィルター→共振整形）
-  float synthesizeSample(const FilterState &fs, double playRate);
+  /// フィルタチェーン（Drive→HPF/LPF→共振整形）を 1ch 分処理
+  float processFilterChain(const FilterState &fs, int ch, float s);
   /// LUT エンベロープ振幅（末尾 half-cosine フェード付き）
   float computeSampleAmp(float noteTimeMs) const;
   /// 停止判定用最大再生時間（サンプル数）
   float computeMaxTimeSamples(float sr, double playRate) const;
+  /// パススルーモード時の 1 サンプル分 amp 計算（ネスト削減用）
+  float computePassthroughAmp(float sr, float maxTimeSamples);
 
   struct FilterParams {
     std::atomic<float> freq{0.0f};
@@ -102,17 +105,32 @@ private:
     std::atomic<int> stages{1};
   };
 
-  SamplePlayer sampler_;
+  /// render 中のみ有効なロックビューキャッシュ
+  struct ViewCache {
+    const float *data{nullptr};
+    const float *dataR{nullptr};
+    int length{0};
+    void clear() { data = nullptr; dataR = nullptr; length = 0; }
+  };
 
-  // synthesizeSample() 用ロックビューキャッシュ（render 中のみ有効）
-  const float *viewData_{nullptr};
-  int viewLen_{0};
+  /// リトリガーランプ状態（エンベロープ不連続防止）
+  struct RampState {
+    float prevAmp{0.0f};
+    int counter{0};
+    int length{22};
+  };
+
+  SamplePlayer sampler_;
+  ViewCache viewCache_;
 
   // 再生状態
   std::vector<float> scratchBuffer_;
   std::atomic<bool> active_{false};
   float noteTimeSamples_{0.0f};
   int startOffset_{0};
+
+  RampState ramp_;
+  float cachedSampleRate_{44100.0f};
 
   // フィルター
   std::array<juce::dsp::StateVariableTPTFilter<float>, kMaxCascade> hpfs_;
@@ -127,5 +145,5 @@ private:
   std::atomic<int> clipType_{0};
   std::atomic<bool> passthroughMode_{false};
   std::atomic<float> maxDurationMs_{300.0f}; // 停止判定用
-  EnvelopeLutManager directAmpLut_;          // Direct Amp エンベロープ LUT
+  EnvelopeLutManager directAmpLut_; // Direct Amp エンベロープ LUT
 };
