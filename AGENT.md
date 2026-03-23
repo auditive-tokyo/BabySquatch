@@ -110,22 +110,3 @@ This project uses JUCE framework. An MCP server (`juce-docs`) is available.
 ## TODO（追加実装）
 
 - **Branch protection の required checks 整理（確認事項）**: `SonarCloud Code Analysis` と `SonarQube analysis` が重複している可能性があるため、運用を決めたらどちらか片方を required から外す。
-
-## TODO（修正）
-
-　- **Direct パススルー: リトリガー時のエンベロープ不連続でポップが発生する（修正済み）**:
-
-**原因**: `triggerNote()` が `noteTimeSamples_ = 0` をハードリセットするため、decay > hold のとき旧エンベロープの amp が残存（例: 0.7）→ 新エンベロープ amp（1.0）への 1 サンプル不連続 = ポップ。MIDI モードはアタック先頭（低振幅）からゲートが開くため問題なし。
-
-**修正内容**: `DirectEngine::triggerNote()` 時に旧 amp を保存し、`renderPassthrough()` で 0.5ms リニアランプにより旧 amp → 新 amp へスムーズ遷移。`prevAmp_` / `rampCounter_` / `rampLength_` メンバーを追加。
-
-- **波形表示長が Click の非表示モード decay まで含めてしまう**: 波形表示長は `Sub length`、`Direct decay`、および `Click` の現在選択中モードの decay だけを比較して最長を選ぶべき。現状は `Click` の `Noise` / `Sample` 両方の decay を比較対象に含めているため、未使用モード側のデフォルト値（例: 300ms）が残っているだけで表示波形長が不必要に長くなる。
-
-- **Click Sample / Direct のステレオ化（実装済み）**:
-
-  **変更内容**:
-  1. `SamplePlayer`: `loadSample()` で 2ch（ステレオ）バッファとして保持。モノファイルは ch0→ch1 コピー。`readInterpolatedStereo()` / `readNextStereo()` で `std::pair<float,float>` (L/R) を返す API を追加。既存モノ API (`readInterpolated()` / `readNext()`) は互換性のため残存。
-  2. `DirectEngine`: (a) passthrough — `inputL` / `inputR` を受け取りチャンネル別にフィルタチェーン処理。(b) sample — `readInterpolatedStereo()` でステレオ読み出し後、`processFilterChain(fs, ch, s)` でチャンネル別処理。(c) JUCE `StateVariableTPTFilter` の ch0/ch1 ステートを活用し、フィルター配列を増やさず対応。
-  3. `ClickEngine`: Sample モード — `readNextStereo()` でステレオ読み出し、`processFilterChain(flags, ch, s)` でチャンネル別処理。Noise モードは従来通りモノ → dual-mono。
-  4. `PluginProcessor`: `passthroughL_` / `passthroughR_` バッファを追加。`processPassthroughMonitor()` でモノミックス（FIFO / 検出用）とステレオ保存を同時実施。Direct passthrough 時はステレオデータを渡す。
-  5. `scratchBuffer_` はレベル計測用にモノ `(L+R)*0.5f` を継続出力。
