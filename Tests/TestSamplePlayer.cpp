@@ -23,18 +23,18 @@ static std::unique_ptr<SamplePlayer> makePrepared() {
 static juce::File writeTestWav(int numSamples, double sr = kSampleRate) {
   juce::AudioBuffer<float> buf(1, numSamples);
   for (int i = 0; i < numSamples; ++i)
-    buf.setSample(0, i,
-                  static_cast<float>(
-                      std::sin(2.0 * juce::MathConstants<double>::pi * 440.0 *
-                               static_cast<double>(i) / sr)));
+    buf.setSample(
+        0, i,
+        static_cast<float>(std::sin(2.0 * juce::MathConstants<double>::pi *
+                                    440.0 * static_cast<double>(i) / sr)));
 
   auto dir = juce::File::getSpecialLocation(juce::File::tempDirectory);
   auto file = dir.getChildFile("boombaby_test_sample.wav");
 
   // WAV 16bit で書き出し
   juce::WavAudioFormat wav;
-  std::unique_ptr<juce::AudioFormatWriter> writer(
-      wav.createWriterFor(new juce::FileOutputStream(file), sr, 1, 16, {}, 0)); // NOSONAR
+  std::unique_ptr<juce::AudioFormatWriter> writer(wav.createWriterFor(
+      new juce::FileOutputStream(file), sr, 1, 16, {}, 0)); // NOSONAR
   REQUIRE(writer != nullptr);
   writer->writeFromAudioSampleBuffer(buf, 0, numSamples);
   writer.reset(); // flush
@@ -55,8 +55,8 @@ static juce::File writeStereoTestWav(int numSamples, double sr = kSampleRate) {
   auto file = dir.getChildFile("boombaby_test_stereo.wav");
 
   juce::WavAudioFormat wav;
-  std::unique_ptr<juce::AudioFormatWriter> writer(
-      wav.createWriterFor(new juce::FileOutputStream(file), sr, 2, 16, {}, 0)); // NOSONAR
+  std::unique_ptr<juce::AudioFormatWriter> writer(wav.createWriterFor(
+      new juce::FileOutputStream(file), sr, 2, 16, {}, 0)); // NOSONAR
   REQUIRE(writer != nullptr);
   writer->writeFromAudioSampleBuffer(buf, 0, numSamples);
   writer.reset();
@@ -81,7 +81,7 @@ TEST_CASE("SamplePlayer: loadSample with non-existent file does not crash",
           "[sample_player]") {
   auto sp = makePrepared();
   auto bogusFile = juce::File::getSpecialLocation(juce::File::tempDirectory)
-                     .getChildFile("does_not_exist_12345.wav");
+                       .getChildFile("does_not_exist_12345.wav");
   sp->loadSample(bogusFile);
   REQUIRE_FALSE(sp->isLoaded());
 }
@@ -118,7 +118,7 @@ TEST_CASE("SamplePlayer: unloadSample resets state", "[sample_player]") {
 
 // ステレオ WAV をロードした場合、内部バッファがモノ（L+R
 // 平均）になることを確認する
-TEST_CASE("SamplePlayer: stereo file is downmixed to mono", "[sample_player]") {
+TEST_CASE("SamplePlayer: stereo file is stored as 2ch", "[sample_player]") {
   auto sp = makePrepared();
   auto file = writeStereoTestWav(kTestLen);
   sp->loadSample(file);
@@ -126,12 +126,18 @@ TEST_CASE("SamplePlayer: stereo file is downmixed to mono", "[sample_player]") {
 
   auto view = sp->lock();
   REQUIRE(static_cast<bool>(view));
-  // L=ramp, R=-ramp → 平均は 0 に近い（16bit 量子化誤差あり）
-  float maxAbs = 0.0f;
+  REQUIRE(view.dataR != nullptr);
+
+  // L=ramp 0→1, R=-ramp 0→-1 がそれぞれ保存されていることを確認
+  const int mid = view.length / 2;
+  REQUIRE(view.data[mid] > 0.0f);  // L: 正のランプ
+  REQUIRE(view.dataR[mid] < 0.0f); // R: 負のランプ
+
+  // L+R の平均は 0 に近い（元のダウンミックス検証と同等）
+  float maxAbsMix = 0.0f;
   for (int i = 0; i < view.length; ++i)
-    maxAbs = std::max(maxAbs, std::abs(view.data[i]));
-  // 16bit 量子化誤差を考慮して0に近いことを確認
-  REQUIRE(maxAbs < 0.01f);
+    maxAbsMix = std::max(maxAbsMix, std::abs(view.data[i] + view.dataR[i]));
+  REQUIRE(maxAbsMix < 0.01f);
 
   file.deleteFile();
 }
@@ -259,11 +265,13 @@ TEST_CASE("SamplePlayer: readInterpolated does linear interpolation",
   bool fin = false;
   float v0 = sp->readInterpolated(view.data, view.length, 0.5, fin);
   REQUIRE_FALSE(fin);
-  REQUIRE_THAT(v0, WithinAbs(view.data[0], 1e-5f)); // first call returns data[0]
+  REQUIRE_THAT(v0,
+               WithinAbs(view.data[0], 1e-5f)); // first call returns data[0]
   float v1 = sp->readInterpolated(view.data, view.length, 0.5, fin);
   REQUIRE_FALSE(fin);
 
-  // second call returns the midpoint interpolation between the first two samples
+  // second call returns the midpoint interpolation between the first two
+  // samples
   float expected = view.data[0] * 0.5f + view.data[1] * 0.5f;
   REQUIRE_THAT(v1, WithinAbs(expected, 1e-5f));
 

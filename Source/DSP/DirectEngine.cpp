@@ -8,14 +8,18 @@
 // lifecycle
 // ────────────────────────────────────────────────────
 
-void DirectEngine::prepareToPlay(double /*sampleRate*/, int samplesPerBlock) {
+void DirectEngine::prepareToPlay(double sampleRate, int samplesPerBlock) {
   using enum juce::dsp::StateVariableTPTFilterType;
+  juce::dsp::ProcessSpec spec{};
+  spec.sampleRate = sampleRate;
+  spec.maximumBlockSize = static_cast<juce::uint32>(samplesPerBlock);
+  spec.numChannels = 2;
   for (auto &f : hpfs_) {
-    f.reset();
+    f.prepare(spec);
     f.setType(highpass);
   }
   for (auto &f : lpfs_) {
-    f.reset();
+    f.prepare(spec);
     f.setType(lowpass);
   }
 
@@ -23,6 +27,13 @@ void DirectEngine::prepareToPlay(double /*sampleRate*/, int samplesPerBlock) {
   noteTimeSamples_ = 0.0f;
   startOffset_ = 0;
   active_.store(false);
+
+  cachedSampleRate_ = static_cast<float>(sampleRate);
+  rampLength_ = static_cast<int>(cachedSampleRate_ * 0.0005f);
+  if (rampLength_ < 1)
+    rampLength_ = 1;
+  prevAmp_ = 0.0f;
+  rampCounter_ = 0;
 
   sampler_.prepare();
   directAmpLut_.reset();
@@ -36,6 +47,16 @@ void DirectEngine::triggerNote(int sampleOffset) {
   // サンプルモード時のみプレイヘッドリセット
   if (!passthroughMode_.load())
     sampler_.resetPlayhead();
+
+  // リトリガー時エンベロープ不連続防止: 現在の amp を保存しランプ開始
+  if (active_.load() && noteTimeSamples_ > 0.0f) {
+    const float noteTimeMs = noteTimeSamples_ * 1000.0f / cachedSampleRate_;
+    prevAmp_ = computeSampleAmp(noteTimeMs);
+    rampCounter_ = rampLength_;
+  } else {
+    prevAmp_ = 0.0f;
+    rampCounter_ = 0;
+  }
 
   noteTimeSamples_ = 0.0f;
   startOffset_ = sampleOffset;
@@ -79,22 +100,14 @@ auto DirectEngine::prepareFilters(float sr) -> FilterState {
   return {doHpf, doLpf, hpfStg, lpfStg};
 }
 
-float DirectEngine::synthesizeSample(const FilterState &fs, double playRate) {
-  bool finished = false;
-  float s = sampler_.readInterpolated(viewData_, viewLen_, playRate, finished);
-  if (finished)
-    return 0.0f; // render 側で active を落とす
-
-  // ── Drive + Clip（HPF/LPF 前）──
+float DirectEngine::processFilterChain(const FilterState &fs, int ch, float s) {
   s = Saturator::process(s, driveDb_.load(), clipType_.load());
-  // ── ポスト HPF / LPF ──
   for (int fi = 0; fs.doHpf && fi < fs.hpfStg; ++fi)
-    s = hpfs_[static_cast<std::size_t>(fi)].processSample(0, s);
+    s = hpfs_[static_cast<std::size_t>(fi)].processSample(ch, s);
   for (int fi = 0; fs.doLpf && fi < fs.lpfStg; ++fi)
-    s = lpfs_[static_cast<std::size_t>(fi)].processSample(0, s);
+    s = lpfs_[static_cast<std::size_t>(fi)].processSample(ch, s);
   if (fs.doHpf || fs.doLpf)
-    s = Saturator::process(s, 0.0f,
-                           clipType_.load()); // 共振ピークを ClipType で整形
+    s = Saturator::process(s, 0.0f, clipType_.load());
   return s;
 }
 
@@ -141,8 +154,9 @@ void DirectEngine::render(juce::AudioBuffer<float> &buffer, int numSamples,
                 0.0f);
     return;
   }
-  // synthesizeSample() からアクセスするためメンバーにキャッシュ
+  // readInterpolatedStereo() からアクセスするためメンバーにキャッシュ
   viewData_ = view.data;
+  viewDataR_ = view.dataR ? view.dataR : view.data;
   viewLen_ = view.length;
 
   const int numCh = buffer.getNumChannels();
@@ -163,17 +177,28 @@ void DirectEngine::render(juce::AudioBuffer<float> &buffer, int numSamples,
 
     const float noteTimeMs = noteTimeSamples_ * 1000.0f / sr;
     const float amp = computeSampleAmp(noteTimeMs);
-    const float out = synthesizeSample(fs, playRate) * amp * gain;
 
-    scratchBuffer_[static_cast<std::size_t>(i)] = out;
+    bool finished = false;
+    auto [sL, sR] = sampler_.readInterpolatedStereo(
+        viewData_, viewDataR_, viewLen_, playRate, finished);
+    if (finished) {
+      sL = 0.0f;
+      sR = 0.0f;
+    }
+    sL = processFilterChain(fs, 0, sL) * amp * gain;
+    sR = processFilterChain(fs, 1, sR) * amp * gain;
+
+    scratchBuffer_[static_cast<std::size_t>(i)] = (sL + sR) * 0.5f;
     if (directPass) {
-      for (int ch = 0; ch < numCh; ++ch)
-        buffer.addSample(ch, i, out);
+      buffer.addSample(0, i, sL);
+      if (numCh >= 2)
+        buffer.addSample(1, i, sR);
     }
     noteTimeSamples_ += 1.0f;
   }
 
   viewData_ = nullptr;
+  viewDataR_ = nullptr;
   viewLen_ = 0;
 }
 
@@ -182,7 +207,8 @@ void DirectEngine::render(juce::AudioBuffer<float> &buffer, int numSamples,
 // ────────────────────────────────────────────────
 
 void DirectEngine::renderPassthrough(juce::AudioBuffer<float> &buffer,
-                                     std::span<const float> inputMono,
+                                     std::span<const float> inputL,
+                                     std::span<const float> inputR,
                                      int numSamples, double sampleRate) {
   const auto sr = static_cast<float>(sampleRate);
   const float gain = juce::Decibels::decibelsToGain(gainDb_.load());
@@ -200,44 +226,45 @@ void DirectEngine::renderPassthrough(juce::AudioBuffer<float> &buffer,
     if (active_.load()) {
       if (startOffset_ > 0) {
         --startOffset_;
-        amp = 0.0f;
+        amp = prevAmp_; // リトリガー時はゼロ落ちせず旧アンプを維持
       } else if (noteTimeSamples_ >= maxTimeSamples) {
         active_.store(false);
         amp = 0.0f;
       } else {
         const float noteTimeMs = noteTimeSamples_ * 1000.0f / sr;
         amp = computeSampleAmp(noteTimeMs);
+        // リトリガーランプ: 旧アンプ → 新アンプへスムーズ遷移
+        if (rampCounter_ > 0) {
+          const float t = static_cast<float>(rampCounter_) /
+                          static_cast<float>(rampLength_);
+          amp = prevAmp_ * t + amp * (1.0f - t);
+          --rampCounter_;
+        }
         noteTimeSamples_ += 1.0f;
       }
     } else {
       amp = 0.0f; // Decay 終了後はミュート（Amp Envelope 制御）
     }
 
-    float s = (i < static_cast<int>(inputMono.size())) ? inputMono[static_cast<std::size_t>(i)] : 0.0f;
+    const auto idx = static_cast<std::size_t>(i);
+    float sL = (i < static_cast<int>(inputL.size())) ? inputL[idx] : 0.0f;
+    float sR = (i < static_cast<int>(inputR.size())) ? inputR[idx] : 0.0f;
 
     // amp または入力がゼロなら出力しない（Tube バイアス漏れ防止も兼ねる）
-    if (amp == 0.0f || s == 0.0f) {
-      scratchBuffer_[static_cast<std::size_t>(i)] = 0.0f;
+    if (amp == 0.0f || (sL == 0.0f && sR == 0.0f)) {
+      scratchBuffer_[idx] = 0.0f;
       continue;
     }
 
-    // Drive（プリフィルター）
-    s = Saturator::process(s, driveDb_.load(), clipType_.load());
+    sL = processFilterChain(fs, 0, sL);
+    sR = processFilterChain(fs, 1, sR);
 
-    // HPF / LPF
-    for (int fi = 0; fs.doHpf && fi < fs.hpfStg; ++fi)
-      s = hpfs_[static_cast<std::size_t>(fi)].processSample(0, s);
-    for (int fi = 0; fs.doLpf && fi < fs.lpfStg; ++fi)
-      s = lpfs_[static_cast<std::size_t>(fi)].processSample(0, s);
+    sL *= gain * amp;
+    sR *= gain * amp;
 
-    // 共振ピーク整形
-    if (fs.doHpf || fs.doLpf)
-      s = Saturator::process(s, 0.0f, clipType_.load());
-
-    s *= gain * amp;
-
-    scratchBuffer_[static_cast<std::size_t>(i)] = s;
-    for (int ch = 0; ch < numCh; ++ch)
-      buffer.addSample(ch, i, s);
+    scratchBuffer_[idx] = (sL + sR) * 0.5f;
+    buffer.addSample(0, i, sL);
+    if (numCh >= 2)
+      buffer.addSample(1, i, sR);
   }
 }

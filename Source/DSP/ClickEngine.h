@@ -110,7 +110,8 @@ private:
     int lpfStages;
   };
   FilterFlags setupFilters(float sr);
-  float synthesizeSample(int mode, const FilterFlags &flags, double playRate);
+  /// フィルタチェーン（Drive→HPF/LPF→共振整形）を 1ch 分処理
+  float processFilterChain(const FilterFlags &flags, int ch, float s);
   /// Sampleモードの停止判定用時間（サンプル数）を計算
   float computeMaxTimeSamples(float sr, int mode, double playRate) const;
   /// Sampleモードのエンベロープ振幅（LUT + 末尾フェード）を計算

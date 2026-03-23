@@ -445,6 +445,8 @@ void BoomBabyAudioProcessor::prepareToPlay(double sampleRate,
   directMode_.transientDetector_.setThresholdDb(-24.0f);
   directMode_.transientDetector_.setHoldMs(50.0f);
   monoMixBuffer_.resize(static_cast<std::size_t>(samplesPerBlock));
+  passthroughL_.resize(static_cast<std::size_t>(samplesPerBlock));
+  passthroughR_.resize(static_cast<std::size_t>(samplesPerBlock));
 
   inputMonitor_.data_.assign(static_cast<std::size_t>(InputMonitor::kCapacity),
                              0.0f);
@@ -494,18 +496,26 @@ void processPassthroughMonitor(BoomBabyAudioProcessor::DirectMode &dm,
                                BoomBabyAudioProcessor::InputMonitor &im,
                                EngineRefs eng,
                                const juce::AudioBuffer<float> &buffer,
-                               std::vector<float> &monoMixBuf, int numSamples) {
+                               std::vector<float> &monoMixBuf,
+                               std::vector<float> &ptL,
+                               std::vector<float> &ptR) {
   if (dm.sampleMode_.load() || buffer.getNumChannels() == 0)
     return;
 
+  const int numSamples = buffer.getNumSamples();
   auto *mono = monoMixBuf.data();
   const float *ch0 = buffer.getReadPointer(0);
   if (buffer.getNumChannels() >= 2) {
     const float *ch1 = buffer.getReadPointer(1);
     for (int i = 0; i < numSamples; ++i)
       mono[i] = (ch0[i] + ch1[i]) * 0.5f;
+    // ステレオ入力を保存（Direct passthrough 用）
+    std::copy_n(ch0, numSamples, ptL.data());
+    std::copy_n(ch1, numSamples, ptR.data());
   } else {
     std::copy_n(ch0, numSamples, mono);
+    std::copy_n(ch0, numSamples, ptL.data());
+    std::copy_n(ch0, numSamples, ptR.data());
   }
 
   if (dm.transientDetector_.isEnabled()) {
@@ -536,14 +546,16 @@ void processPassthroughMonitor(BoomBabyAudioProcessor::DirectMode &dm,
 /// Direct エンジンのパススルー vs サンプルモード呼び分け
 void renderDirectEngine(const BoomBabyAudioProcessor::DirectMode &dm,
                         const ChannelState::Passes &passes,
-                        DirectEngine &directEng,
-                        const std::vector<float> &monoMixBuf,
-                        juce::AudioBuffer<float> &buffer, int numSamples,
-                        double sr) {
+                        DirectEngine &directEng, const std::vector<float> &ptL,
+                        const std::vector<float> &ptR,
+                        juce::AudioBuffer<float> &buffer, double sr) {
+  const int numSamples = buffer.getNumSamples();
   if (!dm.sampleMode_.load() && passes.direct) {
     directEng.renderPassthrough(
         buffer,
-        std::span<const float>(monoMixBuf.data(),
+        std::span<const float>(ptL.data(),
+                               static_cast<std::size_t>(numSamples)),
+        std::span<const float>(ptR.data(),
                                static_cast<std::size_t>(numSamples)),
         numSamples, sr);
   } else {
@@ -602,7 +614,7 @@ void BoomBabyAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   // パススルーモード: モノミックス / トランジェント検出 / FIFO 供給
   processPassthroughMonitor(directMode_, inputMonitor_,
                             {subEngine_, clickEngine_, directEngine_}, buffer,
-                            monoMixBuffer_, numSamples);
+                            monoMixBuffer_, passthroughL_, passthroughR_);
 
   // Direct ミュート: 入力信号を消去（Sub はこの後加算。renderPassthrough も
   // addSample）
@@ -612,8 +624,8 @@ void BoomBabyAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
                    midiMessages, numSamples);
   subEngine_.render(buffer, numSamples, passes.sub, sr);
   clickEngine_.render(buffer, numSamples, passes.click, sr);
-  renderDirectEngine(directMode_, passes, directEngine_, monoMixBuffer_, buffer,
-                     numSamples, sr);
+  renderDirectEngine(directMode_, passes, directEngine_, passthroughL_,
+                     passthroughR_, buffer, sr);
 
   // マスターゲイン適用
   buffer.applyGain(juce::Decibels::decibelsToGain(master_.gainDb_.load()));
